@@ -42,7 +42,7 @@ python -m bmsolver -h
 | command | what it does |
 |---|---|
 | `python -m bmsolver split 12` | smallest 1:12 splitter |
-| `python -m bmsolver split 7 --quasi` | mirror symmetric except the middle row (or two) |
+| `python -m bmsolver split 8 --quasi` | quasi-symmetric: mirror symmetric except one tile pair in the middle row(s), which must be the same piece but may face another way (like the wiki splitters with one turned splitter); `--quasi 2` allows two such pairs |
 | `python -m bmsolver split 9 --sym` | fully mirror symmetric |
 | `python -m bmsolver merge 4` | 4:1 merger |
 | `python -m bmsolver balance 3` | 3:3 balancer, exact search |

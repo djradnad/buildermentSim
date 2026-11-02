@@ -38,7 +38,11 @@ def check(design, inputs, outputs, rates=None, mix=True):
         v = [Fraction(0)] * n
         v[i] = Fraction(rates[i])
         src[p] = [a + b for a, b in zip(src.get(p, [0] * n), v)]
-    inflow, drained = flows(design, src, set(outputs))
+    try:
+        inflow, drained = flows(design, src, set(outputs))
+    except ValueError:                          # items circle in a loop with no way out: never works
+        return dict(ok=False, balanced=False, shares=[[Fraction(0)] * n for _ in outputs], overfull=[],
+                    stuck=['loop with no exit'], idle=[], inputs=n, outputs=m)
     shares = []
     for o in outputs:
         got = drained.get(o, [Fraction(0)] * n)
