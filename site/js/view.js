@@ -83,7 +83,7 @@ export class View {
     const [x0, y0, x1, y1] = this.bbox;
     const w = x1 - x0 + 2, h = y1 - y0 + 2;
     const ch = Math.max(80, this.ch - this.insetBottom());   // part of the canvas a bottom sheet doesn't cover
-    this.scale = Math.max(0.3, Math.min(64, Math.min(this.cw / w, ch / h)));
+    this.scale = Math.max(this.minScale || 0.3, Math.min(64, Math.min(this.cw / w, ch / h)));
     this.ox = (x0 + x1) / 2 - this.cw / 2 / this.scale;
     this.oy = (y0 + y1) / 2 - ch / 2 / this.scale;
     this.draw();
@@ -135,7 +135,7 @@ export class View {
   }
 
   zoomAt(k, sx, sy) {
-    const ns = Math.max(0.3, Math.min(160, this.scale * k));
+    const ns = Math.max(this.minScale || 0.3, Math.min(160, this.scale * k));
     const tx = sx / this.scale + this.ox, ty = sy / this.scale + this.oy;
     this.scale = ns;
     this.ox = tx - sx / ns; this.oy = ty - sy / ns;

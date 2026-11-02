@@ -4,6 +4,7 @@ import { Factory, GAMEDATA } from './gamesim.js';
 import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, RAW_ITEMS } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
+import { initWorld } from './world.js';
 
 const $ = id => document.getElementById(id);
 const TPS = 60;
@@ -148,7 +149,7 @@ function renderInputs() {
     for (const e of state.extractors) counts[e.item] = (counts[e.item] || 0) + 1;
     const d = document.createElement('div');
     d.className = 'small muted';
-    d.textContent = 'Extractors: ' + Object.entries(counts).map(([k, n]) => `${n} on ${k}`).join(', ') +
+    d.textContent = 'Extractors: ' + Object.entries(counts).map(([k, n]) => `${n} on ${k === "null" ? "no node (idle)" : k}`).join(', ') +
       ' (tap one on the map to change its resource)';
     box.appendChild(d);
   }
@@ -459,3 +460,16 @@ initDesigner({ openInSim: (rows, meta) => {
   document.querySelector('.tab[data-tab="sim"]').click();
   loadBlueprint(rows, meta);
 } });
+
+initWorld({
+  getBuild: () => state.buildings && { buildings: state.buildings, name: state.meta.name || 'build' },
+  useInSim: ({ items, gen, label }) => {
+    for (const e of state.extractors) e.item = items[e.x + ',' + e.y] || null;
+    $('gen').value = String(gen);
+    state.worldLabel = label;
+    renderInputs();
+    rebuild();
+    document.querySelector('.tab[data-tab="sim"]').click();
+    setStatus('Extractors mine the nodes of ' + label);
+  },
+});
