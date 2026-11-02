@@ -11,6 +11,11 @@
     color-scheme: light;
   }
 }
+:root[data-theme="light"] {
+  --bg: #eef0f4; --panel: #f7f8fa; --card: #ffffff; --line: #dde1e8; --text: #151820; --muted: #5d6576;
+  --accent: #1f6fd1; --accent-ink: #ffffff;
+  color-scheme: light;
+}
 :root[data-theme="dark"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
