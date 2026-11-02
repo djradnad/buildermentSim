@@ -135,13 +135,18 @@ export const RAW_ITEMS = ['Wood Log', 'Stone', 'Iron Ore', 'Copper Ore', 'Coal',
 
 // Which item an open input most likely carries: follow the belts (and arms picking from them) to the machines
 // they reach and take the raw ingredient those need most often. Falls back to `fallback`.
+const armsFromCache = new WeakMap();
 export function guessFeedItem(w, seg, fallback) {
-  const armsFrom = new Map();
-  for (const a of w.arms) {
-    for (const g of w.segAt(a.src)) {
-      const L = armsFrom.get(g[0]) || [];
-      L.push(a); armsFrom.set(g[0], L);
+  let armsFrom = armsFromCache.get(w);
+  if (!armsFrom) {
+    armsFrom = new Map();
+    for (const a of w.arms) {
+      for (const g of w.segAt(a.src)) {
+        const L = armsFrom.get(g[0]) || [];
+        L.push(a); armsFrom.set(g[0], L);
+      }
     }
+    armsFromCache.set(w, armsFrom);
   }
   const votes = {}, seen = new Set([seg]), queue = [seg];
   const vote = b => {

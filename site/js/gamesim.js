@@ -485,6 +485,28 @@ export class World {
     for (const g of this.segs) if (g.nodes[0].kind === 2) this.outSeg.set(g.nodes[0].owner, g);
   }
 
+  // segments whose bounding box can touch the 1x1 box around tile p, in creation order (same result as
+  // scanning every segment, which is what the game's lookup amounts to on a fresh world)
+  segsNear(p) {
+    if (!this.grid) {
+      this.grid = new Map();
+      for (const g of this.segs) {
+        const [x0, y0, x1, y1] = g.bbox;
+        for (let x = Math.floor(x0); x <= Math.floor(x1); x++)
+          for (let y = Math.floor(y0); y <= Math.floor(y1); y++) {
+            const c = key(x, y);
+            const L = this.grid.get(c);
+            if (L) L.push(g); else this.grid.set(c, [g]);
+          }
+      }
+    }
+    const out = new Set();
+    for (let x = Math.floor(p[0] - 0.5); x <= Math.floor(p[0] + 0.5); x++)
+      for (let y = Math.floor(p[1] - 0.5); y <= Math.floor(p[1] + 0.5); y++)
+        for (const g of this.grid.get(key(x, y)) || []) out.add(g);
+    return [...out].sort((a, b) => a.idx - b.idx);
+  }
+
   makeSeg(nodes, flag) {
     const g = new Seg(this.segs.length, this.points(nodes), flag, nodes);
     this.segs.push(g);
@@ -729,7 +751,8 @@ export class Factory extends World {
   segAt(p, needFlag = true) {
     const res = [];
     let cand = this.segs;
-    if (this.qt) {
+    if (!this.qt) cand = this.segsNear(p);
+    else {
       const x0 = f32(f32(p[0]) - 0.5), y0 = f32(f32(p[1]) - 0.5);
       cand = this.qt.query([x0, y0, f32(x0 + 1), f32(y0 + 1)]);
     }
