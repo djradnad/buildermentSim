@@ -96,7 +96,13 @@ export class View {
     const c = this.canvas;
     const pts = new Map();
     let moved = 0, pinch = null;
-    c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.offsetX, e.offsetY]); moved = 0; });
+    c.addEventListener('pointerdown', e => {
+      e.preventDefault();                       // no text selection or long-press menu while dragging
+      if (e.isPrimary) { pts.clear(); pinch = null; }   // a new first touch: forget fingers whose 'up' got lost
+      try { c.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+      pts.set(e.pointerId, [e.offsetX, e.offsetY]);
+      moved = 0;
+    });
     c.addEventListener('pointermove', e => {
       if (!pts.has(e.pointerId)) {
         if (e.pointerType === 'mouse') this.onPick(this.toTile(e.offsetX, e.offsetY), false);
@@ -108,8 +114,8 @@ export class View {
         this.ox -= (e.offsetX - px) / this.scale; this.oy -= (e.offsetY - py) / this.scale;
         moved += Math.abs(e.offsetX - px) + Math.abs(e.offsetY - py);
         this.draw();
-      } else if (pts.size === 2) {
-        const [a, b] = [...pts.values()];
+      } else if (pts.size >= 2) {
+        const [a, b] = [...pts.values()].slice(-2);
         const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
         const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
         if (pinch) this.zoomAt(d / pinch, mx, my);
@@ -123,6 +129,8 @@ export class View {
     };
     c.addEventListener('pointerup', up);
     c.addEventListener('pointercancel', up);
+    c.addEventListener('lostpointercapture', e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; });
+    c.addEventListener('contextmenu', e => e.preventDefault());
     c.addEventListener('wheel', e => { e.preventDefault(); this.zoomAt(Math.exp(-e.deltaY * 0.0015), e.offsetX, e.offsetY); }, { passive: false });
   }
 
