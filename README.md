@@ -18,6 +18,13 @@ S<.
 (`<^v>` belts, `S` splitter, `I`/`O` underground in/out; upper case faces east/west, lower case north/south.
 Items flow from the east side to the west side here.)
 
+## Web site
+
+`site/` is a web page with the game-exact simulator and the designer: load any blueprint (or a solver result), watch
+it run tick by tick at up to max game speed, and see the throughput of every tile, either right now or as the
+long-run settled average with the time it took to settle. The designer tab shows solved layouts and, with `--live`,
+the best layout of a solver running on your computer. See `site/README.md`.
+
 ## Install
 
 Python 3.9 or newer, then:
