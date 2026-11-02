@@ -108,22 +108,38 @@
     <canvas id="dview" aria-label="design view"></canvas>
     <div class="hud"><div class="status" id="dstatus">Pick a design or connect to a running solver</div></div>
   </section>
-  <aside class="panel">
+  <aside class="panel" id="dpanel">
+    <button class="sheet-handle" id="dsheetHandle" aria-label="show or hide the panel"></button>
+    <div class="card">
+      <h2>Find a layout</h2>
+      <div class="seg" id="dKind"><button data-v="split" class="on">Splitter</button><button data-v="merge">Merger</button><button data-v="balance">Balancer</button></div>
+      <div class="row ratio">
+        <label>In <input id="dN" type="number" min="1" max="64" value="1" inputmode="numeric"></label>
+        <span class="muted">:</span>
+        <label>Out <input id="dM" type="number" min="1" max="64" value="8" inputmode="numeric"></label>
+      </div>
+      <h3>Rule</h3>
+      <div class="seg" id="dMode"><button data-v="sym">Symmetric</button><button data-v="quasi" class="on">Quasi</button><button data-v="asym">Any</button></div>
+      <p class="muted small" id="dModeHelp"></p>
+      <h3>Goal</h3>
+      <div class="seg" id="dGoal"><button data-v="area" class="on">Smallest area</button><button data-v="square">Most square</button></div>
+    </div>
+    <div class="card">
+      <h2>Best known</h2>
+      <div id="dBest"></div>
+      <div class="row"><button id="dSim" class="primary" disabled>Open in simulator</button><button id="dCopy" disabled>Copy blueprint json</button></div>
+      <div id="dinfo" class="meta">&nbsp;</div>
+      <h3>Solve it yourself</h3>
+      <code class="cmd" id="dCmd"></code>
+      <h3>All known layouts for this ratio</h3>
+      <div id="dAll" class="list"></div>
+    </div>
     <div class="card">
       <h2>Live solver</h2>
-      <p class="muted small">Run the solver on a computer with <code>python -m bmsolver split 12 --live</code>, then connect: the best design so far shows here and keeps updating.</p>
-      <div class="row"><input id="liveUrl" value="http://127.0.0.1:8765" spellcheck="false"><button id="liveConnect" class="primary">Connect</button></div>
+      <p class="muted small">Run the solver on a computer with the command above plus <code>--live</code>, then connect: the best design so far shows here and keeps updating.</p>
+      <div class="row"><input id="liveUrl" value="http://127.0.0.1:8765" spellcheck="false"><button id="liveConnect">Connect</button></div>
       <div id="liveSizes" class="chips"></div>
-      <pre id="liveLog" class="log"></pre>
-    </div>
-    <div class="card">
-      <h2>Gallery</h2>
-      <div id="gallery" class="list"></div>
-    </div>
-    <div class="card">
-      <h2>Design</h2>
-      <div id="dinfo" class="muted small">&nbsp;</div>
-      <div class="row"><button id="dSim" disabled>Open in simulator</button><button id="dCopy" disabled>Copy blueprint json</button></div>
+      <pre id="liveLog" class="log" hidden></pre>
     </div>
   </aside>
 </main>

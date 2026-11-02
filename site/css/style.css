@@ -97,3 +97,19 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
   .sheet-handle { display: block; width: 44px; height: 5px; padding: 0; margin: 6px auto 8px; border: 0; border-radius: 3px;
     background: var(--line); }
 }
+
+/* designer */
+.ratio label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.ratio input { width: 68px; }
+.best { font-size: 13px; margin-bottom: 6px; }
+.cmd { display: block; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+  user-select: all; -webkit-user-select: all; overflow-x: auto; white-space: nowrap; }
+.gal.off { opacity: .5; }
+.gal > span:first-child { flex: 1; }
+.gal { gap: 8px; }
+.badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line); }
+.badge.sym { border-color: var(--good); color: var(--good); }
+.badge.quasi { border-color: var(--accent); color: var(--accent); }
+.badge.asym { color: var(--muted); }
+#dAll { max-height: 220px; overflow-y: auto; }
+.good { color: var(--good); }
