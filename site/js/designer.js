@@ -97,7 +97,8 @@ export function initDesigner({ openInSim }) {
 
   function pick(d) {
     show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}` });
-    $('dinfo').textContent = d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '';
+    $('dinfo').textContent = (d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '') +
+      (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
     $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}`;
     document.querySelectorAll('#dAll .gal').forEach(x => x.classList.toggle('on', x.dataset.k === d._k));
   }
@@ -124,8 +125,10 @@ export function initDesigner({ openInSim }) {
       $('dBest').innerHTML = `<div class="best"><b>${n}:${m}</b> ${label(best, all)}</div>`;
       pick(best);
     } else {
-      $('dBest').innerHTML = `<div class="muted small">No ${MODE_NAME[st.mode]} ${n}:${m} layout known yet` +
-        `${all.length ? ' (other rules have some, listed below)' : ''}. Run the command below to search for one.</div>`;
+      const why = st.mode === 'sym' && ((n === 1 && m % 2 === 0) || (m === 1 && n % 2 === 0))
+        ? `A mirror-symmetric ${n}:${m} can't exist with the ${n === 1 ? 'outputs' : 'inputs'} side by side: an even number of lanes has no middle lane for the single ${n === 1 ? 'input' : 'output'}. Quasi is the closest form.`
+        : `No ${MODE_NAME[st.mode]} ${n}:${m} layout known yet${all.length ? ' (other rules have some, listed below)' : ''}. Run the command below to search for one.`;
+      $('dBest').innerHTML = `<div class="muted small">${why}</div>`;
       st.current = null;
       $('dSim').disabled = $('dCopy').disabled = true;
       $('dinfo').innerHTML = '&nbsp;';

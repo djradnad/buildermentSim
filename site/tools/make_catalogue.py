@@ -55,21 +55,51 @@ def to_design(e):
     raise ValueError('no layout in ' + e.get('name', '?'))
 
 
+def loose_ports(design):
+    """Like find_ports(E, W), but an input may also be a tile that something inside feeds (side-loading
+    mergers: a column of belts each taking one lane from the east)."""
+    x0, y0, x1, y1 = design.bbox()
+    ins = [(p, dd) for p, dd in design.open_inputs() if p[0] == x1 and dd == 1]
+    outs = [(p, dd) for p, dd in design.open_outputs() if p[0] == x0 and dd == 1]
+    key = lambda t: (t[0][1], t[0][0])
+    return sorted(ins, key=key), sorted(outs, key=key)
+
+
 def orient(d):
+    r = _orient(d, find_ports)
+    if r is not None and len(r[2]) > 1:
+        return r
+    r2 = _orient(d, lambda x, a, b: loose_ports(x))      # mergers that side-load every lane
+    if r2 is not None and len(r2[2]) == 1 and (r is None or (len(r[2]) == 1 and len(r2[1]) > len(r[1]))):
+        return r2
+    return r
+
+
+def _orient(d, ports):
     """Turn so the inputs are on the east side and the outputs on the west side, trying every quarter turn.
     Returns (design, inputs, outputs, report) for the reading with the most outputs that checks out."""
     best = None
     for k in range(4):
         r = d.rotated(k)
-        ins, outs = find_ports(r, ('E',), ('W',))
+        ins, outs = ports(r, ('E',), ('W',))
         if not ins or not outs:
             continue
-        for mix in (True, False):
-            rep = check(r, ins, outs, mix=mix and len(ins) > 1)
-            if rep['balanced'] and not rep['overfull'] and not rep['stuck']:
-                cand = (len(ins) + len(outs), mix, k, r, ins, outs, rep)
-                if best is None or cand[:2] > best[:2]:
-                    best = cand
+        # a splitter at an end of the output side may face the edge without being an output (in game it only
+        # pushes where something takes items), so also try without the first or last open end
+        for outs_ in ((outs, outs[1:], outs[:-1]) if len(d) < 400 else (outs,)):
+            if not outs_:
+                continue
+            done = False
+            for mix in (True, False):
+                rep = check(r, ins, outs_, mix=mix and len(ins) > 1)
+                if rep['balanced'] and not rep['overfull'] and not rep['stuck']:
+                    rep['stray_out'] = outs_ is not outs
+                    cand = (len(ins) + len(outs_), mix, k, r, ins, outs_, rep)
+                    if best is None or cand[:2] > best[:2]:
+                        best = cand
+                    done = True
+                    break
+            if done:
                 break
     if best is None:
         return None
@@ -119,14 +149,13 @@ def main(paths):
             for p in rep['idle']:
                 del r.tiles[p]
             r = r.normalized()
-            ins, outs = find_ports(r, ('E',), ('W',))
             n, m = len(ins), len(outs)
             W, H = r.size
             kind = 'split' if n == 1 else 'merge' if m == 1 else 'balance'
             key = r.to_text(compact=False)
             ent = dict(kind=kind, n=n, m=m, W=W, H=H, pieces=len(r), mode=symmetry(r), mixed=rep['mixed'],
                        name=e.get('name'), source=e.get('source', 'ours'), id=e.get('id'),
-                       trimmed=len(rep['idle']), splitters=r.count('S'), ug=r.count('I') + r.count('O'), grid=key.split('\n'))
+                       trimmed=len(rep['idle']), stray_out=rep.get('stray_out', False), splitters=r.count('S'), ug=r.count('I') + r.count('O'), grid=key.split('\n'))
             LOOSE = {'sym': 0, 'quasi': 1, 'asym': 2}
             if e.get('proven_for'):
                 ent['proven_for'] = e['proven_for']      # smallest area under this rule (and every stricter one)
