@@ -1,0 +1,6 @@
+{
+  "name": "1:3 with the input in row 0 and outputs in rows 2-4",
+  "inputs": [{"side": "E", "count": 1, "at": 0}],
+  "outputs": [{"side": "W", "count": 3, "at": 2}],
+  "mix": false
+}

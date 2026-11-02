@@ -1,0 +1,6 @@
+{
+  "name": "2 top + 2 bottom to 4 left, equal totals",
+  "inputs": [{"side": "N", "count": 2}, {"side": "S", "count": 2}],
+  "outputs": [{"side": "W", "count": 4}],
+  "mix": false
+}
