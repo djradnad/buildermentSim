@@ -781,6 +781,7 @@ export class Factory extends World {
           const r = g.pick(q, a.filt);
           if (r) {
             got = r[0];
+            a.lastPick = [g, q];
             if (r[1] === 0 && g.target instanceof Seg && g.target.inputs.length > 1) g.target.chosen = mergeNext(g.target);
             break;
           }
@@ -817,5 +818,52 @@ export class Factory extends World {
     for (const st of this.storages) this.pushOut(st, st.item);
     for (const f of this.feeds) f.tick(M);
     this.tickNo++;
+  }
+}
+
+// ------------------------------------------------------------------ belt-segment quadtree (arm lookups)
+// As read from the Steam exe: root (-10000,-10000)-(10000,10000); a leaf holds up to 33 segments, the 34th insert
+// splits it at float midpoints and re-inserts its segments (each into the first child that fully contains it, else
+// it stays). Containment and overlap inclusive. A query returns a node's own overlapping segments in insertion
+// order, then children 0..3 (a node fully inside the query box gives its whole subtree). Clearing keeps the
+// children, so the tree's shape depends on build history; loading a save starts a fresh tree.
+class QNode { constructor(b) { this.b = b; this.kids = null; this.els = []; } }
+const qContains = (c, e) => c[0] <= e[0] && c[1] <= e[1] && e[2] <= c[2] && e[3] <= c[3];
+const qOverlap = (a, b) => a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
+export class QuadTree {
+  constructor() { const r = f32(10000); this.root = new QNode([-r, -r, r, r]); }
+  _subdivide(n) {
+    const [x0, y0, x1, y1] = n.b;
+    const hw = f32(f32(x1 - x0) * f32(0.5)), hh = f32(f32(y1 - y0) * f32(0.5));
+    const mx = f32(x0 + hw), my = f32(y0 + hh);
+    n.kids = [new QNode([x0, y0, mx, my]), new QNode([mx, y0, f32(mx + hw), my]),
+      new QNode([x0, my, mx, f32(my + hh)]), new QNode([mx, my, f32(mx + hw), f32(my + hh)])];
+    const old = n.els; n.els = [];
+    for (const e of old) this._insertFrom(n, e);
+  }
+  _insertFrom(n, e) {
+    for (;;) {
+      if (n.kids === null) {
+        if (n.els.length <= 32) { n.els.push(e); return; }
+        this._subdivide(n);
+      }
+      const c = n.kids.find(k => qContains(k.b, e[0]));
+      if (!c) { n.els.push(e); return; }
+      n = c;
+    }
+  }
+  insert(box, obj) { this._insertFrom(this.root, [box, obj]); }
+  clear() { const st = [this.root]; while (st.length) { const n = st.pop(); n.els = []; if (n.kids) st.push(...n.kids); } }
+  query(q) {
+    const out = [];
+    const all = n => { for (const e of n.els) out.push(e[1]); if (n.kids) for (const c of n.kids) all(c); };
+    const rec = n => {
+      if (!qOverlap(q, n.b)) return;
+      if (qContains(q, n.b)) { all(n); return; }
+      for (const e of n.els) if (qOverlap(q, e[0])) out.push(e[1]);
+      if (n.kids) for (const c of n.kids) rec(c);
+    };
+    rec(this.root);
+    return out;
   }
 }
