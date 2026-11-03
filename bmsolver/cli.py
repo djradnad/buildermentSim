@@ -10,7 +10,7 @@ from .design import Design
 
 EXAMPLES = """examples:
   python -m bmsolver split 12                    smallest 1:12 splitter (inputs east, outputs west)
-  python -m bmsolver split 7 --quasi --live      quasi-symmetric 1:7, watch it in the browser
+  python -m bmsolver split 7 --quasi --live      quasi-symmetric 1:7 (one turned middle tile), watch it in the browser
   python -m bmsolver balance 3 --goal both       smallest-area and most-square 3:3 balancers
   python -m bmsolver balance 8                   8:8 built from stages, then shrunk
   python -m bmsolver merge 4 --in N --out W      4:1 merger, inputs on top, output on the left
@@ -31,7 +31,9 @@ def main(argv=None):
         p.add_argument('--goal', choices=['area', 'square', 'both'], default='area',
                        help='smallest area, most square (shortest longest side), or both')
         p.add_argument('--sym', action='store_true', help='mirror symmetric')
-        p.add_argument('--quasi', action='store_true', help='mirror symmetric except the middle row (or two)')
+        p.add_argument('--quasi', nargs='?', type=int, const=1, default=0, metavar='N',
+                       help='mirror symmetric except N tiles (default 1) in the middle row(s) that may face another way, '
+                       'like the one turned splitter in the middle of the wiki 1:even splitters')
         p.add_argument('--axis', choices=['y', 'x'], default=None,
                        help='mirror axis: y flips top/bottom (default for east/west ports), x flips left/right')
         p.add_argument('--timeout', type=float, default=60, help='seconds per window size (default 60)')
