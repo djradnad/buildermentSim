@@ -13,6 +13,7 @@
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="sim" role="tab">Simulator</button>
     <button class="tab" data-tab="designer" role="tab">Designer</button>
+    <button class="tab" data-tab="world" role="tab">World</button>
   </nav>
   <a class="gh" href="https://github.com/djradnad/buildermentSim" target="_blank" rel="noopener">GitHub</a>
 </header>
@@ -141,6 +142,36 @@
       <div class="row"><input id="liveUrl" value="http://127.0.0.1:8765" spellcheck="false"><button id="liveConnect">Connect</button></div>
       <div id="liveSizes" class="chips"></div>
       <pre id="liveLog" class="log" hidden></pre>
+    </div>
+  </aside>
+</main>
+
+<main id="tab-world" class="tabpane">
+  <section class="stage">
+    <canvas id="wview" aria-label="world map"></canvas>
+    <div class="hud"><div class="status" id="wStatus">Enter a seed to see its world</div><div class="status" id="wtip"></div></div>
+  </section>
+  <aside class="panel" id="wpanel">
+    <button class="sheet-handle" id="wsheetHandle" aria-label="show or hide the panel"></button>
+    <div class="card">
+      <h2>World seed</h2>
+      <div class="row"><input id="wSeed" placeholder="seed as in the game, e.g. 4Uth4P" autocomplete="off" spellcheck="false" autocapitalize="off"><button id="wGo" class="primary">Generate</button></div>
+      <div class="row">
+        <select id="wMode"></select>
+        <label class="small muted">Size <select id="wSize"><option>50</option><option>75</option><option selected>100</option><option>150</option><option>200</option></select></label>
+        <label class="small muted">Resources <select id="wRes"><option>50</option><option>75</option><option selected>100</option><option>150</option><option>200</option></select></label>
+      </div>
+      <div id="wInfo" class="meta">&nbsp;</div>
+      <div id="wCounts" class="list"></div>
+    </div>
+    <div class="card">
+      <h2>Build on this world</h2>
+      <p class="muted small">Takes the build loaded in the simulator. Tap the map to move it; extractors mine the node under them.</p>
+      <div class="row"><button id="wPlace">Place current build</button><button id="wUse" class="primary" disabled>Run it in the simulator</button></div>
+      <div id="wBuildInfo" class="meta">&nbsp;</div>
+    </div>
+    <div class="card about">
+      <p class="muted small">Node placement comes from a reimplementation of the game's world generator, checked node for node against real iPhone saves and 5,456 community Gen 2 worlds. Steam (PC) worlds are not in yet.</p>
     </div>
   </aside>
 </main>
