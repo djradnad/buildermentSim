@@ -1,7 +1,7 @@
 // Canvas view of a factory: buildings, belts, flow lines sized by throughput, moving items, per-tile numbers.
 // Pan with drag, zoom with wheel or pinch; tap/hover a tile for details.
 
-import { BDEF, DV, footprint, grot } from './gamesim.js';
+import { BDEF, DV, footprint, grot, World } from './gamesim.js';
 
 const RAW_COLORS = {
   'Wood Log': '#b07a45', 'Stone': '#a3a3a3', 'Iron Ore': '#c86b5a', 'Copper Ore': '#e08a3c', 'Coal': '#5c5c66',
@@ -46,7 +46,7 @@ export class View {
     this.scale = 32; this.ox = 0; this.oy = 0;   // screen = (tile - origin) * scale
     this.world = null;
     this.tileRates = null;      // Map "x,y" -> items/min
-    this.showItems = true; this.showNumbers = true; this.showFlow = true;
+    this.showItems = true; this.showNumbers = true; this.showFlow = true; this.showPieces = false;
     this.onPick = opts.onPick || (() => {});
     this.insetBottom = opts.insetBottom || (() => 0);
     this.dpr = 1;
@@ -207,6 +207,8 @@ export class View {
       }
     }
 
+    if (this.showPieces) this._drawPieces(vx0, vy0, vx1, vy1);
+
     // items
     if (this.showItems && s >= 6) {
       const r = Math.max(1.5, s * 0.1);
@@ -257,6 +259,69 @@ export class View {
       const [sx, sy] = this.toScreen(this.pick[0], this.pick[1]);
       ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2;
       ctx.strokeRect(sx - s / 2, sy - s / 2, s, s);
+    }
+  }
+
+  // The game's hidden structure: the belt quadtree's cells (arms look belts up through it), every belt piece (one
+  // segment = one polyline items move along, including the short output stubs inside a splitter tile), and which
+  // pieces sit on a split line (those are listed first, so an arm dropping there uses them: a dead splitter).
+  _drawPieces(vx0, vy0, vx1, vy1) {
+    const ctx = this.ctx, s = this.scale, w = this.world;
+    const qt = w.qt;
+    if (qt) {
+      ctx.lineWidth = 1;
+      for (const [n, d] of qt.cells([vx0, vy0, vx1, vy1])) {
+        if (!n.kids) continue;                       // draw the split lines of every split cell
+        const [x0, y0, x1, y1] = n.b, mx = n.kids[0].b[2], my = n.kids[0].b[3];
+        ctx.strokeStyle = `hsla(${(d * 47) % 360},80%,62%,0.75)`;
+        ctx.setLineDash(d < 3 ? [] : [4, 3]);
+        ctx.beginPath();
+        let [a, b] = this.toScreen(mx, Math.max(y0, vy0)), [c, e] = this.toScreen(mx, Math.min(y1, vy1));
+        ctx.moveTo(a, b); ctx.lineTo(c, e);
+        [a, b] = this.toScreen(Math.max(x0, vx0), my); [c, e] = this.toScreen(Math.min(x1, vx1), my);
+        ctx.moveTo(a, b); ctx.lineTo(c, e);
+        ctx.stroke();
+        if (s >= 14) {
+          ctx.fillStyle = ctx.strokeStyle; ctx.font = '10px ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+          const [tx, ty] = this.toScreen(Math.max(mx, vx0 + 0.6), Math.max(my, vy0 + 0.6));
+          ctx.fillText('split ' + d, tx + 3, ty + 2);
+        }
+      }
+      ctx.setLineDash([]);
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const g of w.segs) {
+      if (!g.pts.some(p => p[0] >= vx0 && p[0] <= vx1 && p[1] >= vy0 && p[1] <= vy1)) continue;
+      const hue = (g.idx * 137.5) % 360;
+      const loc = qt && qt.locate(g);
+      ctx.strokeStyle = `hsl(${hue},85%,60%)`;
+      ctx.lineWidth = Math.max(1.5, s * (g.nodes.length === 2 && World.isSplit(g.nodes[0]) ? 0.12 : 0.07));
+      ctx.setLineDash(g.flag ? [] : [3, 4]);
+      ctx.beginPath();
+      g.pts.forEach((p, i) => { const [sx, sy] = this.toScreen(p[0], p[1]); i ? ctx.lineTo(sx, sy) : ctx.moveTo(sx, sy); });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const [hx, hy] = this.toScreen(g.pts[0][0], g.pts[0][1]);
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.beginPath(); ctx.arc(hx, hy, Math.max(2, s * 0.07), 0, 6.2832); ctx.fill();
+      const pe = g.pts[g.pts.length - 1], pb = g.pts[Math.max(0, g.pts.length - 2)];
+      const [ex, ey] = this.toScreen(pe[0], pe[1]), [bx, by] = this.toScreen(pb[0], pb[1]);
+      const an = Math.atan2(ey - by, ex - bx), al = Math.max(4, s * 0.14);
+      ctx.beginPath(); ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - al * Math.cos(an - 0.5), ey - al * Math.sin(an - 0.5));
+      ctx.lineTo(ex - al * Math.cos(an + 0.5), ey - al * Math.sin(an + 0.5)); ctx.closePath(); ctx.fill();
+      if (loc && loc.onSplit) {                    // on a split line: drawn with its box
+        const [x0, y0, x1, y1] = g.bbox;
+        const [a, b] = this.toScreen(x0, y0), [c, e] = this.toScreen(x1, y1);
+        ctx.strokeStyle = '#ffb02e'; ctx.lineWidth = 1.5; ctx.setLineDash([2, 2]);
+        ctx.strokeRect(a - 3, b - 3, c - a + 6, e - b + 6); ctx.setLineDash([]);
+      }
+      if (s >= 30) {
+        const m = g.pointAt(g.L / 2), [sx, sy] = this.toScreen(m[0], m[1]);
+        ctx.font = '9px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillStyle = `hsl(${hue},85%,75%)`;
+        ctx.fillText('#' + g.idx, sx, sy - s * 0.12);
+      }
     }
   }
 

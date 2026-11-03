@@ -831,7 +831,7 @@ class QNode { constructor(b) { this.b = b; this.kids = null; this.els = []; } }
 const qContains = (c, e) => c[0] <= e[0] && c[1] <= e[1] && e[2] <= c[2] && e[3] <= c[3];
 const qOverlap = (a, b) => a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
 export class QuadTree {
-  constructor() { const r = f32(10000); this.root = new QNode([-r, -r, r, r]); }
+  constructor() { const r = f32(10000); this.root = new QNode([-r, -r, r, r]); this.where = new Map(); }
   _subdivide(n) {
     const [x0, y0, x1, y1] = n.b;
     const hw = f32(f32(x1 - x0) * f32(0.5)), hh = f32(f32(y1 - y0) * f32(0.5));
@@ -844,16 +844,32 @@ export class QuadTree {
   _insertFrom(n, e) {
     for (;;) {
       if (n.kids === null) {
-        if (n.els.length <= 32) { n.els.push(e); return; }
+        if (n.els.length <= 32) { n.els.push(e); this.where.set(e[1], n); return; }
         this._subdivide(n);
       }
       const c = n.kids.find(k => qContains(k.b, e[0]));
-      if (!c) { n.els.push(e); return; }
+      if (!c) { n.els.push(e); this.where.set(e[1], n); return; }
       n = c;
     }
   }
   insert(box, obj) { this._insertFrom(this.root, [box, obj]); }
-  clear() { const st = [this.root]; while (st.length) { const n = st.pop(); n.els = []; if (n.kids) st.push(...n.kids); } }
+  clear() { this.where.clear(); const st = [this.root]; while (st.length) { const n = st.pop(); n.els = []; if (n.kids) st.push(...n.kids); } }
+  // the cell holding obj, its depth, and whether the cell is split (then obj sits on a split line, listed before
+  // every segment in the smaller cells below it)
+  locate(obj) {
+    const n = this.where.get(obj);
+    if (!n) return null;
+    let d = 0, c = this.root;
+    while (c !== n && c.kids) { c = c.kids.find(k => k.b[0] <= n.b[0] && k.b[1] <= n.b[1] && n.b[2] <= k.b[2] && n.b[3] <= k.b[3]); d++; }
+    return { node: n, depth: d, onSplit: n.kids !== null };
+  }
+  // every cell overlapping box q (for drawing)
+  cells(q, out = [], n = this.root, d = 0) {
+    if (!qOverlap(q, n.b)) return out;
+    out.push([n, d]);
+    if (n.kids) for (const c of n.kids) this.cells(q, out, c, d + 1);
+    return out;
+  }
   query(q) {
     const out = [];
     const all = n => { for (const e of n.els) out.push(e[1]); if (n.kids) for (const c of n.kids) all(c); };

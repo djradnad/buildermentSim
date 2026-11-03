@@ -175,7 +175,7 @@ $('reset').addEventListener('click', () => { setRunning(false); rebuild(); });
 $('zin').addEventListener('click', () => view.zoomAt(1.4, view.cw / 2, view.ch / 2));
 $('zout').addEventListener('click', () => view.zoomAt(1 / 1.4, view.cw / 2, view.ch / 2));
 $('zfit').addEventListener('click', () => view.fit());
-for (const k of ['showItems', 'showFlow', 'showNumbers']) $(k).addEventListener('change', e => { view[k] = e.target.checked; view.draw(); });
+for (const k of ['showItems', 'showFlow', 'showNumbers', 'showPieces']) $(k).addEventListener('change', e => { view[k] = e.target.checked; view.draw(); });
 
 function setRunning(on) {
   state.running = on && !!state.w;
@@ -459,13 +459,22 @@ function pickTile([x, y], click) {
       const ai = w.arms.indexOf(arm);
       const r = state.settled && state.mode === 'settled' ? state.settled.rates : null;
       lines.push(`arm speed x${arm.mult}${arm.filt ? ', filter ' + arm.filt : ''}; moved ${arm.moved}${r ? '; ' + fmtRate(r.arms[ai]) + '/min' : ''}`);
+      const dst = w.segAt(arm.dst);
+      const db = w.occ.get(arm.dst[0] + ',' + arm.dst[1]);
+      if (dst.length && (!db || (db.id >= 3000 && db.id <= 3003)))
+        lines.push(`drops on piece #${dst[0][0].idx} (grid order here: ${dst.map(([g]) => '#' + g.idx).join(', ')}; the first one is used even when full)`);
+      const src = w.segAt(arm.src);
+      if (src.length) lines.push(`picks from ${src.map(([g]) => '#' + g.idx).join(', then ')} (the next is tried when one has no item in reach)`);
     }
   }
   const tr = view.tileRates && view.tileRates.get(k);
   if (tr !== undefined) lines.push(`throughput ${fmtRate(tr)} items/min`);
   for (const g of w.segs) {
     if (!g.nodes.some(n => n.x === x && n.y === y)) continue;
-    lines.push(`segment ${g.idx}: length ${(g.L / 800).toFixed(3)} tiles, ${g.items.length} items${g.flag ? '' : ' (tunnel)'}`);
+    const loc = w.qt && w.qt.locate(g);
+    const stub = g.nodes.length === 2 && World.isSplit(g.nodes[0]);
+    lines.push(`piece #${g.idx}${stub ? ' (splitter output stub)' : ''}: ${g.nodes.length} tiles, length ${(g.L / 800).toFixed(3)}, ${g.items.length} items${g.flag ? '' : ' (tunnel)'}` +
+      (loc ? `; grid cell depth ${loc.depth}${loc.onSplit ? ', ON A SPLIT LINE (listed first)' : ''}` : ''));
   }
   if (!lines.length) { $('pickCard').hidden = true; view.pick = null; view.draw(); return; }
   if (click) {
