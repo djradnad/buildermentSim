@@ -1,6 +1,6 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
-import { Factory, GAMEDATA } from './gamesim.js';
+import { Factory, GAMEDATA, QuadTree, World } from './gamesim.js';
 import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, RAW_ITEMS } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
@@ -81,6 +81,7 @@ function rebuild() {
   state.w = new Factory(bs, {
     feeds: state.feeds.map(f => ({ at: f.at, kind: f.kind, perMin: f.perMin })),
     extractors: ext, gen: +$('gen').value, boosted: $('boosted').checked,
+    qt: new QuadTree(),             // loading a build in game starts a fresh belt quadtree (arm lookups)
   });
   state.history = [snapshot()];
   state.perMinute = [];
@@ -261,9 +262,11 @@ function measure() {
   let r;
   if (state.mode === 'settled' && state.settled) r = state.settled.rates;
   else {
+    // whole game seconds only, over exactly one game minute: a window that ends mid-second holds a fraction
+    // of an item period and reads 479 or 481 on a full 480 belt
     const h = state.history;
-    const cur = snapshot();
-    const base = h.find(s => s.tick >= cur.tick - WINDOW) || h[0];
+    const cur = h[h.length - 1];
+    const base = h.find(s => s.tick === cur.tick - WINDOW) || h[0];
     r = ratesBetween(base, cur);
     $('outWindow').textContent = r ? `per min, last ${r.mins >= 0.999 ? 'minute' : Math.round(r.mins * 60) + ' s'}` : '';
   }
@@ -273,23 +276,55 @@ function measure() {
   drawChart();
 }
 
+// Per-tile rates. A segment's counter is what leaves its end; tiles upstream of an arm that drops onto the segment
+// carry that much less (and tiles upstream of an arm that picks from it carry more). A splitter tile shows what
+// enters it: its output stubs start on the splitter tile, and an arm dropping onto the splitter tile puts items on
+// a stub (240 + 80 on one output of a full splitter), which never passed through the splitter itself. When the arm's
+// drop lands on the end of the input belt instead (inside the splitter tile), the splitter tile still shows what the
+// belt brings (480) and the arm's 80 shows on the arm and on the outputs.
 function applyRates(r) {
   const w = state.w, tile = new Map(), seg = new Map();
   const add = (n, v) => { const k = n.x + ',' + n.y; tile.set(k, (tile.get(k) || 0) + v); };
+  const events = new Map();                    // seg -> [[pos, items/min leaving the segment because of it]]
+  const ev = (g, q, v) => { if (!events.has(g)) events.set(g, []); events.get(g).push([q, v]); };
+  w.arms.forEach((a, i) => {
+    if (a.dstCache && a.dstCache[0]) ev(a.dstCache[0][0], a.dstCache[0][1], r.arms[i]);
+    if (a.lastPick) ev(a.lastPick[0], a.lastPick[1], -r.arms[i]);
+  });
   w.segs.forEach((g, i) => {
     const v = r.segRate[i];
     const kind = g.kinds[0] ?? lastKind.get(g);
     if (g.kinds.length) lastKind.set(g, g.kinds[0]);
     seg.set(g, { total: v, kind: kind ?? 'In1' });
     if (!g.flag) return;                       // underground tunnels: counted at their exits
-    const nodes = g.nodes;
-    for (let k = 0; k < nodes.length - 1; k++) if (nodes[k].kind === 0) add(nodes[k], v);
+    const nodes = g.nodes, evs = events.get(g), pos = evs && nodePos(g);
+    // what leaves tile k (pos[k] + 400 = its far edge, 800 units per tile); onto a splitter: what reaches it
+    const at = (k, edge = 400) => {
+      if (!evs) return v;
+      let x = v;
+      for (const [q, d] of evs) if (q > pos[k] + edge) x -= d;    // added further down the segment
+      return x;
+    };
+    for (let k = 0; k < nodes.length - 1; k++) {
+      if (nodes[k].kind !== 0 || (k === 0 && World.isSplit(nodes[k]))) continue;
+      add(nodes[k], at(k));
+    }
     const lastN = nodes[nodes.length - 1];
-    if (lastN.kind === 0 && (!g.target || g.target.sink)) add(lastN, v);
+    if (World.isSplit(lastN)) add(lastN, at(nodes.length - 1, -400));
+    else if (lastN.kind === 0 && (!g.target || g.target.sink)) add(lastN, v);
   });
   w.arms.forEach((a, i) => tile.set(a.b.x + ',' + a.b.y, r.arms[i]));
   view.tileRates = tile;
   view.segRates = seg;
+}
+const nodePosCache = new WeakMap();
+function nodePos(g) {
+  let p = nodePosCache.get(g);
+  if (!p) {
+    p = g.nodes.map((n, k) => g.project([n.x, n.y]) ?? (k === 0 ? 0 : g.L));
+    nodePosCache.set(g, p);
+  }
+  return p;
 }
 const lastKind = new WeakMap();
 
@@ -459,3 +494,4 @@ initDesigner({ openInSim: (rows, meta) => {
   document.querySelector('.tab[data-tab="sim"]').click();
   loadBlueprint(rows, meta);
 } });
+window.bmsim = { state, get view() { return view; } };   // for console debugging and tests
