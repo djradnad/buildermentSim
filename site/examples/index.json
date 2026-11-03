@@ -1,0 +1,38 @@
+[
+ {
+  "name": "1:5 splitter 3x5",
+  "file": "split_1_5_3x5.txt"
+ },
+ {
+  "name": "1:12 splitter 2x12",
+  "file": "split_1_12_2x12.txt"
+ },
+ {
+  "name": "1:24 splitter 3x24",
+  "file": "split_1_24_3x24.txt"
+ },
+ {
+  "name": "1:35 splitter 4x35",
+  "file": "split_1_35_4x35.txt"
+ },
+ {
+  "name": "2:2 balancer, symmetric 3x8",
+  "file": "bal_2_2_sym_3x8.txt"
+ },
+ {
+  "name": "4:4 balancer 9x6",
+  "file": "bal_4_4_9x6.txt"
+ },
+ {
+  "name": "27:27 balancer 37x45",
+  "file": "bal_27_27_37x45.txt"
+ },
+ {
+  "name": "Arm onto a splitter: input end (splits evenly)",
+  "file": "over480.json"
+ },
+ {
+  "name": "Arm onto a dead splitter: output stub (240+80)",
+  "file": "dead_splitter.json"
+ }
+]

@@ -18,6 +18,13 @@ S<.
 (`<^v>` belts, `S` splitter, `I`/`O` underground in/out; upper case faces east/west, lower case north/south.
 Items flow from the east side to the west side here.)
 
+## Web site
+
+`site/` is a web page with the game-exact simulator and the designer: load any blueprint (or a solver result), watch
+it run tick by tick at up to max game speed, and see the throughput of every tile, either right now or as the
+long-run settled average with the time it took to settle. The designer tab shows solved layouts and, with `--live`,
+the best layout of a solver running on your computer. See `site/README.md`.
+
 ## Install
 
 Python 3.9 or newer, then:
@@ -35,7 +42,7 @@ python -m bmsolver -h
 | command | what it does |
 |---|---|
 | `python -m bmsolver split 12` | smallest 1:12 splitter |
-| `python -m bmsolver split 7 --quasi` | mirror symmetric except the middle row (or two) |
+| `python -m bmsolver split 8 --quasi` | quasi-symmetric: mirror symmetric except one tile pair in the middle row(s), which must be the same piece but may face another way (like the wiki splitters with one turned splitter); `--quasi 2` allows two such pairs |
 | `python -m bmsolver split 9 --sym` | fully mirror symmetric |
 | `python -m bmsolver merge 4` | 4:1 merger |
 | `python -m bmsolver balance 3` | 3:3 balancer, exact search |

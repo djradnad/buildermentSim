@@ -39,7 +39,8 @@ class Window:
         self.hint = {}              # tile -> code, a starting point for the search
         self.tun_in, self.tun_out, self.no_ug = {}, {}, set()
         self.symmetry = None        # None, 'y' (top/bottom mirror) or 'x' (left/right mirror)
-        self.quasi = False          # with symmetry: the middle row/column (two when even) may differ
+        self.quasi = 0              # with symmetry: up to this many tiles in the middle row(s) may face another
+                                    # way than their mirror image (1 = one turned splitter, the usual quasi)
         self.closed_edges = False   # splitters may not face a window edge that has no port
         self.clear_col = None       # a column that must become deletable: only west belts (no side inputs) or
                                     # empty tiles that would not join their neighbours once the column is gone
@@ -315,17 +316,28 @@ class Model:
             table = MIRROR_Y if ax == 'y' else MIRROR_X
             n = H if ax == 'y' else W
             middle = {(n - 1) // 2, n // 2} if win.quasi else set()
+            turned = []                         # quasi: mirror pairs in the middle allowed to differ in direction
             for p in cells:
                 q = win.mirror(p)
-                if q < p or (p[1] if ax == 'y' else p[0]) in middle:
+                if q < p:
                     continue
                 if q not in cellset:
                     m.Add(X[p, 'E'] == 1)
                     continue
                 m.Add(X[p, 'E'] == X[q, 'E'])
+                t = None
+                if (p[1] if ax == 'y' else p[0]) in middle:
+                    t = m.NewBoolVar('turned')
+                    turned.append(t)
+                    for k in kinds:             # still the same kind of piece, maybe facing another way
+                        m.Add(sum(X[p, k + str(o)] for o in range(4)) == sum(X[q, k + str(o)] for o in range(4)))
                 for k in kinds:
                     for o in range(4):
-                        m.Add(X[p, k + str(o)] == X[q, k + str(table[o])])
+                        c = m.Add(X[p, k + str(o)] == X[q, k + str(table[o])])
+                        if t is not None:
+                            c.OnlyEnforceIf(t.Not())
+            if turned:
+                m.Add(sum(turned) <= int(win.quasi))
             as_int = lambda v: 1 if v is True else 0 if v is None else v
             for (p, d), a in self.port_active.items():     # ports are used in mirror pairs
                 if (p[1] if ax == 'y' else p[0]) in middle and d in ((1, 3) if ax == 'y' else (0, 2)):

@@ -34,8 +34,19 @@ class LiveView(Reporter):
                 self.send_response(200)
                 self.send_header('Content-Type', ctype)
                 self.send_header('Cache-Control', 'no-store')
+                self._cors()
                 self.end_headers()
                 self.wfile.write(body)
+
+            def do_OPTIONS(self):           # lets the web site (another origin) read state.json
+                self.send_response(204)
+                self._cors()
+                self.end_headers()
+
+            def _cors(self):
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Headers', '*')
+                self.send_header('Access-Control-Allow-Private-Network', 'true')
 
             def log_message(self, *a):
                 pass
