@@ -86,9 +86,16 @@ export function decodeSinCos(deltas) {
 }
 
 async function fetchSinCos(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('could not load the PC sin/cos table');
-  const raw = new Uint8Array(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  let r = await fetch(url).catch(() => null), gz;
+  if (r && r.ok) gz = r.body;
+  else {                               // hosts that serve no binary files: the same bytes as base64 text
+    r = await fetch(String(url).replace(/\.gz$/, '.gz.b64.txt'));
+    if (!r.ok) throw new Error('could not load the PC sin/cos table');
+    const bin = atob((await r.text()).trim()), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    gz = new Blob([u8]).stream();
+  }
+  const raw = new Uint8Array(await new Response(gz.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   return decodeSinCos(raw);
 }
 
