@@ -28,7 +28,11 @@
   "file": "bal_27_27_37x45.txt"
  },
  {
-  "name": "Arm adds 80/min past a full belt",
+  "name": "Arm onto a splitter: input end (splits evenly)",
   "file": "over480.json"
+ },
+ {
+  "name": "Arm onto a dead splitter: output stub (240+80)",
+  "file": "dead_splitter.json"
  }
 ]
