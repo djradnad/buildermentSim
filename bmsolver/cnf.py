@@ -3,10 +3,12 @@
 model.Model builds a CP-SAT model. This module translates that model (its proto) clause by clause, so every rule
 stays exactly the same and only the engine changes:
   - a 0/1 variable becomes one SAT variable;
-  - an integer 0..ub (a flow) becomes ub order literals [x >= 1], ..., [x >= ub] (the order encoding);
-  - a linear constraint over unit coefficients (all the model uses, plus D times a 0/1) becomes a count of literals
-    within bounds, built as a two-way totalizer cut at the bound; x - y in [lo, hi] becomes direct implications;
-  - enforcement literals guard the bound clauses.
+  - enc='binary' (default, BinTranslation): an integer 0..ub (a flow) becomes its binary digits, sums become adder
+    circuits and bounds become comparators (about 60x fewer clauses than the order encoding);
+  - enc='order' (Translation): an integer becomes ub order literals [x >= 1], ..., [x >= ub] and a linear constraint
+    a count of literals within bounds (two-way totalizer cut at the bound);
+  - enforcement literals guard every clause of a constraint.
+race() runs CP-SAT and external SAT binaries (kissat, cadical) at once on one window; first definite answer wins.
 Solvers: any pysat solver by name (kissat404, cadical195, glucose4, cryptosat, ...) or an external DIMACS binary.
 """
 import os
@@ -501,3 +503,83 @@ class BinTranslation(Translation):
         if i in self.bool:
             return 1 if self.bool[i] in model_set else 0
         return self.lo[i] + sum(1 << k for k, l in enumerate(self.bits[i]) if l in model_set)
+
+
+def _parse(out):
+    status = [l for l in out.splitlines() if l.startswith('s ')]
+    if not status or 'UNKNOWN' in status[0]:
+        return None, None
+    if 'UNSATISFIABLE' in status[0]:
+        return False, None
+    vals = []
+    for l in out.splitlines():
+        if l.startswith('v '):
+            vals += [int(x) for x in l[2:].split() if x != '0']
+    return True, vals
+
+
+def _cpsat_worker(win, timeout, workers, q):
+    from . import model
+    r = model.solve(win, timeout=timeout, workers=workers)
+    q.put(('cpsat', r))
+
+
+def race(win, binaries, timeout=600, cpsat_workers=1, enc='binary', log=print):
+    """Run CP-SAT and several external SAT solvers on the same window at once; the first definite answer wins
+    and the rest are stopped. binaries: paths of DIMACS solvers (kissat, cadical, ...). Every solver gets the
+    exact same rules (the CNF is a translation of the CP-SAT model), so whichever answers first is as good as any.
+    Returns dict(status, winner, time, grid?)."""
+    import multiprocessing as mp
+    import signal
+    from . import model
+    t0 = time.time()
+    mod = model.Model(win)
+    tr = (BinTranslation if enc == 'binary' else Translation)(mod.m)
+    d = tempfile.mkdtemp()
+    path = os.path.join(d, 'm.cnf')
+    write_dimacs(tr.f, path)
+    procs = {}
+    for b in binaries:
+        fo = open(os.path.join(d, os.path.basename(b) + '.out'), 'w+')
+        procs[b] = (subprocess.Popen([b, path], stdout=fo, stderr=subprocess.DEVNULL, start_new_session=True), fo)
+    q = mp.get_context('fork').Queue()
+    cp = None
+    if cpsat_workers:
+        cp = mp.get_context('fork').Process(target=_cpsat_worker, args=(win, timeout, cpsat_workers, q), daemon=True)
+        cp.start()
+    res = dict(status='UNKNOWN', winner=None)
+    try:
+        while time.time() - t0 < timeout:
+            for b, (p, fo) in list(procs.items()):
+                if p.poll() is not None:
+                    fo.seek(0)
+                    sat, vals = _parse(fo.read())
+                    del procs[b]
+                    if sat is not None:
+                        res.update(status='FEASIBLE' if sat else 'INFEASIBLE', winner=os.path.basename(b))
+                        if sat:
+                            res['grid'] = mod.grid(_Values(tr, vals))
+                        return res
+            if cp is not None and not q.empty():
+                _, r = q.get()
+                cp = None
+                if r['status'] != 'UNKNOWN':
+                    res.update(status='FEASIBLE' if r['status'] in ('OPTIMAL', 'FEASIBLE') else r['status'], winner='cpsat')
+                    if 'grid' in r:
+                        res['grid'] = r['grid']
+                    return res
+            if not procs and cp is None:
+                break
+            time.sleep(0.05)
+        return res
+    finally:
+        res['time'] = time.time() - t0
+        for b, (p, fo) in procs.items():
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if cp is not None:
+            cp.kill()
+        import shutil
+        shutil.rmtree(d, ignore_errors=True)
