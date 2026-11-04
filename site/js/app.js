@@ -60,7 +60,7 @@ function loadBlueprint(rows, meta = {}, id = null) {
   const bs = rowsToBuildings(rows);
   const added = addFeeders(bs);
   addDrains(bs);
-  const probe = new Factory(bs, { extractors: {} });
+  const probe = new Factory(bs, { extractors: {}, ugRange: +$('ugRange').value });
   const feedSegs = added.map(a => probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]));
   const found = feedSegs.filter(g => g);
   const kinds = guessFeedItems(probe, found, found.map(() => null));
@@ -93,11 +93,13 @@ function rebuild() {
     sinks: state.sinks,
     extractors: ext, gen: +$('gen').value, boosted: $('boosted').checked,
     qtOffset: [Math.round(+$('wx').value || 0), Math.round(+$('wy').value || 0)],
+    M: +$('beltM').value, ugRange: +$('ugRange').value, splitStart: +$('splitStart').value, plants: $('plants').checked,
     qt: new QuadTree(),             // loading a build in game starts a fresh belt quadtree (arm lookups)
   });
   state.history = [snapshot()];
   state.perMinute = [];
   state.settled = null;
+  state.dispCollect = null;
   $('settleState').textContent = '';
   view.setWorld(state.w, true);
   measure();
@@ -173,6 +175,7 @@ function renderInputs() {
 $('gen').addEventListener('change', rebuild);
 $('boosted').addEventListener('change', rebuild);
 $('wx').addEventListener('change', rebuild);
+for (const k of ['beltM', 'ugRange', 'splitStart', 'plants']) $(k).addEventListener('change', rebuild);
 $('wy').addEventListener('change', rebuild);
 
 // ------------------------------------------------------------------ running
@@ -206,6 +209,13 @@ function tickOnce() {
   if (w.tickNo % TPS === 0) {
     state.history.push(snapshot());
     if (state.history.length > 3 * 60 + 2) state.history.shift();
+    if (state.dispCollect) {
+      const d = gameDisplay();
+      if (d) for (const [k, v] of Object.entries(d)) {
+        const m = state.dispCollect[k] || (state.dispCollect[k] = new Map());
+        m.set(v, (m.get(v) || 0) + 1);
+      }
+    }
     if (w.tickNo % WINDOW === 0) {
       const h = state.history, a = h[h.length - 1], b = h.find(s => s.tick === w.tickNo - WINDOW);
       if (b) state.perMinute.push(sum(a.out) - sum(b.out) + sum(Object.values(a.consumed)) - sum(Object.values(b.consumed)));
@@ -247,6 +257,25 @@ function snapshot() {
     arms: w.arms.map(a => a.moved),
     consumed: consumedTotals(),
   };
+}
+
+// The production tab: made in the last 120 whole game seconds, as the game computes it in float32:
+// shown = f32(count) / f32(120 * DT), DT = f32(1/60); from 10 up it is rounded with floor(v + 0.5).
+const DT32 = Math.fround(1 / 60), DISP_DEN = Math.fround(Math.fround(120) * DT32);
+function dispValue(count) {
+  const v = Math.fround(Math.fround(count) / DISP_DEN);
+  return v >= 10 ? String(Math.floor(v + 0.5)) : v.toFixed(1);
+}
+function gameDisplay() {
+  const h = state.history, cur = h[h.length - 1];
+  if (!cur || cur.tick < 120 * TPS) return null;
+  const base = h.find(s => s.tick === cur.tick - 120 * TPS);
+  if (!base) return null;
+  const tot = {};
+  state.w.machines.forEach((m, i) => { tot[m.outItem] = (tot[m.outItem] || 0) + cur.made[i] - base.made[i]; });
+  const out = {};
+  for (const [k, c] of Object.entries(tot)) out[k] = dispValue(c);
+  return out;
 }
 
 function drains() { return state.w.segs.filter(g => g.target && g.target.sink); }
@@ -372,6 +401,24 @@ function renderOutputs(r) {
     made.appendChild(row);
   }
   if (!entries.length) made.innerHTML = '<div class="muted small">No machines.</div>';
+  // the in-game production tab readout: live, and over the settle measurement its value distribution
+  const disp = gameDisplay(), dist = state.settled && state.settled.disp;
+  const keys = Object.keys(dist || disp || {});
+  const box2 = $('gameDisp');
+  box2.innerHTML = '';
+  for (const k of keys) {
+    const row = document.createElement('div');
+    row.className = 'item';
+    let txt = '';
+    if (dist && dist[k]) {
+      const n = [...dist[k].values()].reduce((a, b) => a + b, 0);
+      txt = [...dist[k].entries()].sort((a, b) => +a[0] - +b[0]).map(([v, c]) => `${v} ${Math.round(100 * c / n)}%`).join(', ');
+    }
+    row.innerHTML = `<span class="dot" style="background:${itemColor(k)}"></span><span>${k}${txt ? ' <span class="muted small">' + txt + '</span>' : ''}</span>` +
+      `<span class="num">${disp && disp[k] != null ? disp[k] : '…'}</span>`;
+    box2.appendChild(row);
+  }
+  if (!keys.length) box2.innerHTML = '<div class="muted small">' + (state.w && state.w.machines.length ? 'Shows after 2 game minutes.' : 'No machines.') + '</div>';
 }
 
 function drawChart() {
@@ -400,6 +447,7 @@ $('runSettle').addEventListener('click', () => {
   setRunning(false);
   state.settling = true;
   state.settled = null;
+  state.dispCollect = null;
   const w = state.w, start = w.tickNo, maxTicks = 180 * 3600;
   const t0 = performance.now();
   const step = () => {
@@ -418,13 +466,15 @@ $('runSettle').addEventListener('click', () => {
       // measure the long-run average over the next 10 game minutes
       const a = snapshot();
       const target = w.tickNo + 10 * 3600;
+      state.dispCollect = {};
       const finish = () => {
         const f1 = performance.now();
         while (w.tickNo < target && performance.now() - f1 < 30) for (let i = 0; i < 60; i++) tickOnce();
         updateClock(); view.draw();
         if (w.tickNo < target) { $('settleState').textContent = 'measuring 10 game minutes…'; return requestAnimationFrame(finish); }
         const rates = ratesBetween(a, snapshot());
-        state.settled = { rates, at: done };
+        state.settled = { rates, at: done, disp: state.dispCollect };
+        state.dispCollect = null;
         state.settling = false;
         const secs = ((performance.now() - t0) / 1000).toFixed(1);
         $('settleState').textContent = done !== null
@@ -546,12 +596,12 @@ function inputActions(x, y) {
     const names = ['north', 'west', 'south', 'east'];
     for (let d = 0; d < 4; d++) {
       const nb = { id: 3000, x, y, o: d, tier: 1, recipe: 0, filter: 0, added: 'in' };
-      const t = new World([...state.buildings, nb]);
+      const t = new World([...state.buildings, nb], { ugRange: +$('ugRange').value });
       const n = t.belt.get(k);
       if (!n || !n.outputs.length) continue;
       acts.push([`Place an input belt facing ${names[d]}`, () => {
         state.buildings.push(nb);
-        const probe = new Factory(state.buildings.map(b => ({ ...b })), { extractors: {} });
+        const probe = new Factory(state.buildings.map(b => ({ ...b })), { extractors: {}, ugRange: +$('ugRange').value });
         const g = probe.segs.find(s => s.nodes[0].x === x && s.nodes[0].y === y);
         state.feeds.push({ at: [x, y], kind: g ? guessFeedItem(probe, g, 'In' + (state.feeds.length + 1)) : 'In' + (state.feeds.length + 1), perMin: 480 });
       }]);

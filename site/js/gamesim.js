@@ -335,6 +335,7 @@ export class World {
   constructor(buildings, opts = {}) {
     this.M = opts.M || M_DEFAULT;
     this.qt = opts.qt || null;
+    this.splitStart = opts.splitStart || 0;
     this.buildings = buildings;
     this.belt = new Map(); this.inport = new Map(); this.outport = new Map(); this.occ = new Map();
     for (const b of buildings) {
@@ -475,7 +476,11 @@ export class World {
       }
     }
     const splitOf = new Map();
-    for (const [sp, outs] of splitOuts) splitOf.set(sp, new Split(outs));
+    for (const [sp, outs] of splitOuts) {
+      const t = new Split(outs);
+      t.idx = ((this.splitStart % outs.length) + outs.length) % outs.length;   // which output a splitter serves first
+      splitOf.set(sp, t);
+    }
     this.splitOf = splitOf;
     for (const g of this.segs) {
       const last = g.nodes[g.nodes.length - 1];
@@ -662,6 +667,24 @@ class Extractor {
   }
 }
 
+// Power plant (FUN_140f04b20 / FUN_140f046e0): holds one load of fuel (nuclear 1 cell, coal 5 coal); its timer
+// runs down by DT and at 0 burns a load if it has one (timer = 120 s / 30 s). While the timer runs it boosts every
+// machine, arm and extractor whose tiles overlap the box of `radius` tiles around it (+0.4 / +0.2); a building in
+// range of several plants takes the largest, never the sum.
+class Plant {
+  constructor(b, p) {
+    this.b = b; this.p = p; this.fuel = p.fuel[0]; this.have = 0; this.t = f32(0); this.burned = 0;
+    const fp = footprint(b), xs = fp.map(q => q[0]), ys = fp.map(q => q[1]), r = p.radius;
+    this.box = [Math.min(...xs) - r, Math.min(...ys) - r, Math.max(...xs) + r, Math.max(...ys) + r];
+  }
+  tick() {
+    this.t = f32(Math.max(0, f32(this.t - DT32)));
+    if (this.t === 0 && this.have >= this.fuel.amount) { this.have -= this.fuel.amount; this.t = f32(this.p.seconds); this.burned++; }
+  }
+  get on() { return this.t > 0; }
+}
+const DT32 = f32(1 / 60);
+
 // An open input belt: items of one kind at up to `perMin` (480 = a full belt, as fast as it can take them).
 class Feed {
   constructor(seg, kind, perMin) { this.seg = seg; this.kind = kind; this.perMin = perMin; this.n = 0; this.acc = 0; }
@@ -681,7 +704,7 @@ export class Factory extends World {
   // sinks [[x, y]] / openEndsSink (which open belt ends take items, see below)
   constructor(buildings, opts = {}) {
     super(buildings, opts);
-    this.machines = []; this.storages = []; this.arms = []; this.feeds = []; this.extractors = [];
+    this.machines = []; this.storages = []; this.arms = []; this.feeds = []; this.extractors = []; this.plants = [];
     this.bobj = new Map();
     this.sinks = new Map();                    // segment -> {kind: count}
     const gen = opts.gen || 2, ext = opts.extractors || {};
@@ -700,13 +723,22 @@ export class Factory extends World {
         this.storages.push(st); this.bobj.set(b, st);
       } else if (b.id === ARM_ID) {
         this.arms.push(new Arm(b, tierSpeed(b)));
+      } else if (d.power && opts.plants !== false) {
+        const pl = new Plant(b, d.power);
+        this.plants.push(pl); this.bobj.set(b, pl);
       } else if (b.id === EXTRACTOR_ID && ext[key(b.x, b.y)]) {
         const e = new Extractor(b, ext[key(b.x, b.y)], gen, !!opts.boosted);
         e.seg = this.outSeg.get(b) || null;
         this.extractors.push(e); this.bobj.set(b, e);
       }
     }
-    if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors]) L.reverse();
+    if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors, this.plants]) L.reverse();
+    // which plants reach each boosted building (box overlap against the building's tiles)
+    for (const o of [...this.machines, ...this.arms, ...this.extractors]) {
+      o.baseBoost = o.boost;
+      const fp = footprint(o.b);
+      o.plants = this.plants.filter(pl => fp.some(([x, y]) => x >= pl.box[0] && x <= pl.box[2] && y >= pl.box[1] && y <= pl.box[3]));
+    }
     // Outputs. In game an open belt end just stops: items queue at it and back up. Only ends marked as outputs
     // take items: drain tiles the page added (added: 'out'), tiles listed in opts.sinks ([[x, y]]), or every
     // open end with opts.openEndsSink (the old behaviour, for tools that measure what leaves a layout).
@@ -736,6 +768,10 @@ export class Factory extends World {
       const cap = o.cap[kind] || 0;
       if (cap > o.have[kind]) { o.have[kind]++; return true; }
       return false;
+    }
+    if (o instanceof Plant) {
+      if (kind !== o.fuel.item || o.have >= o.fuel.amount) return false;
+      o.have++; return true;
     }
     if (o instanceof Storage) {
       if (o.count === 0) { o.item = kind; o.count = 1; return true; }
@@ -818,7 +854,7 @@ export class Factory extends World {
 
   armDrop(a) {
     const b = this.occ.get(key(a.dst[0], a.dst[1]));
-    if (b && (this.bobj.get(b) instanceof Machine || this.bobj.get(b) instanceof Storage ||
+    if (b && (this.bobj.get(b) instanceof Machine || this.bobj.get(b) instanceof Storage || this.bobj.get(b) instanceof Plant ||
               (this.labsTakeAll && !BELT_IDS.has(b.id)))) return this.accept(b, a.held);
     if (!a.dstCache) a.dstCache = this.segAt(a.dst).slice(0, 1);
     for (const [g, q] of a.dstCache) {
@@ -833,6 +869,14 @@ export class Factory extends World {
     for (const g of this.segs) segTick(g, M, this);
     for (const m of this.machines) m.tick(this);
     for (const e of this.extractors) e.tick(this);
+    if (this.plants.length) {
+      for (const pl of this.plants) pl.tick();
+      for (const o of [...this.machines, ...this.arms, ...this.extractors]) {
+        let bo = o.baseBoost;
+        for (const pl of o.plants) if (pl.on && pl.p.multiplier > bo) bo = pl.p.multiplier;
+        o.boost = f32(bo);
+      }
+    }
     for (const a of this.arms) this.armTick(a);
     for (const st of this.storages) this.pushOut(st, st.item);
     for (const f of this.feeds) f.tick(M);
