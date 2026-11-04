@@ -284,6 +284,7 @@ def solve(mod, engine='cadical195', timeout=None, log=False, enc='binary', procs
     res['status'] = 'FEASIBLE' if sat else 'INFEASIBLE' if sat is False else 'UNKNOWN'
     if sat:
         res['grid'] = mod.grid(_Values(tr, model_))
+        res['options'] = mod.chosen_options(_Values(tr, model_))
         res['violations'] = len(violations(tr, model_))
     return res
 
@@ -557,6 +558,7 @@ def race(win, binaries, timeout=600, cpsat_workers=1, enc='binary', log=print):
                         res.update(status='FEASIBLE' if sat else 'INFEASIBLE', winner=os.path.basename(b))
                         if sat:
                             res['grid'] = mod.grid(_Values(tr, vals))
+                            res['options'] = mod.chosen_options(_Values(tr, vals))
                         return res
             if cp is not None and not q.empty():
                 _, r = q.get()
@@ -565,6 +567,7 @@ def race(win, binaries, timeout=600, cpsat_workers=1, enc='binary', log=print):
                     res.update(status='FEASIBLE' if r['status'] in ('OPTIMAL', 'FEASIBLE') else r['status'], winner='cpsat')
                     if 'grid' in r:
                         res['grid'] = r['grid']
+                        res['options'] = r.get('options')
                     return res
             if not procs and cp is None:
                 break
@@ -643,7 +646,7 @@ def prove(win, binary, procs=4, timeout=None, enc='binary', mirror=False, log=pr
             if log:
                 log('  cube %d/%d %s %.1fs' % (futs[f] + 1, len(cs), r['status'], r['time']))
             if r['status'] == 'FEASIBLE':
-                res.update(status='FEASIBLE', grid=r['grid'])
+                res.update(status='FEASIBLE', grid=r['grid'], window=cs[futs[f]])
                 stop[0] = True
                 for g in futs:
                     g.cancel()
