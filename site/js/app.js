@@ -66,7 +66,7 @@ function loadBlueprint(rows, meta = {}, id = null) {
   const kinds = guessFeedItems(probe, found, found.map(() => null));
   // an open start that reaches no machine in a build that has machines is a product belt's start (arms or
   // machines put onto it further on): it gets nothing, not a full belt of a made-up item
-  const hasMachines = probe.machines.length > 0;
+  const hasMachines = probe.machines.length + probe.plants.length > 0;
   state.sinks = [];
   state.feeds = added.map((a, i) => {
     const j = found.indexOf(feedSegs[i]);
@@ -197,7 +197,7 @@ $('reset').addEventListener('click', () => { setRunning(false); rebuild(); });
 $('zin').addEventListener('click', () => view.zoomAt(1.4, view.cw / 2, view.ch / 2));
 $('zout').addEventListener('click', () => view.zoomAt(1 / 1.4, view.cw / 2, view.ch / 2));
 $('zfit').addEventListener('click', () => view.fit());
-for (const k of ['showItems', 'showFlow', 'showNumbers', 'showPieces']) $(k).addEventListener('change', e => { view[k] = e.target.checked; view.draw(); });
+for (const k of ['showItems', 'showFlow', 'showNumbers', 'showPieces', 'showRanges']) $(k).addEventListener('change', e => { view[k] = e.target.checked; view.draw(); });
 
 function setRunning(on) {
   state.running = on && !!state.w;
@@ -534,6 +534,10 @@ function pickTile([x, y], click) {
         lines.push(`changed to ${e.item} (tap again for the next)`);
       }
     }
+    const bo = o || w.arms.find(a2 => a2.b === b);
+    if (bo && bo.plants && bo.plants.length)
+      lines.push(`in range of ${bo.plants.length} power plant${bo.plants.length > 1 ? 's' : ''}; boost now +${Math.round(100 * bo.boost)}%`);
+    if (o && o.p && o.p.radius) lines.push(`power plant: range ${o.p.radius} tiles, +${Math.round(100 * o.p.multiplier)}%; fuel ${o.have}/${o.fuel.amount} ${o.fuel.item}; ${o.on ? 'burning, ' + o.t.toFixed(1) + ' s left' : 'out of fuel'}; burned ${o.burned}`);
     const arm = w.arms.find(a => a.b === b);
     if (arm) {
       const ai = w.arms.indexOf(arm);

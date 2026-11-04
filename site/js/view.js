@@ -46,7 +46,7 @@ export class View {
     this.scale = 32; this.ox = 0; this.oy = 0;   // screen = (tile - origin) * scale
     this.world = null;
     this.tileRates = null;      // Map "x,y" -> items/min
-    this.showItems = true; this.showNumbers = true; this.showFlow = true; this.showPieces = false;
+    this.showItems = true; this.showNumbers = true; this.showFlow = true; this.showPieces = false; this.showRanges = true;
     this.onPick = opts.onPick || (() => {});
     this.insetBottom = opts.insetBottom || (() => 0);
     this.dpr = 1;
@@ -171,6 +171,8 @@ export class View {
       if (!vis(b.x, b.y) && !(BDEF[b.id] && BDEF[b.id].w > 2)) continue;
       this._drawBuilding(b);
     }
+
+    if (w.plants && w.plants.length) this._drawRanges();
 
     // belts
     const beltCol = css.getPropertyValue('--belt').trim() || '#2a2f3a';
@@ -379,6 +381,42 @@ export class View {
       ctx.lineTo(sx + dx * s * 0.42 * off + dy * s * 0.35, sy + dy * s * 0.42 * off - dx * s * 0.35);
       ctx.stroke();
     }
+  }
+
+  // Power plant range as in game: a yellow hatched box of the plant's tiles +-radius; every building with a tile
+  // inside it gets the boost while the plant burns. Shown for every plant with "plant ranges", else for a picked plant.
+  // Buildings in range get a yellow outline (solid while boosted now, dashed while the plant is out of fuel).
+  _drawRanges() {
+    const ctx = this.ctx, w = this.world, s = this.scale;
+    const pick = this.pick && w.occ.get(this.pick[0] + ',' + this.pick[1]);
+    const shown = w.plants.filter(pl => this.showRanges || pl.b === pick);
+    if (!shown.length) return;
+    ctx.save();
+    for (const pl of shown) {
+      const [a, b] = this.toScreen(pl.box[0] - 0.5, pl.box[1] - 0.5), [c, d] = this.toScreen(pl.box[2] + 0.5, pl.box[3] + 0.5);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(a, b, c - a, d - b); ctx.clip();
+      ctx.strokeStyle = pl.on ? 'rgba(255,211,77,0.22)' : 'rgba(255,211,77,0.10)'; ctx.lineWidth = 1;
+      const step = Math.max(6, s * 0.5);
+      ctx.beginPath();
+      for (let x = a - (d - b); x < c; x += step) { ctx.moveTo(x, d); ctx.lineTo(x + (d - b), b); }
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = pl.on ? '#ffd34d' : 'rgba(255,211,77,0.5)'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(a, b, c - a, d - b);
+    }
+    for (const o of [...(w.machines || []), ...(w.arms || []), ...(w.extractors || [])]) {
+      if (!o.plants || !o.plants.some(pl => shown.includes(pl))) continue;
+      const fp = footprint(o.b);
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [x, y] of fp) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      const [a, b] = this.toScreen(x0 - 0.5, y0 - 0.5), [c, d] = this.toScreen(x1 + 0.5, y1 + 0.5);
+      const now = o.boost > (o.baseBoost || 0);
+      ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = Math.max(1.5, s * 0.06); ctx.setLineDash(now ? [] : [4, 3]);
+      ctx.strokeRect(a + 1, b + 1, c - a - 2, d - b - 2);
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
   }
 
   _drawBuilding(b) {
