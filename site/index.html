@@ -88,6 +88,11 @@
         <label>World <select id="gen"><option value="2">Gen 2</option><option value="1">Gen 1</option></select></label>
         <label><input type="checkbox" id="boosted"> boosted extractors</label>
       </div>
+      <div class="row small" title="Where the blueprint's (0, 0) tile sits in your world. The game's belt grid splits at fixed world positions, so this can change which belt piece an arm finds first.">
+        <label>Placed at world x <input type="number" id="wx" value="0" step="1" style="width:70px"></label>
+        <label>y <input type="number" id="wy" value="0" step="1" style="width:70px"></label>
+        <span class="muted" id="deadArms"></span>
+      </div>
       <div id="inputs" class="list"></div>
     </div>
 

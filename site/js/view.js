@@ -274,9 +274,11 @@ export class View {
     const qt = w.qt;
     if (qt) {
       ctx.lineWidth = 1;
-      for (const [n, d] of qt.cells([vx0, vy0, vx1, vy1])) {
+      const [ox, oy] = w.qtOff || [0, 0];           // the tree is in world coordinates, the view in build tiles
+      for (const [n, d] of qt.cells([vx0 + ox, vy0 + oy, vx1 + ox, vy1 + oy])) {
         if (!n.kids) continue;                       // draw the split lines of every split cell
-        const [x0, y0, x1, y1] = n.b, mx = n.kids[0].b[2], my = n.kids[0].b[3];
+        const x0 = n.b[0] - ox, y0 = n.b[1] - oy, x1 = n.b[2] - ox, y1 = n.b[3] - oy;
+        const mx = n.kids[0].b[2] - ox, my = n.kids[0].b[3] - oy;
         ctx.strokeStyle = `hsla(${(d * 47) % 360},80%,62%,0.75)`;
         ctx.setLineDash(d < 3 ? [] : [4, 3]);
         ctx.beginPath();
@@ -288,7 +290,7 @@ export class View {
         if (s >= 14) {
           ctx.fillStyle = ctx.strokeStyle; ctx.font = '10px ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
           const [tx, ty] = this.toScreen(Math.max(mx, vx0 + 0.6), Math.max(my, vy0 + 0.6));
-          ctx.fillText('split ' + d, tx + 3, ty + 2);
+          ctx.fillText(`split ${d} at world x ${n.kids[0].b[2]}, y ${n.kids[0].b[3]}`, tx + 3, ty + 2);
         }
       }
       ctx.setLineDash([]);

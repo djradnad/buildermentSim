@@ -357,7 +357,10 @@ export class World {
     }
     for (const m of [this.belt, this.inport, this.outport]) for (const n of m.values()) this.link(n);
     this.buildSegments(opts.ugRange ?? UG_RANGE);
-    if (this.qt) { this.qt.clear(); for (const g of this.segs) this.qt.insert(g.bbox, g); }
+    // where the build sits in the world: the belt quadtree splits at fixed world positions, so which cell a piece
+    // lands in (and so which piece an arm finds first) depends on it. Only the quadtree sees the offset.
+    this.qtOff = opts.qtOffset || [0, 0];
+    if (this.qt) { this.qt.clear(); for (const g of this.segs) this.qt.insert(this.qtBox(g), g); }
   }
 
   findInput(p, sub, d, nb) {
@@ -756,12 +759,20 @@ export class Factory extends World {
     }
   }
 
+  // a piece's quadtree box in world coordinates (its polyline's box +-1e-4, at the build's world offset)
+  qtBox(g) {
+    const [ox, oy] = this.qtOff;
+    if (!ox && !oy) return g.bbox;
+    const xs = g.pts.map(p => f32(p[0] + ox)), ys = g.pts.map(p => f32(p[1] + oy)), e = f32(1e-4);
+    return [f32(Math.min(...xs) - e), f32(Math.min(...ys) - e), f32(Math.max(...xs) + e), f32(Math.max(...ys) + e)];
+  }
+
   segAt(p, needFlag = true) {
     const res = [];
     let cand = this.segs;
     if (!this.qt) cand = this.segsNear(p);
     else {
-      const x0 = f32(f32(p[0]) - 0.5), y0 = f32(f32(p[1]) - 0.5);
+      const x0 = f32(f32(p[0] + this.qtOff[0]) - 0.5), y0 = f32(f32(p[1] + this.qtOff[1]) - 0.5);
       cand = this.qt.query([x0, y0, f32(x0 + 1), f32(y0 + 1)]);
     }
     for (const g of cand) {

@@ -92,6 +92,7 @@ function rebuild() {
     feeds: state.feeds.map(f => ({ at: f.at, kind: f.kind, perMin: f.perMin })),
     sinks: state.sinks,
     extractors: ext, gen: +$('gen').value, boosted: $('boosted').checked,
+    qtOffset: [Math.round(+$('wx').value || 0), Math.round(+$('wy').value || 0)],
     qt: new QuadTree(),             // loading a build in game starts a fresh belt quadtree (arm lookups)
   });
   state.history = [snapshot()];
@@ -171,6 +172,8 @@ function renderInputs() {
 }
 $('gen').addEventListener('change', rebuild);
 $('boosted').addEventListener('change', rebuild);
+$('wx').addEventListener('change', rebuild);
+$('wy').addEventListener('change', rebuild);
 
 // ------------------------------------------------------------------ running
 document.querySelectorAll('#speeds button').forEach(b => b.addEventListener('click', () => {
@@ -285,6 +288,9 @@ function measure() {
     r = ratesBetween(base, cur);
     $('outWindow').textContent = r ? `per min, last ${r.mins >= 0.999 ? 'minute' : Math.round(r.mins * 60) + ' s'}` : '';
   }
+  // arms that have not moved one item after a game minute: dead at this placement (or starved)
+  const dead = state.w.tickNo >= 3600 ? state.w.arms.filter(a => a.moved === 0).length : 0;
+  $('deadArms').textContent = dead ? `${dead} arm${dead > 1 ? 's' : ''} dead (moved nothing)` : '';
   if (!r) { view.tileRates = null; view.segRates = null; renderOutputs(null); return; }
   applyRates(r);
   renderOutputs(r);
@@ -472,7 +478,8 @@ function pickTile([x, y], click) {
     if (arm) {
       const ai = w.arms.indexOf(arm);
       const r = state.settled && state.mode === 'settled' ? state.settled.rates : null;
-      lines.push(`arm speed x${arm.mult}${arm.filt ? ', filter ' + arm.filt : ''}; moved ${arm.moved}${r ? '; ' + fmtRate(r.arms[ai]) + '/min' : ''}`);
+      lines.push(`arm speed x${arm.mult}${arm.filt ? ', filter ' + arm.filt : ''}; moved ${arm.moved}${r ? '; ' + fmtRate(r.arms[ai]) + '/min' : ''}` +
+        (w.tickNo >= 3600 && arm.moved === 0 ? '  DEAD: nothing moved in ' + Math.floor(w.tickNo / 3600) + ' game min' : ''));
       const dst = w.segAt(arm.dst);
       const db = w.occ.get(arm.dst[0] + ',' + arm.dst[1]);
       if (dst.length && (!db || (db.id >= 3000 && db.id <= 3003)))
