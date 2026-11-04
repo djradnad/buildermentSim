@@ -54,6 +54,8 @@ class Window:
         self.arm_cap = None         # robotic arms allowed when set: most flow units one arm moves (game: 15/30/60/90
                                     # items/min at tier 1-4); an arm takes from the tile behind it and puts in front
         self.arm_tier = 4
+        self.line_ports = set()     # (tile, d) out ports where an arm line may go on (into the next copy of a
+                                    # tiled module, where more arms take the rest)
         self.cuts = None            # experiment: None, 'card' (enough links cross every row/column line for the
                                     # net flow), 'flow' (per-item net flow across every line), 'both'
         self.machines = []          # machine types to place: dicts {bid, count, need: vec, make: vec, rots: None|[o]}
@@ -124,6 +126,9 @@ class Model:
                             y = m.NewBoolVar('Y%d' % ti)
                             ins = [((ax + a, ay + b), d) for a, b, d in r['inputs']]
                             outs = [((ax + a, ay + b), d) for a, b, d in r['outputs']]
+                            if win.closed_edges and any(not win.inside(add(t, d)) and (t, d) not in win.ports
+                                                        for t, d in outs):
+                                continue        # its output would push into whatever is beyond the edge
                             self.placements.append((ti, (ax, ay), r['o'], y, tiles, ins, outs))
                             lits_t.append(y)
                             for t in tiles:
@@ -272,6 +277,7 @@ class Model:
         inflow = {p: [0] * nc for p in cells}
         outflow = {p: [0] * nc for p in cells}
         self.port_active = {}             # (tile, d) -> True or literal
+        self.line_out = {}                # tile -> flow leaving through line ports (arm lines that go on outside)
         optional = {}                     # (tile, d) -> [(literal, kind, vec)]
         self.option_lits = []
         for group in win.port_options:
@@ -308,6 +314,8 @@ class Model:
                         for l, k, vec in opts:
                             if k == 'out':
                                 outflow[p] = [a + c * l for a, c in zip(outflow[p], vec)]
+                                if (p, d) in win.line_ports:
+                                    self.line_out[p] = self.line_out.get(p, 0) + sum(vec) * l
                             else:
                                 inflow[p] = [a + c * l for a, c in zip(inflow[p], vec)]
                         splitter_edge[p, d] = u_out
@@ -319,6 +327,8 @@ class Model:
                 if kind == 'out':
                     m.AddBoolOr(pushers(p, d))
                     outflow[p] = [a + c for a, c in zip(outflow[p], spec[1])]
+                    if (p, d) in win.line_ports:
+                        self.line_out[p] = self.line_out.get(p, 0) + sum(spec[1])
                     self.port_active[p, d] = True
                     splitter_edge[p, d] = True
                 else:
@@ -364,6 +374,7 @@ class Model:
                         if v is not None:
                             m.AddBoolOr(need).OnlyEnforceIf([a, v])
         self.lin, self.lout, self.splitter_edge, self.optional = lin, lout, splitter_edge, optional
+        self.optional_ports = optional
         self._machine_links = (lin, lout, inflow, outflow)
         self.inflow, self.outflow = inflow, outflow
         if flows:
@@ -571,10 +582,20 @@ class Model:
         L = self.line = {}
         for q in self.cells:
             L[q] = m.NewBoolVar('L')
-            belt = [X[q, k + str(o)] for k in 'BSIO' for o in range(4) if (q, k + str(o)) in X]
+            # (no splitters: on a line that backs up a splitter's shares follow what each side can take, not halves)
+            belt = [X[q, k + str(o)] for k in 'BIO' for o in range(4) if (q, k + str(o)) in X]
             m.AddBoolOr(belt).OnlyEnforceIf(L[q])
             if any(not isinstance(t, int) or t for t in self.outflow[q]):
-                m.Add(sum(self.outflow[q]) == 0).OnlyEnforceIf(L[q])
+                m.Add(sum(self.outflow[q]) - self.line_out.get(q, 0) == 0).OnlyEnforceIf(L[q])
+        # a lane that goes on into the next copy is an arm line where it leaves: in the last copy it dead-ends
+        for (t, d) in win.line_ports:
+            if t not in L:
+                continue
+            if (t, d) in win.ports:
+                m.Add(L[t] == 1)
+            for l, k, _ in self.optional_ports.get((t, d), []):
+                if k == 'out':
+                    m.AddImplication(l, L[t])
         # one item kind per line: an item that passes the last arm taking its kind waits at the dead end forever
         # and in a mixed line soon blocks the items behind it
         K = {q: [m.NewBoolVar('K') for c in range(nc)] for q in self.cells}
@@ -587,6 +608,9 @@ class Model:
                 m.AddImplication(L[p], l.Not())
                 continue
             m.AddBoolOr([L[q], l.Not()]).OnlyEnforceIf(L[p])
+            # and upstream: a belt or splitter feeding a line is line too (only ports and machine pushes start
+            # one). A plain belt feeding a line stalls when the line backs up, and so does anything dropping on it
+            m.AddBoolOr([L[p], l.Not()] + ([X[p, 'M']] if (p, 'M') in X else [])).OnlyEnforceIf(L[q])
             for c in range(nc):
                 m.Add(F[i, c] == 0).OnlyEnforceIf([L[p], K[p][c].Not()])
                 m.AddImplication(K[p][c], K[q][c]).OnlyEnforceIf([L[p], l])
@@ -599,7 +623,27 @@ class Model:
             if p is None or q is None:
                 continue
             m.Add(P[q] >= P[p] + (1 if kind == 'arm' else 0)).OnlyEnforceIf(l)
+        # line names: a line takes the index of the tile it starts at (a port or a machine push) and keeps it
+        # along every link, so two lines never merge. All arm drops of one item into one machine take from one
+        # line: arms take greedily, so a machine fed from two lines draws an unfixed share from each, and a lane
+        # that goes on into more copies or machines comes up short downstream
+        idx = {q: k for k, q in enumerate(self.cells)}
+        N = {q: m.NewIntVar(0, R - 1, 'N') for q in self.cells}
+        feeds_in = {q: [] for q in self.cells}
+        for i, (p, q, l, kind) in enumerate(links):
+            if kind == 'arm' or p is None or q is None:
+                continue
+            e = m.NewBoolVar('e')
+            m.AddBoolAnd([l, L[p]]).OnlyEnforceIf(e)
+            m.AddBoolOr([l.Not(), L[p].Not(), e])
+            m.Add(N[q] == N[p]).OnlyEnforceIf(e)
+            feeds_in[q].append(e)
+        for q in self.cells:
+            st = m.NewBoolVar('st')
+            m.Add(N[q] == idx[q]).OnlyEnforceIf(st)
+            m.AddBoolOr([st] + feeds_in[q]).OnlyEnforceIf(L[q])
         self.arm_kind = {}
+        drops = []
         for p, i in self.arm_links:
             m.Add(sum(F[i, c] for c in range(nc)) <= win.arm_cap)
             bs = [m.NewBoolVar('') for c in range(nc)]
@@ -613,6 +657,52 @@ class Model:
             m.AddImplication(a, L[dst].Not())
             for c in range(nc):
                 m.AddImplication(bs[c], K[src][c]).OnlyEnforceIf(L[src])
+            drops.append((i, src, dst, a, bs))
+        # what arms drop from a line onto belts carries that line's name on to wherever it goes (D = carries
+        # greedy drops). Every way of one item into one machine, direct drop or belt, comes from one line
+        D = {q: m.NewBoolVar('D') for q in self.cells}
+        N2 = {q: m.NewIntVar(0, R - 1, 'N2') for q in self.cells}
+        mtile = {}
+        for k, (ti, an, o, y, tiles, ins, outs) in enumerate(self.placements):
+            for t in tiles:
+                mtile.setdefault(t, []).append(k)
+        V = {}
+
+        def name_of(k, c):
+            if (k, c) not in V:
+                V[k, c] = m.NewIntVar(0, R - 1, 'V')
+            return V[k, c]
+        for i, src, dst, a, bs in drops:
+            mach = [X[dst, 'M']] if (dst, 'M') in X else []
+            # onto a belt: dst carries the name (a machine tile takes it below instead)
+            if mach:
+                m.AddImplication(D[dst], X[dst, 'M'].Not())
+            m.AddBoolOr([D[dst]] + mach).OnlyEnforceIf([a, L[src]])
+            m.Add(N2[dst] == N[src]).OnlyEnforceIf([a, L[src]] + [x.Not() for x in mach])
+            for k in mtile.get(dst, []):
+                y = self.placements[k][3]
+                for c in range(nc):
+                    if win.machines[self.placements[k][0]]['need'][c]:
+                        m.Add(N[src] == name_of(k, c)).OnlyEnforceIf([y, a, bs[c], L[src]])
+        for i, (p, q, l, kind) in enumerate(links):
+            if kind == 'arm' or p is None or q is None:
+                continue
+            if q in mtile:
+                for k in mtile[q]:
+                    ti, y = self.placements[k][0], self.placements[k][3]
+                    for c in range(nc):
+                        if not win.machines[ti]['need'][c]:
+                            continue
+                        g = m.NewBoolVar('g')
+                        m.Add(F[i, c] == 0).OnlyEnforceIf(g.Not())
+                        m.Add(N2[p] == name_of(k, c)).OnlyEnforceIf([y, l, D[p], g])
+                if (q, 'M') in X:
+                    m.AddImplication(D[q], X[q, 'M'].Not())
+                    m.AddBoolOr([D[q], X[q, 'M']]).OnlyEnforceIf([D[p], l])
+                    m.Add(N2[q] == N2[p]).OnlyEnforceIf([D[p], l, X[q, 'M'].Not()])
+                    continue
+            m.AddImplication(D[p], D[q]).OnlyEnforceIf(l)
+            m.Add(N2[q] == N2[p]).OnlyEnforceIf([D[p], l])
 
     def arm_filters(self, solver):
         """{arm tile: item index it carries} for the placed arms."""
