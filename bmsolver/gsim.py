@@ -16,18 +16,24 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SIM = os.path.join(HERE, '..', 'tools', 'simlayout.mjs')
 
 
-def buildings(win, grid, machines, recipes, tiers=None):
-    bs = [dict(id=BUILDING_ID[c[0]], x=x, y=y, o=int(c[1])) for (x, y), c in grid.items()]
+def buildings(win, grid, machines, recipes, tiers=None, filters=None, items=None):
+    bs = []
+    for (x, y), c in grid.items():
+        if c[0] == 'A':                 # robotic arm, filtered to the item the solver routed through it
+            f = (filters or {}).get((x, y))
+            bs.append(dict(id=3012, x=x, y=y, o=int(c[1]), tier=win.arm_tier, filter=items[f] if f is not None else 0))
+        else:
+            bs.append(dict(id=BUILDING_ID[c[0]], x=x, y=y, o=int(c[1])))
     for ti, (ax, ay), o in machines:
         mt = win.machines[ti]
         bs.append(dict(id=mt['bid'], x=ax, y=ay, o=o, recipe=recipes[ti], tier=(tiers or {}).get(ti, mt.get('tier', 1))))
     return bs
 
 
-def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, minutes=30, buffer=10):
+def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, minutes=30, buffer=10, filters=None):
     """per_unit: items per minute in one flow unit (480 / win.D for a full belt of D units). buffer: items a feed
     may hold back while its belt is blocked (10 = a machine's output store, as when upstream production feeds it)."""
-    bs = buildings(win, grid, machines, recipes)
+    bs = buildings(win, grid, machines, recipes, filters=filters, items=items)
     keys = dict(win.ports)
     for i, g in enumerate(win.port_options):
         for j, opt in enumerate(g):
@@ -52,6 +58,9 @@ def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, 
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
         json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes), f)
         path = f.name
+    if os.environ.get('GSIM_DUMP'):
+        import shutil
+        shutil.copy(path, os.environ['GSIM_DUMP'])
     try:
         out = subprocess.run(['node', SIM, path], capture_output=True, text=True, check=True).stdout
     finally:

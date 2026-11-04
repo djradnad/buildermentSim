@@ -286,6 +286,7 @@ def solve(mod, engine='cadical195', timeout=None, log=False, enc='binary', procs
         res['grid'] = mod.grid(_Values(tr, model_))
         res['options'] = mod.chosen_options(_Values(tr, model_))
         res['machines'] = mod.machines_chosen(_Values(tr, model_))
+        res['filters'] = mod.arm_filters(_Values(tr, model_)) if mod.arm_links else {}
         res['violations'] = len(violations(tr, model_))
     return res
 
@@ -561,6 +562,7 @@ def race(win, binaries, timeout=600, cpsat_workers=1, enc='binary', log=print):
                             res['grid'] = mod.grid(_Values(tr, vals))
                             res['options'] = mod.chosen_options(_Values(tr, vals))
                             res['machines'] = mod.machines_chosen(_Values(tr, vals))
+                            res['filters'] = mod.arm_filters(_Values(tr, vals)) if mod.arm_links else {}
                         return res
             if cp is not None and not q.empty():
                 _, r = q.get()
@@ -571,6 +573,7 @@ def race(win, binaries, timeout=600, cpsat_workers=1, enc='binary', log=print):
                         res['grid'] = r['grid']
                         res['options'] = r.get('options')
                         res['machines'] = r.get('machines')
+                        res['filters'] = r.get('filters')
                     return res
             if not procs and cp is None:
                 break
@@ -649,7 +652,7 @@ def prove(win, binary, procs=4, timeout=None, enc='binary', mirror=False, log=pr
             if log:
                 log('  cube %d/%d %s %.1fs' % (futs[f] + 1, len(cs), r['status'], r['time']))
             if r['status'] == 'FEASIBLE':
-                res.update(status='FEASIBLE', grid=r['grid'], machines=r.get('machines'), window=cs[futs[f]])
+                res.update(status='FEASIBLE', grid=r['grid'], machines=r.get('machines'), filters=r.get('filters'), window=cs[futs[f]])
                 stop[0] = True
                 for g in futs:
                     g.cancel()

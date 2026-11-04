@@ -51,6 +51,9 @@ class Window:
                                     # empty tiles that would not join their neighbours once the column is gone
         self.max_splitters = None
         self.allow_underground = True
+        self.arm_cap = None         # robotic arms allowed when set: most flow units one arm moves (game: 15/30/60/90
+                                    # items/min at tier 1-4); an arm takes from the tile behind it and puts in front
+        self.arm_tier = 4
         self.cuts = None            # experiment: None, 'card' (enough links cross every row/column line for the
                                     # net flow), 'flow' (per-item net flow across every line), 'both'
         self.machines = []          # machine types to place: dicts {bid, count, need: vec, make: vec, rots: None|[o]}
@@ -79,7 +82,7 @@ class Model:
         cellset = set(cells)
         free = lambda p: p in cellset
         add = lambda p, d, n=1: (p[0] + n * DIRS[d][0], p[1] + n * DIRS[d][1])
-        kinds = 'BS' + ('IO' if win.allow_underground else '')
+        kinds = 'BS' + ('IO' if win.allow_underground else '') + ('A' if win.arm_cap else '')
 
         # ---- piece choice per tile
         X = self.X = {}
@@ -173,6 +176,22 @@ class Model:
                 new_link(p, q, l, 'push')
                 for v in nz([V(p, 'B', d), V(p, 'O', d)]):
                     m.AddImplication(v, l)          # a belt or exit must hand its items on
+
+        # ---- robotic arms: take from behind (a belt piece or any machine tile, World.armTick), put in front (a belt
+        # piece or a machine tile, World.armDrop); one item kind each (the arm's filter)
+        self.arm_links = []
+        if win.arm_cap:
+            carry = lambda q: nz([V(q, k, o) for k in 'BSIO' for o in range(4)]) + ([X[q, 'M']] if (q, 'M') in X else [])
+            for p in cells:
+                for o in range(4):
+                    a = V(p, 'A', o)
+                    src, dst = add(p, (o + 2) % 4), add(p, o)
+                    if not (free(src) and free(dst)):
+                        m.Add(a == 0)
+                        continue
+                    m.AddBoolOr(carry(src)).OnlyEnforceIf(a)
+                    m.AddBoolOr(carry(dst)).OnlyEnforceIf(a)
+                    self.arm_links.append((p, new_link(src, dst, a, 'arm')))
 
         cx = win.clear_col
         if cx is not None:
@@ -314,6 +333,20 @@ class Model:
                     for v in acceptors(p, back):
                         m.Add(v == 0)
 
+        # an arm reaches an underground entrance only while something feeds it: a lone entrance has no belt
+        # segment the arm can see (its tunnel segment is unflagged, World.buildSegments / segAt)
+        for p, i in self.arm_links:
+            a = links[i][2]
+            for q in (links[i][0], links[i][1]):
+                feeders = [links[j][2] for j in lin[q] if links[j][3] == 'push']
+                feeders += [v if v is not True else None for (t, d), v in self.port_active.items()
+                            if t == q and (inflow[q] != [0] * nc or (t, d) in optional)]
+                if any(f is None for f in feeders):
+                    continue
+                for o in range(4):
+                    v = V(q, 'I', o)
+                    if v is not None:
+                        m.AddBoolOr(feeders).OnlyEnforceIf([a, v])
         self.lin, self.lout, self.splitter_edge, self.optional = lin, lout, splitter_edge, optional
         self._machine_links = (lin, lout, inflow, outflow)
         self.inflow, self.outflow = inflow, outflow
@@ -321,6 +354,8 @@ class Model:
             self._flows(win, links, lin, lout, inflow, outflow, splitter_edge, tin_vec, tout_links, V, nz)
             if self.placements:
                 self._machine_flows(win, links, lin, lout, inflow, outflow, pure_feeds)
+            if self.arm_links:
+                self._arm_flows(win)
         if win.cuts and not self.placements and not win.tun_in and not win.tun_out:
             self._cuts(win, links, inflow, outflow, win.cuts, flows)
 
@@ -472,7 +507,7 @@ class Model:
         belt into a machine stalls as soon as one ingredient fills up; averaged flows can't see that."""
         m, F, nc = self.m, self.F, win.ncom
         if pure_feeds and nc > 1:
-            done = set()
+            done = set(i for p, i in self.arm_links)       # arms carry one kind anyway
             for ti, a, o, y, tiles, ins, outs in self.placements:
                 for t, d in ins:
                     for i in lin[t]:
@@ -485,13 +520,31 @@ class Model:
                         m.AddAtMostOne(bs)
         for ti, a, o, y, tiles, ins, outs in self.placements:
             mt = win.machines[ti]
-            in_tiles = sorted({t for t, d in ins})
-            out_tiles = sorted({t for t, d in outs})
+            in_tiles = out_tiles = tiles          # ports plus arms, which reach any tile of a machine
             for c in range(nc):
                 m.Add(sum(inflow[t][c] for t in in_tiles) + sum(F[i, c] for t in in_tiles for i in lin[t])
                       == mt['need'][c]).OnlyEnforceIf(y)
                 m.Add(sum(outflow[t][c] for t in out_tiles) + sum(F[i, c] for t in out_tiles for i in lout[t])
                       == mt['make'][c]).OnlyEnforceIf(y)
+
+    def _arm_flows(self, win):
+        m, F, nc = self.m, self.F, win.ncom
+        self.arm_kind = {}
+        for p, i in self.arm_links:
+            m.Add(sum(F[i, c] for c in range(nc)) <= win.arm_cap)
+            bs = [m.NewBoolVar('') for c in range(nc)]
+            for c in range(nc):
+                m.Add(F[i, c] == 0).OnlyEnforceIf(bs[c].Not())
+            m.AddAtMostOne(bs)
+            self.arm_kind[i] = bs
+
+    def arm_filters(self, solver):
+        """{arm tile: item index it carries} for the placed arms."""
+        out = {}
+        for p, i in self.arm_links:
+            if solver.Value(self.links[i][2]):
+                out[p] = next(c for c, b in enumerate(self.arm_kind[i]) if solver.Value(b))
+        return out
 
     def machines_chosen(self, solver):
         """[(type index, anchor, rotation)] of the placed machines."""
@@ -532,4 +585,5 @@ def solve(win, timeout=60.0, workers=4, objective=False, on_solution=None, log=F
         res['pieces'] = len(res['grid'])
         res['options'] = mod.chosen_options(sv)
         res['machines'] = mod.machines_chosen(sv)
+        res['filters'] = mod.arm_filters(sv) if mod.arm_links else {}
     return res

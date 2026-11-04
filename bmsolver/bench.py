@@ -116,7 +116,7 @@ def run_cpsat(workers):
     def f(win, timeout):
         r = model.solve(win, timeout=timeout, workers=workers)
         st = {'OPTIMAL': 'SAT', 'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
-        return dict(status=st, time=r['time'], grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'))
+        return dict(status=st, time=r['time'], grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'), filters=r.get('filters'))
     return f
 
 
@@ -125,7 +125,7 @@ def run_sat(binary):
         t0 = time.time()
         r = cnf.solve(model.Model(win), engine=_bin(binary), timeout=timeout)
         st = {'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
-        return dict(status=st, time=time.time() - t0, grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'), vars=r['vars'], clauses=r['clauses'])
+        return dict(status=st, time=time.time() - t0, grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'), filters=r.get('filters'), vars=r['vars'], clauses=r['clauses'])
     return f
 
 
@@ -133,7 +133,7 @@ def run_cube(binary, procs, mirror=True):
     def f(win, timeout):
         r = cnf.prove(win, _bin(binary), procs=procs, timeout=timeout, mirror=mirror, log=None)
         st = {'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
-        return dict(status=st, time=r['time'], grid=r.get('grid'), window=r.get('window'), machines=r.get('machines'), cubes=r['cubes'])
+        return dict(status=st, time=r['time'], grid=r.get('grid'), window=r.get('window'), machines=r.get('machines'), filters=r.get('filters'), cubes=r['cubes'])
     return f
 
 
@@ -141,7 +141,7 @@ def run_race(binaries, cpsat_workers=1):
     def f(win, timeout):
         r = cnf.race(win, [_bin(b) for b in binaries], timeout=timeout, cpsat_workers=cpsat_workers, log=None)
         st = {'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
-        return dict(status=st, time=r['time'], grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'), winner=r.get('winner'))
+        return dict(status=st, time=r['time'], grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'), filters=r.get('filters'), winner=r.get('winner'))
     return f
 
 
@@ -155,11 +155,11 @@ CONFIGS = {
 }
 
 
-def verify_factory(grid, win, machines, options=None):
+def verify_factory(grid, win, machines, options=None, filters=None):
     """Game-exact sim of a factory layout: every machine and the output must run at exactly the planned rate."""
     from . import gsim
     f = win.factory
-    rep = gsim.run(win, grid, machines, f.items, f.per_unit, f.recipes, options=options, warmup=30, minutes=120)
+    rep = gsim.run(win, grid, machines, f.items, f.per_unit, f.recipes, options=options, warmup=30, minutes=120, filters=filters)
     want = [sum(win.machines[ti]['make']) * f.per_unit for ti, a, o in machines]
     got = [m['perMin'] for m in rep['machines']]
     outs = sum(sum(v.values()) for v in rep['outputs'].values())
@@ -223,14 +223,14 @@ def run(case_names, config_names, timeout, out=None, window_hook=None, tag=''):
             ok = ''
             if r['status'] == 'SAT' and r.get('grid') is not None:
                 if getattr(win, 'factory', None):
-                    ok = verify_factory(r['grid'], r.get('window', win), r.get('machines') or [], r.get('options'))
+                    ok = verify_factory(r['grid'], r.get('window', win), r.get('machines') or [], r.get('options'), r.get('filters'))
                 else:
                     ok = verify(r['grid'], r.get('window', win), r.get('options'))
             status = r['status']
             if expect and status in ('SAT', 'UNSAT') and status != expect:
                 status = 'WRONG(%s)' % status
             row = dict(case=name, config=cfg + tag, status=status, time=round(r['time'], 2), verified=ok,
-                       extra=';'.join('%s=%s' % (k, v) for k, v in r.items() if k not in ('status', 'time', 'grid', 'options', 'window', 'machines')))
+                       extra=';'.join('%s=%s' % (k, v) for k, v in r.items() if k not in ('status', 'time', 'grid', 'options', 'window', 'machines', 'filters')))
             rows.append(row)
             print('%-14s %-14s %-12s %8.2fs %s %s' % (name, cfg, status, r['time'], ok, row['extra']), flush=True)
             if out:
