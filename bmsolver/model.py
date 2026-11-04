@@ -27,6 +27,11 @@ from ortools.sat.python import cp_model
 
 from .pieces import DIRS, UG_REACH, MIRROR_Y, MIRROR_X
 
+import json as _json
+import os as _os
+with open(_os.path.join(_os.path.dirname(__file__), 'machines.json')) as _f:
+    MACHINES = _json.load(_f)       # machine geometry per building id (tools/machine_geometry.mjs)
+
 
 class Window:
     def __init__(self, W, H, ncom, D, ports=None):
@@ -46,6 +51,8 @@ class Window:
                                     # empty tiles that would not join their neighbours once the column is gone
         self.max_splitters = None
         self.allow_underground = True
+        self.machines = []          # machine types to place: dicts {bid, count, need: vec, make: vec, rots: None|[o]}
+                                    # need/make: commodity units one machine takes in / puts out (exactly)
 
     def inside(self, p):
         return 0 <= p[0] < self.W and 0 <= p[1] < self.H
@@ -81,6 +88,9 @@ class Model:
                 for o in range(4):
                     X[p, k + str(o)] = m.NewBoolVar('%s%d%s' % (k, o, p))
                     lits.append(X[p, k + str(o)])
+            if win.machines:
+                X[p, 'M'] = m.NewBoolVar('M%s' % (p,))      # part of a machine
+                lits.append(X[p, 'M'])
             m.AddExactlyOne(lits)
             if p in win.fixed:
                 m.Add(X[p, win.fixed[p] or 'E'] == 1)
@@ -90,13 +100,46 @@ class Model:
 
         nz = lambda lst: [v for v in lst if v is not None]
 
+        # ---- machines: a placement literal per (type, anchor, rotation) that fits; ports from the game's geometry
+        self.placements = []              # (type index, anchor, o, literal, tiles, inputs [(tile, dir)], output (tile, dir))
+        mpush, macc = {}, {}
+        if win.machines:
+            cover = {p: [] for p in cells}
+            for ti, mt in enumerate(win.machines):
+                geo = MACHINES[str(mt['bid'])]
+                lits_t = []
+                for r in geo['rots']:
+                    if mt.get('rots') is not None and r['o'] not in mt['rots']:
+                        continue
+                    for ax in range(-4, W + 4):
+                        for ay in range(-4, H + 4):
+                            tiles = [(ax + dx, ay + dy) for dx, dy in r['tiles']]
+                            if not all(t in cellset and t not in win.fixed for t in tiles):
+                                continue
+                            y = m.NewBoolVar('Y%d' % ti)
+                            ins = [((ax + a, ay + b), d) for a, b, d in r['inputs']]
+                            outs = [((ax + a, ay + b), d) for a, b, d in r['outputs']]
+                            self.placements.append((ti, (ax, ay), r['o'], y, tiles, ins, outs))
+                            lits_t.append(y)
+                            for t in tiles:
+                                cover[t].append(y)
+                            for t, d in outs:
+                                mpush.setdefault((t, d), []).append(y)
+                            for t, d in ins:
+                                macc.setdefault(t, []).append((y, d))
+                m.Add(sum(lits_t) == mt['count'])
+            for p in cells:
+                m.Add(sum(cover[p]) == X[p, 'M'])
+
         def pushers(p, d):
             """literals for 'the piece at p pushes in direction d'"""
-            return nz([V(p, 'B', d), V(p, 'S', d), V(p, 'S', d + 1), V(p, 'S', d + 3), V(p, 'O', d)])
+            return nz([V(p, 'B', d), V(p, 'S', d), V(p, 'S', d + 1), V(p, 'S', d + 3), V(p, 'O', d)]) + mpush.get((p, d), [])
 
         def acceptors(q, d):
             """literals for 'the piece at q accepts items moving in direction d'"""
-            return nz([V(q, 'B', o) for o in range(4) if o != (d + 2) % 4] + [V(q, 'S', d), V(q, 'I', d)])
+            return nz([V(q, 'B', o) for o in range(4) if o != (d + 2) % 4] + [V(q, 'S', d), V(q, 'I', d)]) + \
+                [y for y, s in macc.get(q, []) if d == (s + 2) % 4]    # a machine input only takes items moving
+                                                                         # straight in across its side (World.findOutput)
 
         for (p, d) in win.no_ug:
             for v in nz([V(p, 'I', d), V(p, 'O', d)]):
@@ -270,9 +313,12 @@ class Model:
                         m.Add(v == 0)
 
         self.lin, self.lout, self.splitter_edge, self.optional = lin, lout, splitter_edge, optional
+        self._machine_links = (lin, lout, inflow, outflow)
         self.inflow, self.outflow = inflow, outflow
         if flows:
             self._flows(win, links, lin, lout, inflow, outflow, splitter_edge, tin_vec, tout_links, V, nz)
+            if self.placements:
+                self._machine_flows(win, links, lin, lout, inflow, outflow)
 
         # ---- symmetry
         if win.symmetry:
@@ -370,7 +416,9 @@ class Model:
                 m.Add(sum(F[i, c] for i in ls) == vec[c])
         for p in cells:
             for c in range(nc):
-                m.Add(inflow[p][c] + sum(F[i, c] for i in lin[p]) == outflow[p][c] + sum(F[i, c] for i in lout[p]))
+                ct = m.Add(inflow[p][c] + sum(F[i, c] for i in lin[p]) == outflow[p][c] + sum(F[i, c] for i in lout[p]))
+                if (p, 'M') in X:
+                    ct.OnlyEnforceIf(X[p, 'M'].Not())
             for i in lin[p] + lout[p]:
                 m.AddImplication(X[p, 'E'], links[i][2].Not())
             sp = nz([V(p, 'S', o) for o in range(4)])
@@ -389,8 +437,25 @@ class Model:
                             m.Add(share == outflow[p][c]).OnlyEnforceIf([s] + cond)
 
 
+    def _machine_flows(self, win, links, lin, lout, inflow, outflow):
+        """A placed machine takes in exactly need and puts out exactly make, summed over its port tiles."""
+        m, F, nc = self.m, self.F, win.ncom
+        for ti, a, o, y, tiles, ins, outs in self.placements:
+            mt = win.machines[ti]
+            in_tiles = sorted({t for t, d in ins})
+            out_tiles = sorted({t for t, d in outs})
+            for c in range(nc):
+                m.Add(sum(inflow[t][c] for t in in_tiles) + sum(F[i, c] for t in in_tiles for i in lin[t])
+                      == mt['need'][c]).OnlyEnforceIf(y)
+                m.Add(sum(outflow[t][c] for t in out_tiles) + sum(F[i, c] for t in out_tiles for i in lout[t])
+                      == mt['make'][c]).OnlyEnforceIf(y)
+
+    def machines_chosen(self, solver):
+        """[(type index, anchor, rotation)] of the placed machines."""
+        return [(ti, a, o) for ti, a, o, y, *_ in self.placements if solver.Value(y)]
+
     def grid(self, solver):
-        return {p: k for (p, k), v in self.X.items() if k != 'E' and solver.Value(v)}
+        return {p: k for (p, k), v in self.X.items() if k not in ('E', 'M') and solver.Value(v)}
 
     def chosen_options(self, solver):
         return [next(j for j, l in enumerate(lits) if solver.Value(l)) for lits in self.option_lits]
