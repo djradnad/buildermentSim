@@ -96,7 +96,7 @@
       </div>
       <div class="row small">
         <label title="Belt speed per tick = trunc(float sum of your belt tech multipliers x 10). The game's order gives 3.2 -> 32; other summation orders give 3.1999998 -> 31 (not confirmed in game).">Belt speed <select id="beltM"><option value="32">32 /tick (480/min)</option><option value="31">31 /tick (465/min, other sum order, unverified)</option></select></label>
-        <label title="Underground belt range from research (4 + upgrades; the base is inferred). The exit can be up to range + 1 tiles past the entrance.">UG range <select id="ugRange"><option value="5">5 (1 upgrade)</option><option value="6" selected>6 (2 upgrades)</option><option value="7">7 (3 upgrades)</option></select></label>
+        <label title="How far an underground exit can be: 5 tiles with no underground tech, +1 per tech (2 techs). The first exit facing the same way wins; pieces in between are skipped.">UG reach <select id="ugRange"><option value="4">5 tiles (no tech)</option><option value="5">6 tiles (1 tech)</option><option value="6" selected>7 tiles (2 techs)</option></select></label>
         <label title="Which output every splitter serves first">Splitter start <select id="splitStart"><option value="0">first</option><option value="1">second</option><option value="2">third</option></select></label>
         <label title="Fuelled power plants boost machines, arms and extractors in range (nuclear r9 +40%, coal r5 +20%, largest wins)"><input type="checkbox" id="plants" checked> power plants</label>
       </div>

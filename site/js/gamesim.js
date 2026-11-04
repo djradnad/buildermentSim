@@ -11,7 +11,7 @@ export { GAMEDATA };
 const f32 = Math.fround;
 export const DT = f32(1 / 60);
 export const SP = 240, SNAP = 28, M_DEFAULT = 32;
-export const UG_RANGE = 6;                         // exit 1..7 tiles away
+export const UG_RANGE = 6;                         // exit 1..7 tiles away: reach 5 + 1 per underground tech (2)
 const ARM_DROP = 2.7333333333333334, ARM_END = 4.0;
 const OUT_CAP = 10;                                // no new craft while this many products wait
 export const DV = [[0, -1], [-1, 0], [0, 1], [1, 0]];   // 0 N, 1 W, 2 S, 3 E
@@ -25,6 +25,7 @@ export const BDEF = {};
 for (const [key, b] of Object.entries(GAMEDATA.buildings)) BDEF[b.id] = { ...b, key };
 export const RECIPES = {};
 for (const r of Object.values(GAMEDATA.recipes)) RECIPES[r.id] = r;
+export const LAB_IDS = new Set([3013]);   // a crafter with no recipe takes nothing
 export const FACTORY_IDS = new Set([3005, 3006, 3007, 3008, 3009, 3010, 3014]);
 const STORAGE_ID = 3011, ARM_ID = 3012, EXTRACTOR_ID = 3004;
 
@@ -84,25 +85,88 @@ export function setRoundf(on) { RND = on ? roundf : null; }
 // Tile hash map order (CHAINS.md section 3, FUN_140e89370; the map type, its growth and paste insertion order are
 // inferred). The game walks its tile maps in bucket order, which decides creation order within a pass.
 const U64 = (1n << 64n) - 1n, HM = 0xFF51AFD7ED558CCDn, HMUL0 = 0xc4ceb9fe1a85ec53n;
-export function tileHash(x, y) {
+// the key hash before the table's multiplier
+function tileKeyHash(x, y) {
   const h = v => { v = BigInt.asUintN(64, BigInt(v)); const a = ((v >> 33n) ^ v) * HM & U64; return (a >> 33n) ^ a; };
   const h1 = h(x), h2 = h(y);
   let c = (h1 + 0x9E3779B9n) & U64;
   c = ((h2 + h1 * 0x40n + 0x282C15E7F9n + (c >> 2n)) & U64) ^ c;
   const d = ((c >> 33n) ^ c) * HM & U64;
-  let e = ((d >> 33n) ^ d) * HMUL0 & U64;
+  return (d >> 33n) ^ d;
+}
+export function tileHash(x, y, mul = HMUL0) {
+  const e = tileKeyHash(x, y) * mul & U64;
   return e ^ (e >> 33n);
 }
-// values of a tile map in the game's iteration order: home bucket ascending, then (robin hood) larger info first,
-// then insertion order. Table: 8 buckets, doubled whenever the count would pass 80%.
+
+// The game's tile maps (robin_hood flat map, traced): 8 buckets to start, max load 80%, info byte = inc + (5 hash
+// bits >> shift). When an info byte would pass 0xFF or the table is full: first halve inc (shift + 1) if there is
+// room, else add 0xc4ceb9fe1a85ec54 to the multiplier and rehash at the same size if count * 2 < max, else double.
+// Iteration is slot order. Only inserts are modelled (a paste or load; erasing is backward shift, never shrinks).
+class TileMap {
+  constructor() { this.mul = HMUL0; this.init(8); }
+  maxAllowed(n) { return Math.floor(n * 80 / 100); }
+  init(n) {
+    this.mask = n - 1; this.count = 0; this.max = this.maxAllowed(n);
+    const buf = n + Math.min(this.max, 0xFF);
+    this.info = new Uint16Array(buf + 1); this.info[buf] = 1;   // sentinel
+    this.keys = new Array(buf + 1).fill(null);
+    this.inc = 32; this.shift = 0;
+  }
+  idx(k) {
+    const e = k.h * this.mul & U64, h = e ^ (e >> 33n);
+    return [Number((h >> 5n) & BigInt(this.mask)), this.inc + (Number(h & 31n) >> this.shift)];
+  }
+  tryIncreaseInfo() {
+    if (this.inc <= 2) return false;
+    this.inc >>= 1; this.shift++;
+    const buf = this.mask + 1 + Math.min(this.max, 0xFF);
+    for (let i = 0; i < buf; i++) this.info[i] >>= 1;
+    this.info[buf] = 1;
+    this.max = this.maxAllowed(this.mask + 1);
+    return true;
+  }
+  increaseSize() {
+    if (this.count < this.maxAllowed(this.mask + 1) && this.tryIncreaseInfo()) return;
+    const old = this.keys.filter((k, i) => k !== null && this.info[i] !== 0 && i < this.keys.length - 1);
+    if (this.count * 2 < this.maxAllowed(this.mask + 1)) { this.mul = (this.mul + 0xc4ceb9fe1a85ec54n) & U64; this.init(this.mask + 1); }
+    else this.init((this.mask + 1) * 2);
+    for (const k of old) this.place(k, true);
+  }
+  place(k, move) {           // insert_move (rehash: goes after equal infos) or a fresh insert
+    if (move && this.count >= this.max && !this.tryIncreaseInfo()) throw new Error('tile map overflow');
+    let [i, info] = this.idx(k);
+    while (move ? info <= this.info[i] : info < this.info[i]) { i++; info += this.inc; }
+    if (!move) while (info === this.info[i]) { if (this.keys[i].x === k.x && this.keys[i].y === k.y) return false; i++; info += this.inc; }
+    if (!move && this.count >= this.max) return null;    // full: grow, then retry
+    const at = i, atInfo = info;
+    if (atInfo + this.inc > 0xFF) this.max = 0;
+    while (this.info[i] !== 0) { i++; info += this.inc; }
+    for (let j = i; j > at; j--) {                        // shift up
+      this.keys[j] = this.keys[j - 1]; this.info[j] = this.info[j - 1] + this.inc;
+      if (this.info[j] + this.inc > 0xFF) this.max = 0;
+    }
+    this.keys[at] = k; this.info[at] = atInfo; this.count++;
+    return true;
+  }
+  insert(x, y, v) {
+    const k = { x, y, v, h: tileKeyHash(x, y) };
+    for (let t = 0; t < 256; t++) {
+      const r = this.place(k, false);
+      if (r !== null) return r;
+      this.increaseSize();
+    }
+    throw new Error('tile map overflow');
+  }
+  values() { return this.keys.filter((k, i) => k !== null && this.info[i] !== 0 && i < this.keys.length - 1).map(k => k.v); }
+}
+
+// values of a tile map in the game's iteration order, inserted in the map's own order (blueprint row order on a
+// paste, the save's record order on load) into a fresh table
 export function hashOrder(map, off = [0, 0]) {
-  const vals = [...map.values()];
-  let size = 8;
-  while (vals.length > Math.floor(size * 80 / 100)) size *= 2;
-  const mask = BigInt(size - 1);
-  const k = vals.map((n, i) => { const e = tileHash(n.x + off[0], n.y + off[1]); return [Number((e >> 5n) & mask), Number(e & 31n), i, n]; });
-  k.sort((a, b) => a[0] - b[0] || b[1] - a[1] || a[2] - b[2]);
-  return k.map(r => r[3]);
+  const t = new TileMap();
+  for (const n of map.values()) t.insert(n.x + off[0], n.y + off[1], n);
+  return t.values();
 }
 
 function roundHalfEven(x) {
@@ -825,7 +889,7 @@ export class Factory extends World {
       if (kind !== o.item || o.limit <= o.count) return false;
       o.count++; return true;
     }
-    if (b && !o && !BELT_IDS.has(b.id) && this.labsTakeAll) {   // labs, plants: take everything (not traced yet)
+    if (b && !o && LAB_IDS.has(b.id) && this.labsTakeAll) {   // labs (and gold vaults) take anything, drained every tick
       this.consumed = this.consumed || new Map();
       const m = this.consumed.get(b) || {};
       m[kind] = (m[kind] || 0) + 1;
@@ -902,7 +966,7 @@ export class Factory extends World {
   armDrop(a) {
     const b = this.occ.get(key(a.dst[0], a.dst[1]));
     if (b && (this.bobj.get(b) instanceof Machine || this.bobj.get(b) instanceof Storage || this.bobj.get(b) instanceof Plant ||
-              (this.labsTakeAll && !BELT_IDS.has(b.id)))) return this.accept(b, a.held);
+              (this.labsTakeAll && LAB_IDS.has(b.id)))) return this.accept(b, a.held);
     if (!a.dstCache) a.dstCache = this.segAt(a.dst).slice(0, 1);
     for (const [g, q] of a.dstCache) {
       if (g.canDrop(q)) { g.drop(q, a.held); return true; }

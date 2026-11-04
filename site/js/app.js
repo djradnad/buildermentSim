@@ -521,6 +521,8 @@ function pickTile([x, y], click) {
     const name = (Object.values(GAMEDATA.buildings).find(d => d.id === b.id) || {}).name || 'building ' + b.id;
     lines.push(`${name} at ${b.x}, ${b.y}, tier ${b.tier}${b.added ? ' (added ' + (b.added === 'in' ? 'input' : 'output') + ')' : ''}`);
     const o = w.bobj.get(b);
+    // the game's building label: ideal rate with the live boost, no tick rounding
+    if (o && o.rec) lines.push(`game label: ${+(60 / (o.rec.seconds / ((o.boost + 1) * o.mult)) * o.outAmount).toFixed(2)}/min`);
     if (o && o.rec) lines.push(`recipe: ${o.rec.in.map(i => i.amount + ' ' + i.item).join(' + ')} -> ${o.outAmount} ${o.outItem} in ${o.rec.seconds} s`,
       `holding: ${Object.entries(o.have).map(([k2, v]) => v + ' ' + k2).join(', ')}; waiting output ${o.out}; made ${o.made}`);
     if (b.id === 3004) {
