@@ -487,29 +487,64 @@ function pickTile([x, y], click) {
     lines.push(`piece #${g.idx}${stub ? ' (splitter output stub)' : ''}: ${g.nodes.length} tiles, length ${(g.L / 800).toFixed(3)}, ${g.items.length} items${g.flag ? '' : ' (tunnel)'}` +
       (loc ? `; grid cell depth ${loc.depth}${loc.onSplit ? ', ON A SPLIT LINE (listed first)' : ''}` : ''));
   }
+  const actions = click ? inputActions(x, y) : [];
+  if (!b && actions.length) lines.push(`empty tile at ${x}, ${y}`);
   if (!lines.length) { $('pickCard').hidden = true; view.pick = null; view.draw(); return; }
   if (click) {
-    // inputs by hand: a belt piece that nothing feeds can take a feed (needed where the automatic feeder tile
-    // can't go, e.g. a start whose back faces another building)
-    const btn = $('pickFeed');
-    const start = w.segs.find(g => g.nodes[0].x === x && g.nodes[0].y === y && g.flag && !g.nodes[0].inputs.length);
-    const fi = state.feeds.findIndex(f => f.at[0] === x && f.at[1] === y);
-    btn.hidden = !start && fi < 0;
-    if (fi >= 0) {
-      btn.textContent = 'Remove the input here';
-      btn.onclick = () => { state.feeds.splice(fi, 1); renderInputs(); rebuild(); pickTile([x, y], true); };
-    } else if (start) {
-      btn.textContent = 'Make this an input';
-      btn.onclick = () => {
-        state.feeds.push({ at: [x, y], kind: guessFeedItem(w, start, 'In' + (state.feeds.length + 1)), perMin: 480 });
-        renderInputs(); rebuild(); pickTile([x, y], true);
-      };
+    const box = $('pickActions');
+    box.innerHTML = '';
+    for (const [label, run] of actions) {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.onclick = () => { run(); renderInputs(); rebuild(); pickTile([x, y], true); };
+      box.appendChild(btn);
     }
     view.pick = [x, y];
     $('pickCard').hidden = false;
     $('pickInfo').textContent = lines.join('\n');
+    $('panel').classList.remove('collapsed');
+    $('pickCard').scrollIntoView({ block: 'nearest' });
     view.draw();
   }
+}
+
+// Input belts by hand. On an empty tile: place an input belt facing each neighbour that would take items from
+// it (checked with the game's own link rules). On an input: remove it (and its belt, if the page added it).
+// On a belt piece nothing feeds: feed it directly.
+function inputActions(x, y) {
+  const k = x + ',' + y;
+  const acts = [];
+  const fi = state.feeds.findIndex(f => f.at[0] === x && f.at[1] === y);
+  if (fi >= 0) {
+    acts.push(['Remove the input here', () => {
+      state.feeds.splice(fi, 1);
+      const bi = state.buildings.findIndex(b => b.x === x && b.y === y && b.added === 'in');
+      if (bi >= 0) state.buildings.splice(bi, 1);
+    }]);
+    return acts;
+  }
+  const w = state.w;
+  if (!w.occ.has(k)) {
+    const names = ['north', 'west', 'south', 'east'];
+    for (let d = 0; d < 4; d++) {
+      const nb = { id: 3000, x, y, o: d, tier: 1, recipe: 0, filter: 0, added: 'in' };
+      const t = new World([...state.buildings, nb]);
+      const n = t.belt.get(k);
+      if (!n || !n.outputs.length) continue;
+      acts.push([`Place an input belt facing ${names[d]}`, () => {
+        state.buildings.push(nb);
+        const probe = new Factory(state.buildings.map(b => ({ ...b })), { extractors: {} });
+        const g = probe.segs.find(s => s.nodes[0].x === x && s.nodes[0].y === y);
+        state.feeds.push({ at: [x, y], kind: g ? guessFeedItem(probe, g, 'In' + (state.feeds.length + 1)) : 'In' + (state.feeds.length + 1), perMin: 480 });
+      }]);
+    }
+    return acts;
+  }
+  const start = w.segs.find(g => g.nodes[0].x === x && g.nodes[0].y === y && g.flag && !g.nodes[0].inputs.length);
+  if (start) acts.push(['Feed this belt directly', () => {
+    state.feeds.push({ at: [x, y], kind: guessFeedItem(w, start, 'In' + (state.feeds.length + 1)), perMin: 480 });
+  }]);
+  return acts;
 }
 
 // ------------------------------------------------------------------ misc

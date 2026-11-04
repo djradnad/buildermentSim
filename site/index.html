@@ -76,6 +76,12 @@
       <div class="muted small" id="chartNote">Output per minute over game time</div>
     </div>
 
+    <div class="card" id="pickCard" hidden>
+      <h2>Tile</h2>
+      <div id="pickInfo" class="pick"></div>
+      <div id="pickActions" class="row"></div>
+    </div>
+
     <div class="card">
       <h2>Inputs</h2>
       <div class="row small">
@@ -92,11 +98,6 @@
       <div id="made" class="list"></div>
     </div>
 
-    <div class="card" id="pickCard" hidden>
-      <h2>Tile</h2>
-      <div id="pickInfo" class="pick"></div>
-      <button id="pickFeed" hidden></button>
-    </div>
 
     <div class="card muted small about">
       <p>The game-exact sim follows the game's own code: belt segments with exact float32 lengths, item spacing, merge
