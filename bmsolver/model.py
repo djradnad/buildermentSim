@@ -51,6 +51,8 @@ class Window:
                                     # empty tiles that would not join their neighbours once the column is gone
         self.max_splitters = None
         self.allow_underground = True
+        self.cuts = None            # experiment: None, 'card' (enough links cross every row/column line for the
+                                    # net flow), 'flow' (per-item net flow across every line), 'both'
         self.machines = []          # machine types to place: dicts {bid, count, need: vec, make: vec, rots: None|[o]}
                                     # need/make: commodity units one machine takes in / puts out (exactly)
 
@@ -69,7 +71,7 @@ class Window:
 class Model:
     """Builds the CP-SAT model of a window. After solving, grid(solver) reads the layout back."""
 
-    def __init__(self, win, objective=False, weights=None, turn_weight=0, flows=True):
+    def __init__(self, win, objective=False, weights=None, turn_weight=0, flows=True, pure_feeds=True):
         self.win = win
         m = self.m = cp_model.CpModel()
         W, H, D, nc = win.W, win.H, win.D, win.ncom
@@ -318,7 +320,9 @@ class Model:
         if flows:
             self._flows(win, links, lin, lout, inflow, outflow, splitter_edge, tin_vec, tout_links, V, nz)
             if self.placements:
-                self._machine_flows(win, links, lin, lout, inflow, outflow)
+                self._machine_flows(win, links, lin, lout, inflow, outflow, pure_feeds)
+        if win.cuts and not self.placements and not win.tun_in and not win.tun_out:
+            self._cuts(win, links, inflow, outflow, win.cuts, flows)
 
         # ---- symmetry
         if win.symmetry:
@@ -437,9 +441,48 @@ class Model:
                             m.Add(share == outflow[p][c]).OnlyEnforceIf([s] + cond)
 
 
-    def _machine_flows(self, win, links, lin, lout, inflow, outflow):
-        """A placed machine takes in exactly need and puts out exactly make, summed over its port tiles."""
+    def _cuts(self, win, links, inflow, outflow, mode, flows):
+        """Redundant constraints across every line between two columns (and two rows): the items entering the window
+        on one side minus those leaving there must cross the line. 'flow': per item, as an equality of link flows.
+        'card': at least ceil(net / D) links cross the line in the needed direction (pure clauses, needs the net to
+        be fixed, i.e. no free port positions on that side)."""
+        m, D, nc = self.m, win.D, win.ncom
+        for axis, n in ((0, win.W), (1, win.H)):
+            for x in range(n - 1):              # line between x and x+1 on this axis
+                side = [p for p in self.cells if p[axis] > x]
+                net = [sum(inflow[p][c] for p in side) - sum(outflow[p][c] for p in side) for c in range(nc)]
+                fwd = [i for i, (p, q, l, k) in enumerate(links) if p[axis] > x >= q[axis]]   # from far to near
+                back = [i for i, (p, q, l, k) in enumerate(links) if q[axis] > x >= p[axis]]
+                if mode in ('flow', 'both') and flows:
+                    for c in range(nc):
+                        m.Add(sum(self.F[i, c] for i in fwd) - sum(self.F[i, c] for i in back) == net[c])
+                if mode in ('card', 'both'):
+                    tot = sum(net)
+                    if not isinstance(tot, int):
+                        continue
+                    need, lits = -(-abs(tot) // D), [links[i][2] for i in (fwd if tot > 0 else back)]
+                    if need:
+                        m.Add(sum(lits) >= need)
+
+    def _machine_flows(self, win, links, lin, lout, inflow, outflow, pure_feeds=True):
+        """A placed machine takes in exactly need and puts out exactly make, summed over its port tiles.
+
+        pure_feeds: every belt link into a machine carries one item kind. The game stops a whole belt segment when
+        its front item is refused (World.accept: a machine holds at most one craft of each ingredient), so a mixed
+        belt into a machine stalls as soon as one ingredient fills up; averaged flows can't see that."""
         m, F, nc = self.m, self.F, win.ncom
+        if pure_feeds and nc > 1:
+            done = set()
+            for ti, a, o, y, tiles, ins, outs in self.placements:
+                for t, d in ins:
+                    for i in lin[t]:
+                        if i in done:
+                            continue
+                        done.add(i)
+                        bs = [m.NewBoolVar('') for c in range(nc)]
+                        for c in range(nc):
+                            m.Add(F[i, c] == 0).OnlyEnforceIf(bs[c].Not())
+                        m.AddAtMostOne(bs)
         for ti, a, o, y, tiles, ins, outs in self.placements:
             mt = win.machines[ti]
             in_tiles = sorted({t for t, d in ins})
@@ -488,4 +531,5 @@ def solve(win, timeout=60.0, workers=4, objective=False, on_solution=None, log=F
         res['grid'] = mod.grid(sv)
         res['pieces'] = len(res['grid'])
         res['options'] = mod.chosen_options(sv)
+        res['machines'] = mod.machines_chosen(sv)
     return res

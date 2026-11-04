@@ -658,11 +658,13 @@ class Extractor {
 }
 
 // An open input belt: items of one kind at up to `perMin` (480 = a full belt, as fast as it can take them).
+// `buffer` items may wait while the belt is blocked (1 = an extractor-like source that loses time; 10 = a machine's
+// output store, as when the input comes from upstream production).
 class Feed {
-  constructor(seg, kind, perMin) { this.seg = seg; this.kind = kind; this.perMin = perMin; this.n = 0; this.acc = 0; }
+  constructor(seg, kind, perMin, buffer = 1) { this.seg = seg; this.kind = kind; this.perMin = perMin; this.buffer = buffer; this.n = 0; this.acc = 0; }
   tick(M) {
     if (this.perMin < 480) {
-      this.acc = Math.min(this.acc + this.perMin / 3600, 1);
+      this.acc = Math.min(this.acc + this.perMin / 3600, this.buffer);
       if (this.acc < 1) return;
     }
     if (this.seg.free > 239) { this.seg.insert(M, this.kind); this.n++; this.acc -= 1; }
@@ -707,7 +709,7 @@ export class Factory extends World {
     }
     for (const f of opts.feeds || []) {
       const g = this.segs.find(s => s.nodes[0].x === f.at[0] && s.nodes[0].y === f.at[1]);
-      if (g) this.feeds.push(new Feed(g, f.kind, f.perMin ?? 480));
+      if (g) this.feeds.push(new Feed(g, f.kind, f.perMin ?? 480, f.buffer ?? 1));
     }
     this.labsTakeAll = opts.labsTakeAll !== false;
     this.tickNo = 0;

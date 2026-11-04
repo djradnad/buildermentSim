@@ -26,6 +26,42 @@ def _bin(name):
     return p
 
 
+class Factory:
+    """A factory module case: inputs enter on the east edge (rows given), the product leaves on the west edge.
+    machines: model.Window machine dicts. Found layouts are checked in the game-exact sim (gsim) at exact rates."""
+
+    def __init__(self, ins, out, machines, items, per_unit, recipes, D=32):
+        self.ins, self.out, self.machines, self.items = ins, out, machines, items
+        self.per_unit, self.recipes, self.D = per_unit, recipes, D
+
+    def window(self, W, H):
+        from .model import Window
+        ports = {((W - 1, r), 3): ('in', v) for r, v in self.ins}
+        ports[((0, self.out[0]), 1)] = ('out', self.out[1])
+        w = Window(W, H, len(self.items), self.D, ports=ports)
+        w.machines = self.machines
+        w.factory = self
+        return w
+
+
+def graphite2():   # 2 forges T1: 3 coal + 3 log -> 1 graphite / 4 s = 15/min each; 1 unit = 15/min
+    return Factory([(0, [6, 0, 0]), (1, [0, 6, 0])], (0, [0, 0, 2]),
+                   [dict(bid=3009, count=2, need=[3, 3, 0], make=[0, 0, 1])], ['Coal', 'Wood Log', 'Graphite'], 15, [2022])
+
+
+def emag2():       # 2 machine shops T1: 6 wire + 2 iron ingot -> 1 magnet / 8 s = 7.5/min each; 1 unit = 7.5/min
+    return Factory([(0, [12, 0, 0]), (1, [0, 4, 0])], (0, [0, 0, 2]),
+                   [dict(bid=3007, count=2, need=[6, 2, 0], make=[0, 0, 1])],
+                   ['Copper Wire', 'Iron Ingot', 'Electromagnet'], 7.5, [2015], D=64)
+
+
+def wire_chain():  # 3 furnaces (30 ore -> 30 ingot each) + 2 workshops T1 (45 ingot -> 30 wire each); 1 unit = 15/min
+    return Factory([(0, [6, 0, 0])], (0, [0, 0, 4]),
+                   [dict(bid=3006, count=3, need=[2, 0, 0], make=[0, 2, 0]),
+                    dict(bid=3005, count=2, need=[0, 3, 0], make=[0, 0, 2])],
+                   ['Copper Ore', 'Copper Ingot', 'Copper Wire'], 15, [2002, 2003])
+
+
 # name, spec, W, H, expected ('SAT' | 'UNSAT'), tier
 CASES = [
     ('split5_3x5', lambda: S.splitter(5), 3, 5, 'SAT', 'quick'),
@@ -44,6 +80,11 @@ CASES = [
     ('bal4_7x7', lambda: S.balancer(4), 7, 7, 'SAT', 'huge'),
     ('bal4_7x6', lambda: S.balancer(4), 7, 6, None, 'huge'),
     ('bal4_6x7', lambda: S.balancer(4), 6, 7, None, 'huge'),
+    ('graphite2_6x5', graphite2, 6, 5, 'SAT', 'factory'),
+    ('graphite2_5x5', graphite2, 5, 5, 'UNSAT', 'factory'),
+    ('graphite2_6x4', graphite2, 6, 4, 'UNSAT', 'factory'),
+    ('emag2_6x5', emag2, 6, 5, 'SAT', 'factory'),
+    ('wire_5x5', wire_chain, 5, 5, 'SAT', 'factory'),
 ]
 
 
@@ -51,7 +92,7 @@ def run_cpsat(workers):
     def f(win, timeout):
         r = model.solve(win, timeout=timeout, workers=workers)
         st = {'OPTIMAL': 'SAT', 'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
-        return dict(status=st, time=r['time'], grid=r.get('grid'), options=r.get('options'))
+        return dict(status=st, time=r['time'], grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'))
     return f
 
 
@@ -60,7 +101,7 @@ def run_sat(binary):
         t0 = time.time()
         r = cnf.solve(model.Model(win), engine=_bin(binary), timeout=timeout)
         st = {'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
-        return dict(status=st, time=time.time() - t0, grid=r.get('grid'), options=r.get('options'), vars=r['vars'], clauses=r['clauses'])
+        return dict(status=st, time=time.time() - t0, grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'), vars=r['vars'], clauses=r['clauses'])
     return f
 
 
@@ -68,7 +109,7 @@ def run_cube(binary, procs, mirror=True):
     def f(win, timeout):
         r = cnf.prove(win, _bin(binary), procs=procs, timeout=timeout, mirror=mirror, log=None)
         st = {'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
-        return dict(status=st, time=r['time'], grid=r.get('grid'), window=r.get('window'), cubes=r['cubes'])
+        return dict(status=st, time=r['time'], grid=r.get('grid'), window=r.get('window'), machines=r.get('machines'), cubes=r['cubes'])
     return f
 
 
@@ -76,7 +117,7 @@ def run_race(binaries, cpsat_workers=1):
     def f(win, timeout):
         r = cnf.race(win, [_bin(b) for b in binaries], timeout=timeout, cpsat_workers=cpsat_workers, log=None)
         st = {'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
-        return dict(status=st, time=r['time'], grid=r.get('grid'), options=r.get('options'), winner=r.get('winner'))
+        return dict(status=st, time=r['time'], grid=r.get('grid'), options=r.get('options'), machines=r.get('machines'), winner=r.get('winner'))
     return f
 
 
@@ -88,6 +129,17 @@ CONFIGS = {
     'cube_kissat4': run_cube('kissat', 4),
     'race3': run_race(['kissat', 'cadical']),
 }
+
+
+def verify_factory(grid, win, machines, options=None):
+    """Game-exact sim of a factory layout: every machine and the output must run at exactly the planned rate."""
+    from . import gsim
+    f = win.factory
+    rep = gsim.run(win, grid, machines, f.items, f.per_unit, f.recipes, options=options, warmup=30, minutes=120)
+    want = [sum(win.machines[ti]['make']) * f.per_unit for ti, a, o in machines]
+    got = [m['perMin'] for m in rep['machines']]
+    outs = sum(sum(v.values()) for v in rep['outputs'].values())
+    return all(abs(g - w) < 1e-9 for g, w in zip(got, want)) and abs(outs - sum(f.out[1]) * f.per_unit) < 1e-9
 
 
 def verify(grid, win, options=None):
@@ -122,7 +174,7 @@ def verify(grid, win, options=None):
     return r['ok']
 
 
-def run(case_names, config_names, timeout, out=None, window_hook=None):
+def run(case_names, config_names, timeout, out=None, window_hook=None, tag=''):
     rows = []
     for name, mk, W, H, expect, tier in CASES:
         if name not in case_names:
@@ -133,13 +185,16 @@ def run(case_names, config_names, timeout, out=None, window_hook=None):
                 window_hook(win)
             r = CONFIGS[cfg](win, timeout)
             ok = ''
-            if r['status'] == 'SAT' and r.get('grid'):
-                ok = verify(r['grid'], r.get('window', win), r.get('options'))
+            if r['status'] == 'SAT' and r.get('grid') is not None:
+                if getattr(win, 'factory', None):
+                    ok = verify_factory(r['grid'], r.get('window', win), r.get('machines') or [], r.get('options'))
+                else:
+                    ok = verify(r['grid'], r.get('window', win), r.get('options'))
             status = r['status']
             if expect and status in ('SAT', 'UNSAT') and status != expect:
                 status = 'WRONG(%s)' % status
-            row = dict(case=name, config=cfg, status=status, time=round(r['time'], 2), verified=ok,
-                       extra=';'.join('%s=%s' % (k, v) for k, v in r.items() if k not in ('status', 'time', 'grid', 'options', 'window')))
+            row = dict(case=name, config=cfg + tag, status=status, time=round(r['time'], 2), verified=ok,
+                       extra=';'.join('%s=%s' % (k, v) for k, v in r.items() if k not in ('status', 'time', 'grid', 'options', 'window', 'machines')))
             rows.append(row)
             print('%-14s %-14s %-12s %8.2fs %s %s' % (name, cfg, status, r['time'], ok, row['extra']), flush=True)
             if out:
@@ -154,15 +209,21 @@ def run(case_names, config_names, timeout, out=None, window_hook=None):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument('--tier', default='quick', help='quick, hard, huge or all (comma list)')
+    ap.add_argument('--tier', default='quick', help='quick, hard, huge, factory or all (comma list)')
     ap.add_argument('--cases', default=None, help='comma list of case names (overrides --tier)')
     ap.add_argument('--configs', default='cpsat1,kissat,cadical')
     ap.add_argument('--timeout', type=float, default=600)
     ap.add_argument('--out', default=None)
+    ap.add_argument('--set', action='append', default=[], help='window attribute for an experiment, e.g. cuts=card')
     a = ap.parse_args(argv)
+    sets = [kv.split('=', 1) for kv in a.set]
+
+    def hook(win):
+        for k, v in sets:
+            setattr(win, k, None if v == 'None' else int(v) if v.isdigit() else v)
     tiers = set(a.tier.split(','))
     names = a.cases.split(',') if a.cases else [c[0] for c in CASES if 'all' in tiers or c[5] in tiers]
-    run(names, a.configs.split(','), a.timeout, a.out)
+    run(names, a.configs.split(','), a.timeout, a.out, hook if sets else None, ''.join('+%s=%s' % kv for kv in map(tuple, sets)))
 
 
 if __name__ == '__main__':

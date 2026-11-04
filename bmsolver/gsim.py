@@ -24,8 +24,9 @@ def buildings(win, grid, machines, recipes, tiers=None):
     return bs
 
 
-def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, minutes=30):
-    """per_unit: items per minute in one flow unit (480 / win.D for a full belt of D units)."""
+def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, minutes=30, buffer=10):
+    """per_unit: items per minute in one flow unit (480 / win.D for a full belt of D units). buffer: items a feed
+    may hold back while its belt is blocked (10 = a machine's output store, as when upstream production feeds it)."""
     bs = buildings(win, grid, machines, recipes)
     keys = dict(win.ports)
     for i, g in enumerate(win.port_options):
@@ -44,7 +45,7 @@ def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, 
             bs += [dict(id=3000, x=p[0], y=p[1], o=o) for p in (p1, p2)]
             for c, v in enumerate(spec[1]):
                 if v:
-                    feeds.append(dict(at=list(p2), kind=items[c], perMin=v * per_unit))
+                    feeds.append(dict(at=list(p2), kind=items[c], perMin=v * per_unit, buffer=buffer))
         else:
             bs += [dict(id=3000, x=p[0], y=p[1], o=d) for p in (p1, p2)]
             outs.append('%d,%d' % p2)
