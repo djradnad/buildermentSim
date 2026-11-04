@@ -1,6 +1,6 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
-import { Factory, GAMEDATA, QuadTree, World } from './gamesim.js';
+import { Factory, GAMEDATA, QuadTree, World, setRoundf } from './gamesim.js';
 import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
@@ -13,6 +13,7 @@ const WINDOW = 60 * TPS;          // rates over the last game minute
 const state = {
   rows: null, meta: null,
   buildings: null, feeds: [], extractors: [],   // user settings per input
+  sinks: [],                    // open belt ends marked as outputs by hand ([x, y]); drain tiles are outputs too
   w: null, running: false, speed: 1, mode: 'exact',
   history: [],                  // per game second: snapshot of counters
   perMinute: [],                // output per game minute (for the chart)
@@ -59,13 +60,14 @@ function loadBlueprint(rows, meta = {}, id = null) {
   const bs = rowsToBuildings(rows);
   const added = addFeeders(bs);
   addDrains(bs);
-  const probe = new Factory(bs, { extractors: {} });
+  const probe = new Factory(bs, { extractors: {}, ugRange: +$('ugRange').value });
   const feedSegs = added.map(a => probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]));
   const found = feedSegs.filter(g => g);
   const kinds = guessFeedItems(probe, found, found.map(() => null));
   // an open start that reaches no machine in a build that has machines is a product belt's start (arms or
   // machines put onto it further on): it gets nothing, not a full belt of a made-up item
   const hasMachines = probe.machines.length > 0;
+  state.sinks = [];
   state.feeds = added.map((a, i) => {
     const j = found.indexOf(feedSegs[i]);
     const kind = j >= 0 && kinds[j];
@@ -83,17 +85,23 @@ function loadBlueprint(rows, meta = {}, id = null) {
 }
 
 function rebuild() {
+  setRoundf($('roundf').checked);
   const ext = {};
   for (const e of state.extractors) ext[e.x + ',' + e.y] = e.item;
   const bs = state.buildings.map(b => ({ ...b }));
   state.w = new Factory(bs, {
     feeds: state.feeds.map(f => ({ at: f.at, kind: f.kind, perMin: f.perMin })),
+    sinks: state.sinks,
     extractors: ext, gen: +$('gen').value, boosted: $('boosted').checked,
+    qtOffset: [Math.round(+$('wx').value || 0), Math.round(+$('wy').value || 0)],
+    M: +$('beltM').value, ugRange: +$('ugRange').value, splitStart: +$('splitStart').value, plants: $('plants').checked,
+    hashOrder: $('hashOrder').checked, armsFromExtractors: $('armsExt').checked,
     qt: new QuadTree(),             // loading a build in game starts a fresh belt quadtree (arm lookups)
   });
   state.history = [snapshot()];
   state.perMinute = [];
   state.settled = null;
+  state.dispCollect = null;
   $('settleState').textContent = '';
   view.setWorld(state.w, true);
   measure();
@@ -168,6 +176,9 @@ function renderInputs() {
 }
 $('gen').addEventListener('change', rebuild);
 $('boosted').addEventListener('change', rebuild);
+$('wx').addEventListener('change', rebuild);
+for (const k of ['beltM', 'ugRange', 'splitStart', 'plants', 'hashOrder', 'roundf', 'armsExt']) $(k).addEventListener('change', rebuild);
+$('wy').addEventListener('change', rebuild);
 
 // ------------------------------------------------------------------ running
 document.querySelectorAll('#speeds button').forEach(b => b.addEventListener('click', () => {
@@ -200,6 +211,13 @@ function tickOnce() {
   if (w.tickNo % TPS === 0) {
     state.history.push(snapshot());
     if (state.history.length > 3 * 60 + 2) state.history.shift();
+    if (state.dispCollect) {
+      const d = gameDisplay();
+      if (d) for (const [k, v] of Object.entries(d)) {
+        const m = state.dispCollect[k] || (state.dispCollect[k] = new Map());
+        m.set(v, (m.get(v) || 0) + 1);
+      }
+    }
     if (w.tickNo % WINDOW === 0) {
       const h = state.history, a = h[h.length - 1], b = h.find(s => s.tick === w.tickNo - WINDOW);
       if (b) state.perMinute.push(sum(a.out) - sum(b.out) + sum(Object.values(a.consumed)) - sum(Object.values(b.consumed)));
@@ -243,6 +261,25 @@ function snapshot() {
   };
 }
 
+// The production tab: made in the last 120 whole game seconds, as the game computes it in float32:
+// shown = f32(count) / f32(120 * DT), DT = f32(1/60); from 10 up it is rounded with floor(v + 0.5).
+const DT32 = Math.fround(1 / 60), DISP_DEN = Math.fround(Math.fround(120) * DT32);
+function dispValue(count) {
+  const v = Math.fround(Math.fround(count) / DISP_DEN);
+  return v >= 10 ? String(Math.floor(v + 0.5)) : v.toFixed(1);
+}
+function gameDisplay() {
+  const h = state.history, cur = h[h.length - 1];
+  if (!cur || cur.tick < 120 * TPS) return null;
+  const base = h.find(s => s.tick === cur.tick - 120 * TPS);
+  if (!base) return null;
+  const tot = {};
+  state.w.machines.forEach((m, i) => { tot[m.outItem] = (tot[m.outItem] || 0) + cur.made[i] - base.made[i]; });
+  const out = {};
+  for (const [k, c] of Object.entries(tot)) out[k] = dispValue(c);
+  return out;
+}
+
 function drains() { return state.w.segs.filter(g => g.target && g.target.sink); }
 function consumedTotals() {
   const t = {};
@@ -282,6 +319,9 @@ function measure() {
     r = ratesBetween(base, cur);
     $('outWindow').textContent = r ? `per min, last ${r.mins >= 0.999 ? 'minute' : Math.round(r.mins * 60) + ' s'}` : '';
   }
+  // arms that have not moved one item after a game minute: dead at this placement (or starved)
+  const dead = state.w.tickNo >= 3600 ? state.w.arms.filter(a => a.moved === 0).length : 0;
+  $('deadArms').textContent = dead ? `${dead} arm${dead > 1 ? 's' : ''} dead (moved nothing)` : '';
   if (!r) { view.tileRates = null; view.segRates = null; renderOutputs(null); return; }
   applyRates(r);
   renderOutputs(r);
@@ -363,6 +403,24 @@ function renderOutputs(r) {
     made.appendChild(row);
   }
   if (!entries.length) made.innerHTML = '<div class="muted small">No machines.</div>';
+  // the in-game production tab readout: live, and over the settle measurement its value distribution
+  const disp = gameDisplay(), dist = state.settled && state.settled.disp;
+  const keys = Object.keys(dist || disp || {});
+  const box2 = $('gameDisp');
+  box2.innerHTML = '';
+  for (const k of keys) {
+    const row = document.createElement('div');
+    row.className = 'item';
+    let txt = '';
+    if (dist && dist[k]) {
+      const n = [...dist[k].values()].reduce((a, b) => a + b, 0);
+      txt = [...dist[k].entries()].sort((a, b) => +a[0] - +b[0]).map(([v, c]) => `${v} ${Math.round(100 * c / n)}%`).join(', ');
+    }
+    row.innerHTML = `<span class="dot" style="background:${itemColor(k)}"></span><span>${k}${txt ? ' <span class="muted small">' + txt + '</span>' : ''}</span>` +
+      `<span class="num">${disp && disp[k] != null ? disp[k] : '…'}</span>`;
+    box2.appendChild(row);
+  }
+  if (!keys.length) box2.innerHTML = '<div class="muted small">' + (state.w && state.w.machines.length ? 'Shows after 2 game minutes.' : 'No machines.') + '</div>';
 }
 
 function drawChart() {
@@ -391,6 +449,7 @@ $('runSettle').addEventListener('click', () => {
   setRunning(false);
   state.settling = true;
   state.settled = null;
+  state.dispCollect = null;
   const w = state.w, start = w.tickNo, maxTicks = 180 * 3600;
   const t0 = performance.now();
   const step = () => {
@@ -409,13 +468,15 @@ $('runSettle').addEventListener('click', () => {
       // measure the long-run average over the next 10 game minutes
       const a = snapshot();
       const target = w.tickNo + 10 * 3600;
+      state.dispCollect = {};
       const finish = () => {
         const f1 = performance.now();
         while (w.tickNo < target && performance.now() - f1 < 30) for (let i = 0; i < 60; i++) tickOnce();
         updateClock(); view.draw();
         if (w.tickNo < target) { $('settleState').textContent = 'measuring 10 game minutes…'; return requestAnimationFrame(finish); }
         const rates = ratesBetween(a, snapshot());
-        state.settled = { rates, at: done };
+        state.settled = { rates, at: done, disp: state.dispCollect };
+        state.dispCollect = null;
         state.settling = false;
         const secs = ((performance.now() - t0) / 1000).toFixed(1);
         $('settleState').textContent = done !== null
@@ -443,6 +504,14 @@ function settledAt(pm) {
 }
 
 // ------------------------------------------------------------------ picking a tile
+// a quadtree box in world coordinates, exactly as stored (float32)
+const fmtBox = b => `(${b.map(v => +v.toPrecision(9)).join(', ')})`;
+// an arm's candidate piece: its number, grid depth, and whether it sits on a split line
+function cand(g) {
+  const loc = state.w.qt && state.w.qt.locate(g);
+  return '#' + g.idx + (loc ? ` (depth ${loc.depth}${loc.onSplit ? ', split line' : ''})` : '');
+}
+
 function pickTile([x, y], click) {
   const w = state.w;
   if (!w) return;
@@ -469,15 +538,20 @@ function pickTile([x, y], click) {
     if (arm) {
       const ai = w.arms.indexOf(arm);
       const r = state.settled && state.mode === 'settled' ? state.settled.rates : null;
-      lines.push(`arm speed x${arm.mult}${arm.filt ? ', filter ' + arm.filt : ''}; moved ${arm.moved}${r ? '; ' + fmtRate(r.arms[ai]) + '/min' : ''}`);
+      lines.push(`arm speed x${arm.mult}${arm.filt ? ', filter ' + arm.filt : ''}; moved ${arm.moved}${r ? '; ' + fmtRate(r.arms[ai]) + '/min' : ''}` +
+        (w.tickNo >= 3600 && arm.moved === 0 ? '  DEAD: nothing moved in ' + Math.floor(w.tickNo / 3600) + ' game min' : ''));
       const dst = w.segAt(arm.dst);
       const db = w.occ.get(arm.dst[0] + ',' + arm.dst[1]);
       if (dst.length && (!db || (db.id >= 3000 && db.id <= 3003)))
-        lines.push(`drops on piece #${dst[0][0].idx} (grid order here: ${dst.map(([g]) => '#' + g.idx).join(', ')}; the first one is used even when full)`);
+        lines.push(`drops on piece #${dst[0][0].idx} (grid order here: ${dst.map(([g]) => cand(g)).join(', ')}; the first one is used even when full)`);
+      const g0 = dst.length && dst[0][0];
+      if (g0 && g0.nodes.length === 2 && World.isSplit(g0.nodes[0]) && dst.some(([g]) => g !== g0 && g.nodes[g.nodes.length - 1] === g0.nodes[0]))
+        lines.push('DEAD SPOT: the first candidate is a splitter output stub, not the belt into the splitter');
       const src = w.segAt(arm.src);
-      if (src.length) lines.push(`picks from ${src.map(([g]) => '#' + g.idx).join(', then ')} (the next is tried when one has no item in reach)`);
+      if (src.length) lines.push(`picks from ${src.map(([g]) => cand(g)).join(', then ')} (the next is tried when one has no item in reach)`);
     }
   }
+  const pickCells = [];
   const tr = view.tileRates && view.tileRates.get(k);
   if (tr != null) lines.push(`throughput ${fmtRate(tr)} items/min`);
   for (const g of w.segs) {
@@ -485,11 +559,13 @@ function pickTile([x, y], click) {
     const loc = w.qt && w.qt.locate(g);
     const stub = g.nodes.length === 2 && World.isSplit(g.nodes[0]);
     lines.push(`piece #${g.idx}${stub ? ' (splitter output stub)' : ''}: ${g.nodes.length} tiles, length ${(g.L / 800).toFixed(3)}, ${g.items.length} items${g.flag ? '' : ' (tunnel)'}` +
-      (loc ? `; grid cell depth ${loc.depth}${loc.onSplit ? ', ON A SPLIT LINE (listed first)' : ''}` : ''));
+      (loc ? `; grid cell depth ${loc.depth}${loc.onSplit ? ', ON A SPLIT LINE (listed first)' : ''}, cell ${fmtBox(loc.node.b)} ${loc.onSplit ? `keeps ${loc.count} pieces on its split lines` : `holds ${loc.count} of 33`}` +
+        (loc.box ? `, piece box ${fmtBox(loc.box)}` : '') : ''));
+    if (loc) pickCells.push(loc.node);
   }
   const actions = click ? inputActions(x, y) : [];
   if (!b && actions.length) lines.push(`empty tile at ${x}, ${y}`);
-  if (!lines.length) { $('pickCard').hidden = true; view.pick = null; view.draw(); return; }
+  if (!lines.length) { $('pickCard').hidden = true; view.pick = null; view.pickCells = null; view.draw(); return; }
   if (click) {
     const box = $('pickActions');
     box.innerHTML = '';
@@ -500,6 +576,7 @@ function pickTile([x, y], click) {
       box.appendChild(btn);
     }
     view.pick = [x, y];
+    view.pickCells = pickCells;
     $('pickCard').hidden = false;
     $('pickInfo').textContent = lines.join('\n');
     $('panel').classList.remove('collapsed');
@@ -514,8 +591,16 @@ function pickTile([x, y], click) {
 function inputActions(x, y) {
   const k = x + ',' + y;
   const acts = [];
+  // outputs: in game an open belt end stops, so only ends marked as outputs take items away
+  const w0 = state.w;
+  const endSeg = w0.segs.find(g => { const n = g.nodes[g.nodes.length - 1]; return n.x === x && n.y === y && n.kind === 0 && n.sub === 0 && !n.outputs.length; });
+  const si = state.sinks.findIndex(p => p[0] === x && p[1] === y);
+  const drain = state.buildings.findIndex(b => b.x === x && b.y === y && b.added === 'out');
+  if (drain >= 0) acts.push(['Remove the output here (the belt end will stop)', () => { state.buildings.splice(drain, 1); }]);
+  else if (si >= 0) acts.push(['Remove the output here (the belt end will stop)', () => { state.sinks.splice(si, 1); }]);
+  else if (endSeg && endSeg.target === null) acts.push(['Make this belt end an output', () => { state.sinks.push([x, y]); }]);
   const fi = state.feeds.findIndex(f => f.at[0] === x && f.at[1] === y);
-  if (fi >= 0) {
+  if (fi >= 0 && drain < 0) {
     acts.push(['Remove the input here', () => {
       state.feeds.splice(fi, 1);
       const bi = state.buildings.findIndex(b => b.x === x && b.y === y && b.added === 'in');
@@ -528,12 +613,12 @@ function inputActions(x, y) {
     const names = ['north', 'west', 'south', 'east'];
     for (let d = 0; d < 4; d++) {
       const nb = { id: 3000, x, y, o: d, tier: 1, recipe: 0, filter: 0, added: 'in' };
-      const t = new World([...state.buildings, nb]);
+      const t = new World([...state.buildings, nb], { ugRange: +$('ugRange').value });
       const n = t.belt.get(k);
       if (!n || !n.outputs.length) continue;
       acts.push([`Place an input belt facing ${names[d]}`, () => {
         state.buildings.push(nb);
-        const probe = new Factory(state.buildings.map(b => ({ ...b })), { extractors: {} });
+        const probe = new Factory(state.buildings.map(b => ({ ...b })), { extractors: {}, ugRange: +$('ugRange').value });
         const g = probe.segs.find(s => s.nodes[0].x === x && s.nodes[0].y === y);
         state.feeds.push({ at: [x, y], kind: g ? guessFeedItem(probe, g, 'In' + (state.feeds.length + 1)) : 'In' + (state.feeds.length + 1), perMin: 480 });
       }]);

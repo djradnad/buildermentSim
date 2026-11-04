@@ -34,8 +34,10 @@ export const SETTINGS = {
   1: { extSecs: 8.0, extMult: [1, 1.5, 2, 3, 4], boost: 0.4 },
 };
 
-// Arm filters in blueprints are the game's item ids. Only these are confirmed so far.
-export const ITEM_BY_GAME_ID = { 1001: 'Wood Plank', 1053: 'Nuclear Fuel Cell' };
+// Arm filters in blueprints are the game's item ids (D_BaseItems, extracted from the Steam build; 1001 and 1053
+// confirmed in game). A filter of 0 or -1 means no filter.
+export const ITEM_BY_GAME_ID = { 101: "Gold", 102: "Gems", 1000: "Wood Log", 1001: "Wood Plank", 1002: "Wood Frame", 1003: "Copper Ore", 1004: "Copper Ingot", 1005: "Copper Wire", 1006: "Iron Ore", 1007: "Iron Ingot", 1008: "Iron Gear", 1009: "Stone", 1010: "Sand", 1011: "Silicon", 1012: "Glass", 1013: "Wolframite", 1014: "Tungsten Ore", 1015: "Tungsten Carbide", 1016: "Coupler", 1017: "Condenser Lens", 1018: "Heat Sink", 1019: "Iron Plating", 1020: "Electromagnet", 1021: "Metal Frame", 1022: "Steel", 1023: "Rotor", 1024: "Steel Rod", 1025: "Concrete", 1026: "Electric Motor", 1027: "Coal", 1028: "Graphite", 1029: "Logic Circuit", 1030: "Carbon Fiber", 1031: "Nano Wire", 1032: "Computer", 1033: "Industrial Frame", 1034: "Stabilizer", 1035: "Gyroscope", 1036: "Magnetic Field Generator", 1037: "Quantum Entangler", 1038: "Electron Microscope", 1039: "Turbocharger", 1040: "Super Computer", 1041: "Atomic Locator", 1042: "Battery", 1043: "Energy Cube", 1044: "Tank", 1045: "Matter Compressor", 1046: "Particle Glue", 1047: "Matter Duplicator", 1048: "Earth Token", 1049: "Gem Apple", 1050: "Uranium Ore", 1051: "Enriched Uranium", 1052: "Empty Fuel Cell", 1053: "Nuclear Fuel Cell" };
+export const GAME_ID_BY_ITEM = Object.fromEntries(Object.entries(ITEM_BY_GAME_ID).map(([k, v]) => [v, +k]));
 
 const key = (x, y) => x + ',' + y;
 
@@ -73,7 +75,38 @@ const dot2 = (a, b, c, d) => f32(f32(f32(a) * f32(b)) + f32(f32(c) * f32(d)));
 const progAdd = (p, sp) => p + f32(sp * DT);     // progress is a double in the game
 const progSub = (p, sp) => p - f32(sp * DT);
 
+// Length rounding. The game uses C roundf (half away from zero); the sim used half-to-even until confirmed.
+// They differ only when length * 800 lands exactly on .5. setRoundf(true) switches to roundf (Math.round is the
+// same for values >= 0). Not confirmed in game.
+let RND = null;
+export function setRoundf(on) { RND = on ? Math.round : null; }
+
+// Tile hash map order (CHAINS.md section 3, FUN_140e89370; the map type, its growth and paste insertion order are
+// inferred). The game walks its tile maps in bucket order, which decides creation order within a pass.
+const U64 = (1n << 64n) - 1n, HM = 0xFF51AFD7ED558CCDn, HMUL0 = 0xc4ceb9fe1a85ec53n;
+export function tileHash(x, y) {
+  const h = v => { v = BigInt.asUintN(64, BigInt(v)); const a = ((v >> 33n) ^ v) * HM & U64; return (a >> 33n) ^ a; };
+  const h1 = h(x), h2 = h(y);
+  let c = (h1 + 0x9E3779B9n) & U64;
+  c = ((h2 + h1 * 0x40n + 0x282C15E7F9n + (c >> 2n)) & U64) ^ c;
+  const d = ((c >> 33n) ^ c) * HM & U64;
+  let e = ((d >> 33n) ^ d) * HMUL0 & U64;
+  return e ^ (e >> 33n);
+}
+// values of a tile map in the game's iteration order: home bucket ascending, then (robin hood) larger info first,
+// then insertion order. Table: 8 buckets, doubled whenever the count would pass 80%.
+export function hashOrder(map, off = [0, 0]) {
+  const vals = [...map.values()];
+  let size = 8;
+  while (vals.length > Math.floor(size * 80 / 100)) size *= 2;
+  const mask = BigInt(size - 1);
+  const k = vals.map((n, i) => { const e = tileHash(n.x + off[0], n.y + off[1]); return [Number((e >> 5n) & mask), Number(e & 31n), i, n]; });
+  k.sort((a, b) => a[0] - b[0] || b[1] - a[1] || a[2] - b[2]);
+  return k.map(r => r[3]);
+}
+
 function roundHalfEven(x) {
+  if (RND) return RND(x);
   const r = Math.round(x);
   return (Math.abs(x % 1) === 0.5 && r % 2 !== 0) ? r - 1 : r;
 }
@@ -333,6 +366,9 @@ export class World {
   constructor(buildings, opts = {}) {
     this.M = opts.M || M_DEFAULT;
     this.qt = opts.qt || null;
+    this.splitStart = opts.splitStart || 0;
+    this.hashOrder = !!opts.hashOrder;
+    this.qtOff = opts.qtOffset || [0, 0];     // where the build sits in the world (tile maps and belt quadtree)
     this.buildings = buildings;
     this.belt = new Map(); this.inport = new Map(); this.outport = new Map(); this.occ = new Map();
     for (const b of buildings) {
@@ -355,7 +391,10 @@ export class World {
     }
     for (const m of [this.belt, this.inport, this.outport]) for (const n of m.values()) this.link(n);
     this.buildSegments(opts.ugRange ?? UG_RANGE);
-    if (this.qt) { this.qt.clear(); for (const g of this.segs) this.qt.insert(g.bbox, g); }
+    // where the build sits in the world: the belt quadtree splits at fixed world positions, so which cell a piece
+    // lands in (and so which piece an arm finds first) depends on it. Only the quadtree sees the offset.
+    this.qtOff = opts.qtOffset || [0, 0];
+    if (this.qt) { this.qt.clear(); for (const g of this.segs) this.qt.insert(this.qtBox(g), g); }
   }
 
   findInput(p, sub, d, nb) {
@@ -442,11 +481,13 @@ export class World {
   buildSegments(ugRange) {
     this.visited = new Set(); this.segs = []; this.startOf = new Map();
     const splitOuts = new Map();
-    for (const n of this.inport.values()) {
+    const order = m => this.hashOrder ? hashOrder(m, this.qtOff) : [...m.values()];
+    for (const n of order(this.inport)) {
       const nodes = this.collect(this.walkBack(n));
       if (nodes.length > 1) this.makeSeg(nodes, true);
     }
-    for (const n of this.belt.values()) {
+    const beltOrder = order(this.belt);
+    for (const n of beltOrder) {
       while (!this.visited.has(n)) {
         const before = this.visited.size;
         const nodes = this.collect(this.walkBack(this.walkFwd(n)));
@@ -454,23 +495,27 @@ export class World {
         else if (this.visited.size === before) break;
       }
     }
-    for (const n of this.belt.values())
+    for (const n of beltOrder)
       if (n.sub === 1) splitOuts.set(n, n.outputs.map(o => this.makeSeg([n, o], true)));
-    for (const n of this.belt.values()) {
+    for (const n of beltOrder) {
       if (n.sub !== 2) continue;
       for (let k = 1; k <= ugRange + 1; k++) {
         const e = this.belt.get(key(n.x + DV[n.dir][0] * k, n.y + DV[n.dir][1] * k));
         if (e && e.sub === 3 && e.dir === n.dir) { this.makeSeg([n, e], false); break; }
       }
     }
-    for (const n of this.outport.values()) {
+    for (const n of order(this.outport)) {
       if (!this.visited.has(n)) {
         const nodes = this.collect(n);
         if (nodes.length > 1) this.makeSeg(nodes, true);
       }
     }
     const splitOf = new Map();
-    for (const [sp, outs] of splitOuts) splitOf.set(sp, new Split(outs));
+    for (const [sp, outs] of splitOuts) {
+      const t = new Split(outs);
+      t.idx = ((this.splitStart % outs.length) + outs.length) % outs.length;   // which output a splitter serves first
+      splitOf.set(sp, t);
+    }
     this.splitOf = splitOf;
     for (const g of this.segs) {
       const last = g.nodes[g.nodes.length - 1];
@@ -657,6 +702,24 @@ class Extractor {
   }
 }
 
+// Power plant (FUN_140f04b20 / FUN_140f046e0): holds one load of fuel (nuclear 1 cell, coal 5 coal); its timer
+// runs down by DT and at 0 burns a load if it has one (timer = 120 s / 30 s). While the timer runs it boosts every
+// machine, arm and extractor whose tiles overlap the box of `radius` tiles around it (+0.4 / +0.2); a building in
+// range of several plants takes the largest, never the sum.
+class Plant {
+  constructor(b, p) {
+    this.b = b; this.p = p; this.fuel = p.fuel[0]; this.have = 0; this.t = f32(0); this.burned = 0;
+    const fp = footprint(b), xs = fp.map(q => q[0]), ys = fp.map(q => q[1]), r = p.radius;
+    this.box = [Math.min(...xs) - r, Math.min(...ys) - r, Math.max(...xs) + r, Math.max(...ys) + r];
+  }
+  tick() {
+    this.t = f32(Math.max(0, f32(this.t - DT32)));
+    if (this.t === 0 && this.have >= this.fuel.amount) { this.have -= this.fuel.amount; this.t = f32(this.p.seconds); this.burned++; }
+  }
+  get on() { return this.t > 0; }
+}
+const DT32 = f32(1 / 60);
+
 // An open input belt: items of one kind at up to `perMin` (480 = a full belt, as fast as it can take them).
 class Feed {
   constructor(seg, kind, perMin) { this.seg = seg; this.kind = kind; this.perMin = perMin; this.n = 0; this.acc = 0; }
@@ -672,10 +735,11 @@ class Feed {
 // ------------------------------------------------------------------ the factory: everything that ticks
 export class Factory extends World {
   // opts: feeds [{at: [x, y] first tile of a segment, kind, perMin}], extractors {"x,y": item},
-  // gen 1|2, boosted, newestFirst (building pools tick newest first, traced), qt (QuadTree for arm lookups)
+  // gen 1|2, boosted, newestFirst (building pools tick newest first, traced), qt (QuadTree for arm lookups),
+  // sinks [[x, y]] / openEndsSink (which open belt ends take items, see below)
   constructor(buildings, opts = {}) {
     super(buildings, opts);
-    this.machines = []; this.storages = []; this.arms = []; this.feeds = []; this.extractors = [];
+    this.machines = []; this.storages = []; this.arms = []; this.feeds = []; this.extractors = []; this.plants = [];
     this.bobj = new Map();
     this.sinks = new Map();                    // segment -> {kind: count}
     const gen = opts.gen || 2, ext = opts.extractors || {};
@@ -694,22 +758,37 @@ export class Factory extends World {
         this.storages.push(st); this.bobj.set(b, st);
       } else if (b.id === ARM_ID) {
         this.arms.push(new Arm(b, tierSpeed(b)));
+      } else if (d.power && opts.plants !== false) {
+        const pl = new Plant(b, d.power);
+        this.plants.push(pl); this.bobj.set(b, pl);
       } else if (b.id === EXTRACTOR_ID && ext[key(b.x, b.y)]) {
         const e = new Extractor(b, ext[key(b.x, b.y)], gen, !!opts.boosted);
         e.seg = this.outSeg.get(b) || null;
         this.extractors.push(e); this.bobj.set(b, e);
       }
     }
-    if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors]) L.reverse();
-    for (const g of this.segs) {                // open ends: an endless belt takes everything
+    if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors, this.plants]) L.reverse();
+    // which plants reach each boosted building (box overlap against the building's tiles)
+    for (const o of [...this.machines, ...this.arms, ...this.extractors]) {
+      o.baseBoost = o.boost;
+      const fp = footprint(o.b);
+      o.plants = this.plants.filter(pl => fp.some(([x, y]) => x >= pl.box[0] && x <= pl.box[2] && y >= pl.box[1] && y <= pl.box[3]));
+    }
+    // Outputs. In game an open belt end just stops: items queue at it and back up. Only ends marked as outputs
+    // take items: drain tiles the page added (added: 'out'), tiles listed in opts.sinks ([[x, y]]), or every
+    // open end with opts.openEndsSink (the old behaviour, for tools that measure what leaves a layout).
+    const sinkAt = new Set((opts.sinks || []).map(p => key(p[0], p[1])));
+    for (const g of this.segs) {
       const last = g.nodes[g.nodes.length - 1];
-      if (g.target === null && !last.outputs.length && last.kind === 0 && last.sub === 0) g.target = { sink: true };
+      if (g.target !== null || last.outputs.length || last.kind !== 0 || last.sub !== 0) continue;
+      if (opts.openEndsSink || (last.owner && last.owner.added === 'out') || sinkAt.has(key(last.x, last.y))) g.target = { sink: true };
     }
     for (const f of opts.feeds || []) {
       const g = this.segs.find(s => s.nodes[0].x === f.at[0] && s.nodes[0].y === f.at[1]);
       if (g) this.feeds.push(new Feed(g, f.kind, f.perMin ?? 480));
     }
     this.labsTakeAll = opts.labsTakeAll !== false;
+    this.armsFromExtractors = !!opts.armsFromExtractors;   // inferred: extractors keep stock in the same container
     this.tickNo = 0;
   }
 
@@ -725,6 +804,10 @@ export class Factory extends World {
       const cap = o.cap[kind] || 0;
       if (cap > o.have[kind]) { o.have[kind]++; return true; }
       return false;
+    }
+    if (o instanceof Plant) {
+      if (kind !== o.fuel.item || o.have >= o.fuel.amount) return false;
+      o.have++; return true;
     }
     if (o instanceof Storage) {
       if (o.count === 0) { o.item = kind; o.count = 1; return true; }
@@ -748,12 +831,20 @@ export class Factory extends World {
     }
   }
 
+  // a piece's quadtree box in world coordinates (its polyline's box +-1e-4, at the build's world offset)
+  qtBox(g) {
+    const [ox, oy] = this.qtOff;
+    if (!ox && !oy) return g.bbox;
+    const xs = g.pts.map(p => f32(p[0] + ox)), ys = g.pts.map(p => f32(p[1] + oy)), e = f32(1e-4);
+    return [f32(Math.min(...xs) - e), f32(Math.min(...ys) - e), f32(Math.max(...xs) + e), f32(Math.max(...ys) + e)];
+  }
+
   segAt(p, needFlag = true) {
     const res = [];
     let cand = this.segs;
     if (!this.qt) cand = this.segsNear(p);
     else {
-      const x0 = f32(f32(p[0]) - 0.5), y0 = f32(f32(p[1]) - 0.5);
+      const x0 = f32(f32(p[0] + this.qtOff[0]) - 0.5), y0 = f32(f32(p[1] + this.qtOff[1]) - 0.5);
       cand = this.qt.query([x0, y0, f32(x0 + 1), f32(y0 + 1)]);
     }
     for (const g of cand) {
@@ -769,7 +860,7 @@ export class Factory extends World {
       let got = null;
       const b = this.occ.get(key(a.src[0], a.src[1]));
       const o = b ? this.bobj.get(b) : undefined;
-      if (o && o.out && (o instanceof Machine || o instanceof Storage)) {
+      if (o && o.out && (o instanceof Machine || o instanceof Storage || (this.armsFromExtractors && o instanceof Extractor))) {
         const item = o instanceof Machine ? o.outItem : o.item;
         if (a.filt === 0 || a.filt === item) {
           if (o instanceof Machine) o.out--; else o.count--;
@@ -799,7 +890,7 @@ export class Factory extends World {
 
   armDrop(a) {
     const b = this.occ.get(key(a.dst[0], a.dst[1]));
-    if (b && (this.bobj.get(b) instanceof Machine || this.bobj.get(b) instanceof Storage ||
+    if (b && (this.bobj.get(b) instanceof Machine || this.bobj.get(b) instanceof Storage || this.bobj.get(b) instanceof Plant ||
               (this.labsTakeAll && !BELT_IDS.has(b.id)))) return this.accept(b, a.held);
     if (!a.dstCache) a.dstCache = this.segAt(a.dst).slice(0, 1);
     for (const [g, q] of a.dstCache) {
@@ -814,6 +905,14 @@ export class Factory extends World {
     for (const g of this.segs) segTick(g, M, this);
     for (const m of this.machines) m.tick(this);
     for (const e of this.extractors) e.tick(this);
+    if (this.plants.length) {
+      for (const pl of this.plants) pl.tick();
+      for (const o of [...this.machines, ...this.arms, ...this.extractors]) {
+        let bo = o.baseBoost;
+        for (const pl of o.plants) if (pl.on && pl.p.multiplier > bo) bo = pl.p.multiplier;
+        o.boost = f32(bo);
+      }
+    }
     for (const a of this.arms) this.armTick(a);
     for (const st of this.storages) this.pushOut(st, st.item);
     for (const f of this.feeds) f.tick(M);
@@ -861,7 +960,8 @@ export class QuadTree {
     if (!n) return null;
     let d = 0, c = this.root;
     while (c !== n && c.kids) { c = c.kids.find(k => k.b[0] <= n.b[0] && k.b[1] <= n.b[1] && n.b[2] <= k.b[2] && n.b[3] <= k.b[3]); d++; }
-    return { node: n, depth: d, onSplit: n.kids !== null };
+    const e = n.els.find(x => x[1] === obj);
+    return { node: n, depth: d, onSplit: n.kids !== null, box: e && e[0], count: n.els.length };
   }
   // every cell overlapping box q (for drawing)
   cells(q, out = [], n = this.root, d = 0) {

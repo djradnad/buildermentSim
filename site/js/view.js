@@ -175,11 +175,15 @@ export class View {
     // belts
     const beltCol = css.getPropertyValue('--belt').trim() || '#2a2f3a';
     const arrowCol = css.getPropertyValue('--belt-arrow').trim() || '#566074';
+    // outputs (open ends that take items) red, inputs green; any other open end just stops
+    const outEnds = new Set();
+    for (const g of w.segs) if (g.target && g.target.sink) outEnds.add(g.nodes[g.nodes.length - 1]);
+    const feedStarts = new Set((w.feeds || []).map(f => f.seg.nodes[0]));
     for (const n of w.belt.values()) {
       if (!vis(n.x, n.y)) continue;
       const [sx, sy] = this.toScreen(n.x, n.y);
       const h = s * 0.46;
-      ctx.fillStyle = n.owner.added ? (n.owner.added === 'in' ? '#1f3a2a' : '#3a1f24') : beltCol;
+      ctx.fillStyle = outEnds.has(n) || n.owner.added === 'out' ? '#3a1f24' : feedStarts.has(n) || n.owner.added === 'in' ? '#1f3a2a' : beltCol;
       if (n.sub === 1) {
         ctx.fillRect(sx - h, sy - h, 2 * h, 2 * h);
         ctx.strokeStyle = arrowCol; ctx.lineWidth = Math.max(1, s * 0.06);
@@ -255,6 +259,22 @@ export class View {
       }
     }
 
+    // output labels, numbered as in the Outputs list
+    if (s >= 10) {
+      let i = 0;
+      ctx.font = `${Math.max(8, Math.min(12, s * 0.28))}px ui-monospace, monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      for (const g of w.segs) {
+        if (!(g.target && g.target.sink)) continue;
+        i++;
+        const n = g.nodes[g.nodes.length - 1];
+        if (!vis(n.x, n.y)) continue;
+        const [sx, sy] = this.toScreen(n.x, n.y);
+        ctx.fillStyle = '#ff8a80';
+        ctx.fillText('out ' + i, sx, sy - s * 0.3);
+      }
+    }
+
     if (this.pick) {
       const [sx, sy] = this.toScreen(this.pick[0], this.pick[1]);
       ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2;
@@ -270,9 +290,11 @@ export class View {
     const qt = w.qt;
     if (qt) {
       ctx.lineWidth = 1;
-      for (const [n, d] of qt.cells([vx0, vy0, vx1, vy1])) {
+      const [ox, oy] = w.qtOff || [0, 0];           // the tree is in world coordinates, the view in build tiles
+      for (const [n, d] of qt.cells([vx0 + ox, vy0 + oy, vx1 + ox, vy1 + oy])) {
         if (!n.kids) continue;                       // draw the split lines of every split cell
-        const [x0, y0, x1, y1] = n.b, mx = n.kids[0].b[2], my = n.kids[0].b[3];
+        const x0 = n.b[0] - ox, y0 = n.b[1] - oy, x1 = n.b[2] - ox, y1 = n.b[3] - oy;
+        const mx = n.kids[0].b[2] - ox, my = n.kids[0].b[3] - oy;
         ctx.strokeStyle = `hsla(${(d * 47) % 360},80%,62%,0.75)`;
         ctx.setLineDash(d < 3 ? [] : [4, 3]);
         ctx.beginPath();
@@ -284,10 +306,18 @@ export class View {
         if (s >= 14) {
           ctx.fillStyle = ctx.strokeStyle; ctx.font = '10px ui-monospace, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
           const [tx, ty] = this.toScreen(Math.max(mx, vx0 + 0.6), Math.max(my, vy0 + 0.6));
-          ctx.fillText('split ' + d, tx + 3, ty + 2);
+          ctx.fillText(`split ${d} at world x ${n.kids[0].b[2]}, y ${n.kids[0].b[3]}`, tx + 3, ty + 2);
         }
       }
       ctx.setLineDash([]);
+      // the grid cell of each piece on the picked tile
+      for (const n of this.pickCells || []) {
+        const [a, b] = this.toScreen(n.b[0] - ox, n.b[1] - oy), [c, e] = this.toScreen(n.b[2] - ox, n.b[3] - oy);
+        const W = this.canvas.width, H = this.canvas.height;
+        ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+        ctx.strokeRect(Math.max(a, -10), Math.max(b, -10), Math.min(c, W + 10) - Math.max(a, -10), Math.min(e, H + 10) - Math.max(b, -10));
+        ctx.setLineDash([]);
+      }
     }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const g of w.segs) {

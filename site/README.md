@@ -13,6 +13,15 @@ A static site (no build step): open `index.html` through any web server, e.g. `p
 - `tools/run.mjs` headless run (`node site/tools/run.mjs layout.json ticks every`) printing state digests, used to
   check the JavaScript sim tick for tick against the Python one.
 
-Not traced yet: what labs and power plants accept (here they take every item), storage tier limits, the arm
-filter item ids other than Wood Plank (1001) and Nuclear Fuel Cell (1053), the belt quadtree for arm lookups
-(arms use the first segment in creation order, as on a freshly loaded world in most layouts).
+Traced and modelled: the belt quadtree for arm lookups (33 per cell, fresh on load, at the build's world
+position), the full arm filter item-id table, power plants (fuel load, timer, radius box, largest boost wins),
+open belt ends that stop unless marked as outputs, and the production tab's 2-minute float32 readout.
+
+Settings: belt speed 32 or 31 units per tick (31 comes from another summation order of the belt techs; not
+confirmed), underground range 5/6/7, the splitter start output, world position.
+
+Behind "unverified" toggles: tile hash-map order for piece creation (hash read from the exe; table growth and
+paste order inferred), roundf instead of half-to-even for lengths, arms taking from extractor stock (inferred).
+
+Not traced yet: what labs accept (here they take every item), storage tier limits (250 assumed), teleporters,
+the splitter start index after a paste, and iOS fused multiply-adds.
