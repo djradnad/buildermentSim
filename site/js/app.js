@@ -1,7 +1,7 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
 import { Factory, GAMEDATA, QuadTree, World } from './gamesim.js';
-import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, RAW_ITEMS } from './blueprint.js';
+import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
 import { initWorld } from './world.js';
@@ -60,9 +60,16 @@ function loadBlueprint(rows, meta = {}, id = null) {
   const added = addFeeders(bs);
   addDrains(bs);
   const probe = new Factory(bs, { extractors: {} });
+  const feedSegs = added.map(a => probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]));
+  const found = feedSegs.filter(g => g);
+  const kinds = guessFeedItems(probe, found, found.map(() => null));
+  // an open start that reaches no machine in a build that has machines is a product belt's start (arms or
+  // machines put onto it further on): it gets nothing, not a full belt of a made-up item
+  const hasMachines = probe.machines.length > 0;
   state.feeds = added.map((a, i) => {
-    const g = probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]);
-    return { at: a.at, kind: g ? guessFeedItem(probe, g, 'In' + (i + 1)) : 'In' + (i + 1), perMin: 480 };
+    const j = found.indexOf(feedSegs[i]);
+    const kind = j >= 0 && kinds[j];
+    return { at: a.at, kind: kind || 'In' + (i + 1), perMin: kind || !hasMachines ? 480 : 0 };
   });
   state.extractors = bs.filter(b => b.id === 3004).map(b => {
     const g = probe.outSeg.get(b);
@@ -140,8 +147,8 @@ function renderInputs() {
     sel.value = f.kind;
     sel.addEventListener('change', () => { f.kind = sel.value; renderInputs(); rebuild(); });
     const rate = document.createElement('input');
-    rate.type = 'number'; rate.min = 1; rate.max = 480; rate.value = f.perMin; rate.title = 'items per minute (480 = full belt)';
-    rate.addEventListener('change', () => { f.perMin = Math.max(1, Math.min(480, +rate.value || 480)); rebuild(); });
+    rate.type = 'number'; rate.min = 0; rate.max = 480; rate.value = f.perMin; rate.title = 'items per minute (480 = full belt)';
+    rate.addEventListener('change', () => { const v = rate.value === '' ? 480 : +rate.value; f.perMin = Math.max(0, Math.min(480, isNaN(v) ? 480 : v)); rebuild(); });
     row.append(sel, rate);
     box.appendChild(row);
   });

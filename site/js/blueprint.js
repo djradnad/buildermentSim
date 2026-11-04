@@ -170,7 +170,9 @@ export const RAW_ITEMS = ['Wood Log', 'Stone', 'Iron Ore', 'Copper Ore', 'Coal',
 // Which item an open input most likely carries: follow the belts (and arms picking from them) to the machines
 // they reach and take the raw ingredient those need most often. Falls back to `fallback`.
 const armsFromCache = new WeakMap();
-export function guessFeedItem(w, seg, fallback) {
+// Machines a belt segment reaches: along belts and splitters, and through arms that take from it (into a
+// machine directly, or onto more belts).
+function machinesReached(w, seg) {
   let armsFrom = armsFromCache.get(w);
   if (!armsFrom) {
     armsFrom = new Map();
@@ -182,25 +184,60 @@ export function guessFeedItem(w, seg, fallback) {
     }
     armsFromCache.set(w, armsFrom);
   }
-  const votes = {}, seen = new Set([seg]), queue = [seg];
-  const vote = b => {
-    const m = w.bobj.get(b);
-    if (m && m.rec) for (const i of m.rec.in) if (RAW_ITEMS.includes(i.item)) votes[i.item] = (votes[i.item] || 0) + 1;
-  };
+  const found = new Set(), seen = new Set([seg]), queue = [seg];
+  const add = b => { const m = w.bobj.get(b); if (m && m.rec) found.add(m); };
   while (queue.length) {
     const g = queue.shift();
     const t = g.target, next = [];
     if (t && t.outs) next.push(...t.outs);
     else if (t && t.items) next.push(t);
-    else if (t && t.bld) vote(t.bld);
+    else if (t && t.bld) add(t.bld);
     for (const a of armsFrom.get(g) || []) {
       const b = w.occ.get(a.dst[0] + ',' + a.dst[1]);
-      if (b && b.id >= 3004) vote(b);
+      if (b && b.id >= 3004) add(b);
       else for (const [h] of w.segAt(a.dst).slice(0, 1)) next.push(h);
     }
     for (const h of next) if (!seen.has(h)) { seen.add(h); queue.push(h); }
   }
-  let best = fallback, bn = 0;
-  for (const [k, n] of Object.entries(votes)) if (n > bn) { best = k; bn = n; }
-  return best;
+  return [...found];
+}
+
+const rawNeeds = m => m.rec.in.map(i => i.item).filter(i => RAW_ITEMS.includes(i));
+
+export function guessFeedItem(w, seg, fallback) {
+  return guessFeedItems(w, [seg], [fallback])[0];
+}
+
+// Raw item for each input belt, chosen together: a machine that needs several raw items (graphite: coal and
+// logs) is reached by several inputs, and each should bring a different one. Inputs whose machines need only
+// one raw item are settled first; then, one at a time, the input and item that cover the most machines still
+// missing that item.
+export function guessFeedItems(w, segs, fallbacks) {
+  const reach = segs.map(g => machinesReached(w, g));
+  const items = segs.map(() => null);
+  const cands = reach.map(ms => [...new Set(ms.flatMap(rawNeeds))]);
+  const covered = new Set();              // machine index + item already brought by a chosen input
+  const mid = new Map();
+  reach.flat().forEach(m => { if (!mid.has(m)) mid.set(m, mid.size); });
+  const assign = (f, it) => {
+    items[f] = it;
+    for (const m of reach[f]) if (rawNeeds(m).includes(it)) covered.add(mid.get(m) + '|' + it);
+  };
+  cands.forEach((c, f) => { if (c.length === 1) assign(f, c[0]); });
+  for (;;) {
+    let best = null;
+    cands.forEach((c, f) => {
+      if (items[f] !== null) return;
+      for (const it of c) {
+        const need = reach[f].filter(m => rawNeeds(m).includes(it));
+        const missing = need.filter(m => !covered.has(mid.get(m) + '|' + it)).length;
+        const score = [missing, need.length];
+        if (!best || score[0] > best.score[0] || (score[0] === best.score[0] && score[1] > best.score[1]))
+          best = { f, it, score };
+      }
+    });
+    if (!best) break;
+    assign(best.f, best.it);
+  }
+  return items.map((it, f) => it ?? fallbacks[f]);
 }
