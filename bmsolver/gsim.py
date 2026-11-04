@@ -68,3 +68,14 @@ def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, 
     rep = json.loads(out)
     rep['outputs'] = {k: rep['sinks'].get(k, {}) for k in outs}
     return rep
+
+
+def blueprint_rows(win, grid, machines, recipes):
+    """Rows for a blueprint json {rows: [[id, x, y, o, tier (0-based), recipe (-1 on belts), filter]]} in the decoded
+    convention (the laptop uploader turns non-belt buildings for the game file). Arms carry no filter: an arm only
+    takes from a one-kind arm line or from a machine, which puts out one product."""
+    rows = []
+    for b in buildings(win, grid, machines, recipes):
+        belt = b['id'] <= 3003
+        rows.append([b['id'], b['x'], b['y'], b['o'], 0 if belt else b.get('tier', 1) - 1, -1 if belt or b['id'] == 3012 else b['recipe'], 0])
+    return rows

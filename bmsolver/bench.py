@@ -83,6 +83,19 @@ def forge_bank(n, tier=4, arms=False):
                    ['Iron Ore', 'Coal', 'Steel'], 30, [2048], D=16, extra=extra, arm_cap=3 if arms else None)
 
 
+def steel_chain(ns=2, ng=1, arms=True):
+    """john's steel-build style at small scale: graphite forges (3 coal + 3 log -> 1 graphite / 4 s, T4 = 45/min)
+    feed steel forges (6 iron ore + 1 graphite -> 1 steel / 8 s, T4 = 22.5/min). Ore, coal and logs enter on the
+    west edge (rows 0, 1, 2), steel leaves north at the east corner. 1 unit = 7.5/min, a belt = 64 units."""
+    ore, raw = 18 * ns, 18 * ng
+    extra = [('W', 0, 'in', [ore, 0, 0, 0, 0]), ('W', 1, 'in', [0, raw, 0, 0, 0]), ('W', 2, 'in', [0, 0, raw, 0, 0]),
+             ('N', -1, 'out', [0, 0, 0, 0, 3 * ns])]
+    return Factory([], None, [dict(bid=3009, count=ng, need=[0, 18, 18, 0, 0], make=[0, 0, 0, 6, 0], tier=4),
+                              dict(bid=3009, count=ns, need=[18, 0, 0, 3, 0], make=[0, 0, 0, 0, 3], tier=4)],
+                   ['Iron Ore', 'Coal', 'Wood Log', 'Graphite', 'Steel'], 7.5, [2022, 2017], D=64, extra=extra,
+                   arm_cap=12 if arms else None)
+
+
 # name, spec, W, H, expected ('SAT' | 'UNSAT'), tier
 CASES = [
     ('split5_3x5', lambda: S.splitter(5), 3, 5, 'SAT', 'quick'),
@@ -166,10 +179,13 @@ def verify_factory(grid, win, machines, options=None, filters=None):
     from . import gsim
     f = win.factory
     rep = gsim.run(win, grid, machines, f.items, f.per_unit, f.recipes, options=options, warmup=30, minutes=120, filters=filters)
-    want = [sum(win.machines[ti]['make']) * f.per_unit for ti, a, o in machines]
-    got = [m['perMin'] for m in rep['machines']]
+    want = {tuple(a): sum(win.machines[ti]['make']) * f.per_unit for ti, a, o in machines}
+    got = {(m['x'], m['y']): m['perMin'] for m in rep['machines']}
+    if set(got) != set(want):
+        return False
     outs = sum(sum(v.values()) for v in rep['outputs'].values())
-    return all(abs(g - w) < 1e-9 for g, w in zip(got, want)) and abs(outs - sum(f.out[1]) * f.per_unit) < 1e-9
+    planned = sum(sum(spec[1]) for spec in win.ports.values() if isinstance(spec, tuple) and spec[0] == 'out')
+    return all(abs(got[k] - w) < 1e-9 for k, w in want.items()) and abs(outs - planned * f.per_unit) < 1e-9
 
 
 def verify(grid, win, options=None):
