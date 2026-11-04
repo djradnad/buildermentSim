@@ -1,6 +1,6 @@
 // Blueprints: reading them, and finding the open belt ends that become inputs and outputs.
 
-import { World, Factory, DV, ITEM_BY_GAME_ID } from './gamesim.js';
+import { World, Factory, DV, ITEM_BY_GAME_ID, GAME_ID_BY_ITEM } from './gamesim.js';
 
 export const WORKER = 'https://builderment.hcrow.workers.dev';
 
@@ -18,7 +18,8 @@ export function rowsToBuildings(rows) {
 }
 
 export function buildingsToRows(bs) {
-  return bs.map(b => [b.id, b.x, b.y, b.o, (b.tier || 1) - 1, b.id === 3012 ? -1 : (b.recipe || -1), 0]);
+  return bs.map(b => [b.id, b.x, b.y, b.o, (b.tier || 1) - 1,
+    b.id === 3012 ? (b.filter && GAME_ID_BY_ITEM[b.filter]) || -1 : (b.recipe || -1), 0]);
 }
 
 // Accepts {"rows": [...]} / {"meta", "rows"} json, a bare rows array, or a text grid of belt codes.

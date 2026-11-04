@@ -34,8 +34,10 @@ export const SETTINGS = {
   1: { extSecs: 8.0, extMult: [1, 1.5, 2, 3, 4], boost: 0.4 },
 };
 
-// Arm filters in blueprints are the game's item ids. Only these are confirmed so far.
-export const ITEM_BY_GAME_ID = { 1001: 'Wood Plank', 1053: 'Nuclear Fuel Cell' };
+// Arm filters in blueprints are the game's item ids (D_BaseItems, extracted from the Steam build; 1001 and 1053
+// confirmed in game). A filter of 0 or -1 means no filter.
+export const ITEM_BY_GAME_ID = { 101: "Gold", 102: "Gems", 1000: "Wood Log", 1001: "Wood Plank", 1002: "Wood Frame", 1003: "Copper Ore", 1004: "Copper Ingot", 1005: "Copper Wire", 1006: "Iron Ore", 1007: "Iron Ingot", 1008: "Iron Gear", 1009: "Stone", 1010: "Sand", 1011: "Silicon", 1012: "Glass", 1013: "Wolframite", 1014: "Tungsten Ore", 1015: "Tungsten Carbide", 1016: "Coupler", 1017: "Condenser Lens", 1018: "Heat Sink", 1019: "Iron Plating", 1020: "Electromagnet", 1021: "Metal Frame", 1022: "Steel", 1023: "Rotor", 1024: "Steel Rod", 1025: "Concrete", 1026: "Electric Motor", 1027: "Coal", 1028: "Graphite", 1029: "Logic Circuit", 1030: "Carbon Fiber", 1031: "Nano Wire", 1032: "Computer", 1033: "Industrial Frame", 1034: "Stabilizer", 1035: "Gyroscope", 1036: "Magnetic Field Generator", 1037: "Quantum Entangler", 1038: "Electron Microscope", 1039: "Turbocharger", 1040: "Super Computer", 1041: "Atomic Locator", 1042: "Battery", 1043: "Energy Cube", 1044: "Tank", 1045: "Matter Compressor", 1046: "Particle Glue", 1047: "Matter Duplicator", 1048: "Earth Token", 1049: "Gem Apple", 1050: "Uranium Ore", 1051: "Enriched Uranium", 1052: "Empty Fuel Cell", 1053: "Nuclear Fuel Cell" };
+export const GAME_ID_BY_ITEM = Object.fromEntries(Object.entries(ITEM_BY_GAME_ID).map(([k, v]) => [v, +k]));
 
 const key = (x, y) => x + ',' + y;
 
