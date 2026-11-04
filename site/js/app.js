@@ -13,6 +13,7 @@ const WINDOW = 60 * TPS;          // rates over the last game minute
 const state = {
   rows: null, meta: null,
   buildings: null, feeds: [], extractors: [],   // user settings per input
+  sinks: [],                    // open belt ends marked as outputs by hand ([x, y]); drain tiles are outputs too
   w: null, running: false, speed: 1, mode: 'exact',
   history: [],                  // per game second: snapshot of counters
   perMinute: [],                // output per game minute (for the chart)
@@ -66,6 +67,7 @@ function loadBlueprint(rows, meta = {}, id = null) {
   // an open start that reaches no machine in a build that has machines is a product belt's start (arms or
   // machines put onto it further on): it gets nothing, not a full belt of a made-up item
   const hasMachines = probe.machines.length > 0;
+  state.sinks = [];
   state.feeds = added.map((a, i) => {
     const j = found.indexOf(feedSegs[i]);
     const kind = j >= 0 && kinds[j];
@@ -88,6 +90,7 @@ function rebuild() {
   const bs = state.buildings.map(b => ({ ...b }));
   state.w = new Factory(bs, {
     feeds: state.feeds.map(f => ({ at: f.at, kind: f.kind, perMin: f.perMin })),
+    sinks: state.sinks,
     extractors: ext, gen: +$('gen').value, boosted: $('boosted').checked,
     qt: new QuadTree(),             // loading a build in game starts a fresh belt quadtree (arm lookups)
   });
@@ -514,8 +517,16 @@ function pickTile([x, y], click) {
 function inputActions(x, y) {
   const k = x + ',' + y;
   const acts = [];
+  // outputs: in game an open belt end stops, so only ends marked as outputs take items away
+  const w0 = state.w;
+  const endSeg = w0.segs.find(g => { const n = g.nodes[g.nodes.length - 1]; return n.x === x && n.y === y && n.kind === 0 && n.sub === 0 && !n.outputs.length; });
+  const si = state.sinks.findIndex(p => p[0] === x && p[1] === y);
+  const drain = state.buildings.findIndex(b => b.x === x && b.y === y && b.added === 'out');
+  if (drain >= 0) acts.push(['Remove the output here (the belt end will stop)', () => { state.buildings.splice(drain, 1); }]);
+  else if (si >= 0) acts.push(['Remove the output here (the belt end will stop)', () => { state.sinks.splice(si, 1); }]);
+  else if (endSeg && endSeg.target === null) acts.push(['Make this belt end an output', () => { state.sinks.push([x, y]); }]);
   const fi = state.feeds.findIndex(f => f.at[0] === x && f.at[1] === y);
-  if (fi >= 0) {
+  if (fi >= 0 && drain < 0) {
     acts.push(['Remove the input here', () => {
       state.feeds.splice(fi, 1);
       const bi = state.buildings.findIndex(b => b.x === x && b.y === y && b.added === 'in');

@@ -672,7 +672,8 @@ class Feed {
 // ------------------------------------------------------------------ the factory: everything that ticks
 export class Factory extends World {
   // opts: feeds [{at: [x, y] first tile of a segment, kind, perMin}], extractors {"x,y": item},
-  // gen 1|2, boosted, newestFirst (building pools tick newest first, traced), qt (QuadTree for arm lookups)
+  // gen 1|2, boosted, newestFirst (building pools tick newest first, traced), qt (QuadTree for arm lookups),
+  // sinks [[x, y]] / openEndsSink (which open belt ends take items, see below)
   constructor(buildings, opts = {}) {
     super(buildings, opts);
     this.machines = []; this.storages = []; this.arms = []; this.feeds = []; this.extractors = [];
@@ -701,9 +702,14 @@ export class Factory extends World {
       }
     }
     if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors]) L.reverse();
-    for (const g of this.segs) {                // open ends: an endless belt takes everything
+    // Outputs. In game an open belt end just stops: items queue at it and back up. Only ends marked as outputs
+    // take items: drain tiles the page added (added: 'out'), tiles listed in opts.sinks ([[x, y]]), or every
+    // open end with opts.openEndsSink (the old behaviour, for tools that measure what leaves a layout).
+    const sinkAt = new Set((opts.sinks || []).map(p => key(p[0], p[1])));
+    for (const g of this.segs) {
       const last = g.nodes[g.nodes.length - 1];
-      if (g.target === null && !last.outputs.length && last.kind === 0 && last.sub === 0) g.target = { sink: true };
+      if (g.target !== null || last.outputs.length || last.kind !== 0 || last.sub !== 0) continue;
+      if (opts.openEndsSink || (last.owner && last.owner.added === 'out') || sinkAt.has(key(last.x, last.y))) g.target = { sink: true };
     }
     for (const f of opts.feeds || []) {
       const g = this.segs.find(s => s.nodes[0].x === f.at[0] && s.nodes[0].y === f.at[1]);

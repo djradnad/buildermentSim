@@ -175,11 +175,15 @@ export class View {
     // belts
     const beltCol = css.getPropertyValue('--belt').trim() || '#2a2f3a';
     const arrowCol = css.getPropertyValue('--belt-arrow').trim() || '#566074';
+    // outputs (open ends that take items) red, inputs green; any other open end just stops
+    const outEnds = new Set();
+    for (const g of w.segs) if (g.target && g.target.sink) outEnds.add(g.nodes[g.nodes.length - 1]);
+    const feedStarts = new Set((w.feeds || []).map(f => f.seg.nodes[0]));
     for (const n of w.belt.values()) {
       if (!vis(n.x, n.y)) continue;
       const [sx, sy] = this.toScreen(n.x, n.y);
       const h = s * 0.46;
-      ctx.fillStyle = n.owner.added ? (n.owner.added === 'in' ? '#1f3a2a' : '#3a1f24') : beltCol;
+      ctx.fillStyle = outEnds.has(n) || n.owner.added === 'out' ? '#3a1f24' : feedStarts.has(n) || n.owner.added === 'in' ? '#1f3a2a' : beltCol;
       if (n.sub === 1) {
         ctx.fillRect(sx - h, sy - h, 2 * h, 2 * h);
         ctx.strokeStyle = arrowCol; ctx.lineWidth = Math.max(1, s * 0.06);

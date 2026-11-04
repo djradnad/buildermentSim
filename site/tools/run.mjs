@@ -21,7 +21,7 @@ const feeds = added.map((a, i) => {
   const g = probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]);
   return { at: a.at, kind: g ? guessFeedItem(probe, g, 'In' + i) : 'In' + i };
 });
-const w = new Factory(bs, { feeds, labsTakeAll: !process.env.STRICT });
+const w = new Factory(bs, { feeds, labsTakeAll: !process.env.STRICT, openEndsSink: true });   // as the Python reference
 const sortedHave = h => Object.entries(h).filter(e => e[1] !== 0).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 const digest = () => {
   const st = [w.segs.map(g => [g.items, g.kinds, g.chosen]),
