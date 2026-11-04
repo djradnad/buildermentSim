@@ -541,6 +541,18 @@ class Model:
                         for c in range(nc):
                             m.Add(F[i, c] == 0).OnlyEnforceIf(bs[c].Not())
                         m.AddAtMostOne(bs)
+        # a machine hands its product to its output port's belt every tick it can (Machine.tick -> pushOut, before
+        # arms move), so arms taking from the same machine get only what the belt refuses: no fixed share. A machine
+        # puts out through its port or through arms, never both.
+        arm_from = {}
+        for p, i in self.arm_links:
+            arm_from.setdefault(links[i][0], []).append(links[i][2])
+        for ti, a, o, y, tiles, ins, outs in self.placements:
+            pushes = [links[i][2] for t, d in outs for i in lout[t] if links[i][3] == 'push']
+            arms = [l for t in tiles for l in arm_from.get(t, [])]
+            for lp in pushes:
+                for la in arms:
+                    m.AddBoolOr([lp.Not(), la.Not(), y.Not()])
         for ti, a, o, y, tiles, ins, outs in self.placements:
             mt = win.machines[ti]
             in_tiles = out_tiles = tiles          # ports plus arms, which reach any tile of a machine
@@ -595,8 +607,10 @@ class Model:
                 m.Add(F[i, c] == 0).OnlyEnforceIf(bs[c].Not())
             m.AddAtMostOne(bs)
             self.arm_kind[i] = bs
-            src, a = links[i][0], links[i][2]
+            src, dst, a = links[i][0], links[i][1], links[i][2]
             m.AddBoolOr([L[src]] + ([X[src, 'M']] if (src, 'M') in X else [])).OnlyEnforceIf(a)
+            # no drops onto an arm line: it backs up, so the dropping arm waits for gaps and loses rate
+            m.AddImplication(a, L[dst].Not())
             for c in range(nc):
                 m.AddImplication(bs[c], K[src][c]).OnlyEnforceIf(L[src])
 
