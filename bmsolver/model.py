@@ -704,6 +704,19 @@ class Model:
             m.AddImplication(D[p], D[q]).OnlyEnforceIf(l)
             m.Add(N2[q] == N2[p]).OnlyEnforceIf([D[p], l])
 
+    def add_hint(self, r):
+        """Search hint from a result dict: its pieces, machines and port options."""
+        g = r.get('grid', {})
+        for (p, k), v in self.X.items():
+            if k not in ('E', 'M'):
+                self.m.AddHint(v, int(g.get(p) == k))
+        want = set(tuple(x) for x in r.get('machines', []))
+        for ti, a, o, y, *_ in self.placements:
+            self.m.AddHint(y, int((ti, a, o) in want))
+        for lits, j in zip(self.option_lits, r.get('options') or []):
+            for jj, l in enumerate(lits):
+                self.m.AddHint(l, int(jj == j))
+
     def arm_filters(self, solver):
         """{arm tile: item index it carries} for the placed arms."""
         out = {}
@@ -733,12 +746,15 @@ class _Progress(cp_model.CpSolverSolutionCallback):
         self.on_solution(g, self.ObjectiveValue(), time.time() - self.t0)
 
 
-def solve(win, timeout=60.0, workers=4, objective=False, on_solution=None, log=False, **kw):
+def solve(win, timeout=60.0, workers=4, objective=False, on_solution=None, log=False, hint=None, **kw):
     """Solve one window. Returns dict(status, time, grid (if found), pieces, options).
     status: OPTIMAL / FEASIBLE (found), INFEASIBLE (proven impossible), UNKNOWN (ran out of time).
-    on_solution(grid, objective, seconds) is called for every improving solution found."""
+    on_solution(grid, objective, seconds) is called for every improving solution found.
+    hint: an earlier result (grid, machines, options) to start the search from, e.g. a near problem's answer."""
     t = time.time()
     mod = Model(win, objective=objective, **kw)
+    if hint:
+        mod.add_hint(hint)
     sv = cp_model.CpSolver()
     sv.parameters.max_time_in_seconds = timeout
     sv.parameters.num_workers = workers

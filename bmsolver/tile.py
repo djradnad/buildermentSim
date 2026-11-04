@@ -48,10 +48,24 @@ class Unit:
             w.port_options.append(opts)
         return w
 
-    def solve(self, W, H, rows=None, timeout=600, workers=4):
+    def solve(self, W, H, rows=None, timeout=600, workers=4, hint=None):
         w = self.window(W, H, rows)
-        r = model.solve(w, timeout=timeout, workers=workers)
+        r = model.solve(w, timeout=timeout, workers=workers, hint=hint)
         r['window'] = w
+        return r
+
+    def solve_up(self, W, H, timeout=600, workers=4):
+        """Solve for 1, 2, ... n copies, each from the last answer as a hint (a bigger n only adds belt load, and
+        often the smaller answer still fits: much faster than a cold n-copy solve)."""
+        n, r = self.n, None
+        try:
+            for k in range(1, n + 1):
+                self.n = k
+                r = self.solve(W, H, timeout=timeout, workers=workers, hint=r)
+                if 'grid' not in r:
+                    break
+        finally:
+            self.n = n
         return r
 
     def compose(self, r, W, copies=None):
