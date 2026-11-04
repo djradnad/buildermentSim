@@ -186,7 +186,7 @@ function machinesReached(w, seg) {
     armsFromCache.set(w, armsFrom);
   }
   const found = new Set(), seen = new Set([seg]), queue = [seg];
-  const add = b => { const m = w.bobj.get(b); if (m && m.rec) found.add(m); };
+  const add = b => { const m = w.bobj.get(b); if (m && (m.rec || m.fuel)) found.add(m); };   // machines and power plants
   while (queue.length) {
     const g = queue.shift();
     const t = g.target, next = [];
@@ -203,7 +203,8 @@ function machinesReached(w, seg) {
   return [...found];
 }
 
-const rawNeeds = m => m.rec.in.map(i => i.item).filter(i => RAW_ITEMS.includes(i));
+// raw items a machine needs; a power plant needs its fuel (a fuel cell belt is fed as is)
+const rawNeeds = m => m.fuel ? [m.fuel.item] : m.rec.in.map(i => i.item).filter(i => RAW_ITEMS.includes(i));
 
 export function guessFeedItem(w, seg, fallback) {
   return guessFeedItems(w, [seg], [fallback])[0];
