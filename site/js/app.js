@@ -1,7 +1,7 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
 import { Factory, GAMEDATA, QuadTree, World } from './gamesim.js';
-import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, RAW_ITEMS } from './blueprint.js';
+import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
 import { initWorld } from './world.js';
@@ -60,9 +60,12 @@ function loadBlueprint(rows, meta = {}, id = null) {
   const added = addFeeders(bs);
   addDrains(bs);
   const probe = new Factory(bs, { extractors: {} });
+  const feedSegs = added.map(a => probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]));
+  const found = feedSegs.filter(g => g);
+  const kinds = guessFeedItems(probe, found, found.map(() => null));
   state.feeds = added.map((a, i) => {
-    const g = probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]);
-    return { at: a.at, kind: g ? guessFeedItem(probe, g, 'In' + (i + 1)) : 'In' + (i + 1), perMin: 480 };
+    const j = found.indexOf(feedSegs[i]);
+    return { at: a.at, kind: (j >= 0 && kinds[j]) || 'In' + (i + 1), perMin: 480 };
   });
   state.extractors = bs.filter(b => b.id === 3004).map(b => {
     const g = probe.outSeg.get(b);
