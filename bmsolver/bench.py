@@ -28,16 +28,23 @@ def _bin(name):
 
 class Factory:
     """A factory module case: inputs enter on the east edge (rows given), the product leaves on the west edge.
-    machines: model.Window machine dicts. Found layouts are checked in the game-exact sim (gsim) at exact rates."""
+    extra: more ports [(edge 'N'|'E'|'S'|'W', index from the start of that edge (negative = from its end), kind,
+    vec)]. machines: model.Window machine dicts. Found layouts are checked in the game-exact sim (gsim)."""
 
-    def __init__(self, ins, out, machines, items, per_unit, recipes, D=32):
+    def __init__(self, ins, out, machines, items, per_unit, recipes, D=32, extra=()):
         self.ins, self.out, self.machines, self.items = ins, out, machines, items
-        self.per_unit, self.recipes, self.D = per_unit, recipes, D
+        self.per_unit, self.recipes, self.D, self.extra = per_unit, recipes, D, extra
 
     def window(self, W, H):
         from .model import Window
         ports = {((W - 1, r), 3): ('in', v) for r, v in self.ins}
-        ports[((0, self.out[0]), 1)] = ('out', self.out[1])
+        if self.out:
+            ports[((0, self.out[0]), 1)] = ('out', self.out[1])
+        for edge, i, kind, vec in self.extra:
+            n = H if edge in 'EW' else W
+            i = i % n
+            t, d = {'N': ((i, 0), 0), 'E': ((W - 1, i), 3), 'S': ((i, H - 1), 2), 'W': ((0, i), 1)}[edge]
+            ports[t, d] = (kind, vec)
         w = Window(W, H, len(self.items), self.D, ports=ports)
         w.machines = self.machines
         w.factory = self
@@ -60,6 +67,18 @@ def wire_chain():  # 3 furnaces (30 ore -> 30 ingot each) + 2 workshops T1 (45 i
                    [dict(bid=3006, count=3, need=[2, 0, 0], make=[0, 2, 0]),
                     dict(bid=3005, count=2, need=[0, 3, 0], make=[0, 0, 2])],
                    ['Copper Ore', 'Copper Ingot', 'Copper Wire'], 15, [2002, 2003])
+
+
+def forge_bank(n, tier=4):
+    """n forges on alt steel (4 iron ore + 4 coal -> 1 steel / 6 s; tier 4 = x3 = 30/min each); 1 unit = 30/min,
+    a full belt = 16 units. Ore enters on the east, coal on the west next to the steel leaving west (the
+    one-ingredient-on-the-output-side style of john's forge banks)."""
+    ore = 4 * n
+    belts = lambda u: [u - 16 * k if u - 16 * k < 16 else 16 for k in range(-(-u // 16))]
+    ins = [(r, [b, 0, 0]) for r, b in enumerate(belts(ore))]
+    extra = [('W', 1 + r, 'in', [0, b, 0]) for r, b in enumerate(belts(ore))]
+    return Factory(ins, (0, [0, 0, n]), [dict(bid=3009, count=n, need=[4, 4, 0], make=[0, 0, 1], tier=tier)],
+                   ['Iron Ore', 'Coal', 'Steel'], 30, [2048], D=16, extra=extra)
 
 
 # name, spec, W, H, expected ('SAT' | 'UNSAT'), tier
@@ -85,6 +104,11 @@ CASES = [
     ('graphite2_6x4', graphite2, 6, 4, 'UNSAT', 'factory'),
     ('emag2_6x5', emag2, 6, 5, 'SAT', 'factory'),
     ('wire_5x5', wire_chain, 5, 5, 'SAT', 'factory'),
+    ('forge2_6x6', lambda: forge_bank(2), 6, 6, 'SAT', 'factory'),
+    ('forge2_6x5', lambda: forge_bank(2), 6, 5, 'UNSAT', 'factory'),
+    ('forge4_10x6', lambda: forge_bank(4), 10, 6, 'SAT', 'factory_hard'),
+    ('forge4_9x6', lambda: forge_bank(4), 9, 6, 'UNSAT', 'factory_hard'),
+    ('forge4_8x7', lambda: forge_bank(4), 8, 7, 'UNSAT', 'factory_hard'),
 ]
 
 
@@ -168,6 +192,18 @@ def verify(grid, win, options=None):
             elif kind == 'out' and d in push_dirs(c):
                 outs.append((t, d))
         return check(Design(grid), ins, outs, rates=rates, mix=win.ncom > 1)
+    seen, todo, adj = set(), [], {}           # pieces no input reaches carry nothing (closed belt loops the
+    for p, q, k in Design(grid).links():      # flow model may fill with circulating flow): drop them first
+        adj.setdefault(p, []).append(q)
+    for (t, d), spec in keys.items():
+        if (spec[0] if isinstance(spec, tuple) else spec) == 'in' and t in grid:
+            todo.append(t)
+    while todo:
+        p = todo.pop()
+        if p not in seen:
+            seen.add(p)
+            todo += adj.get(p, [])
+    grid = {p: c for p, c in grid.items() if p in seen}
     r = attempt(grid)
     if not r['ok'] and r['idle']:
         r = attempt({p: c for p, c in grid.items() if p not in r['idle']})
