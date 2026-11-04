@@ -134,7 +134,7 @@ function renderInputs() {
   const box = $('inputs');
   box.innerHTML = '';
   if (!state.feeds.length && !state.extractors.length) {
-    box.innerHTML = '<div class="muted small">No open belt starts or extractors.</div>';
+    box.innerHTML = '<div class="muted small">No open belt starts or extractors. Tap a belt start on the map to add an input.</div>';
     return;
   }
   const choices = ITEM_CHOICES();
@@ -152,6 +152,10 @@ function renderInputs() {
     row.append(sel, rate);
     box.appendChild(row);
   });
+  const hint = document.createElement('div');
+  hint.className = 'small muted';
+  hint.textContent = 'Tap a belt start on the map to add or remove an input there.';
+  box.appendChild(hint);
   if (state.extractors.length) {
     const counts = {};
     for (const e of state.extractors) counts[e.item] = (counts[e.item] || 0) + 1;
@@ -475,7 +479,7 @@ function pickTile([x, y], click) {
     }
   }
   const tr = view.tileRates && view.tileRates.get(k);
-  if (tr !== undefined) lines.push(`throughput ${fmtRate(tr)} items/min`);
+  if (tr != null) lines.push(`throughput ${fmtRate(tr)} items/min`);
   for (const g of w.segs) {
     if (!g.nodes.some(n => n.x === x && n.y === y)) continue;
     const loc = w.qt && w.qt.locate(g);
@@ -485,6 +489,22 @@ function pickTile([x, y], click) {
   }
   if (!lines.length) { $('pickCard').hidden = true; view.pick = null; view.draw(); return; }
   if (click) {
+    // inputs by hand: a belt piece that nothing feeds can take a feed (needed where the automatic feeder tile
+    // can't go, e.g. a start whose back faces another building)
+    const btn = $('pickFeed');
+    const start = w.segs.find(g => g.nodes[0].x === x && g.nodes[0].y === y && g.flag && !g.nodes[0].inputs.length);
+    const fi = state.feeds.findIndex(f => f.at[0] === x && f.at[1] === y);
+    btn.hidden = !start && fi < 0;
+    if (fi >= 0) {
+      btn.textContent = 'Remove the input here';
+      btn.onclick = () => { state.feeds.splice(fi, 1); renderInputs(); rebuild(); pickTile([x, y], true); };
+    } else if (start) {
+      btn.textContent = 'Make this an input';
+      btn.onclick = () => {
+        state.feeds.push({ at: [x, y], kind: guessFeedItem(w, start, 'In' + (state.feeds.length + 1)), perMin: 480 });
+        renderInputs(); rebuild(); pickTile([x, y], true);
+      };
+    }
     view.pick = [x, y];
     $('pickCard').hidden = false;
     $('pickInfo').textContent = lines.join('\n');
