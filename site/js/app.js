@@ -46,7 +46,7 @@ async function loadFromInput(text) {
     else bp = await fetchBlueprint(text);
     loadBlueprint(bp.rows, bp.meta, /^[a-z0-9]{6}$/i.test(text) ? text : null);
   } catch (e) {
-    setStatus('Could not load: ' + e.message + (/^[a-z0-9]{6}$/i.test(text) ? ' (paste the blueprint json instead)' : ''));
+    setStatus('Could not load: ' + e.message);
   }
 }
 
