@@ -31,7 +31,8 @@ class Factory:
     extra: more ports [(edge 'N'|'E'|'S'|'W', index from the start of that edge (negative = from its end), kind,
     vec)]. machines: model.Window machine dicts. Found layouts are checked in the game-exact sim (gsim)."""
 
-    def __init__(self, ins, out, machines, items, per_unit, recipes, D=32, extra=()):
+    def __init__(self, ins, out, machines, items, per_unit, recipes, D=32, extra=(), arm_cap=None):
+        self.arm_cap = arm_cap
         self.ins, self.out, self.machines, self.items = ins, out, machines, items
         self.per_unit, self.recipes, self.D, self.extra = per_unit, recipes, D, extra
 
@@ -47,6 +48,7 @@ class Factory:
             ports[t, d] = (kind, vec)
         w = Window(W, H, len(self.items), self.D, ports=ports)
         w.machines = self.machines
+        w.arm_cap = self.arm_cap
         w.factory = self
         return w
 
@@ -69,7 +71,7 @@ def wire_chain():  # 3 furnaces (30 ore -> 30 ingot each) + 2 workshops T1 (45 i
                    ['Copper Ore', 'Copper Ingot', 'Copper Wire'], 15, [2002, 2003])
 
 
-def forge_bank(n, tier=4):
+def forge_bank(n, tier=4, arms=False):
     """n forges on alt steel (4 iron ore + 4 coal -> 1 steel / 6 s; tier 4 = x3 = 30/min each); 1 unit = 30/min,
     a full belt = 16 units. Ore enters on the east, coal on the west next to the steel leaving west (the
     one-ingredient-on-the-output-side style of john's forge banks)."""
@@ -78,7 +80,7 @@ def forge_bank(n, tier=4):
     ins = [(r, [b, 0, 0]) for r, b in enumerate(belts(ore))]
     extra = [('W', 1 + r, 'in', [0, b, 0]) for r, b in enumerate(belts(ore))]
     return Factory(ins, (0, [0, 0, n]), [dict(bid=3009, count=n, need=[4, 4, 0], make=[0, 0, 1], tier=tier)],
-                   ['Iron Ore', 'Coal', 'Steel'], 30, [2048], D=16, extra=extra)
+                   ['Iron Ore', 'Coal', 'Steel'], 30, [2048], D=16, extra=extra, arm_cap=3 if arms else None)
 
 
 # name, spec, W, H, expected ('SAT' | 'UNSAT'), tier
@@ -106,6 +108,10 @@ CASES = [
     ('wire_5x5', wire_chain, 5, 5, 'SAT', 'factory'),
     ('forge2_6x6', lambda: forge_bank(2), 6, 6, 'SAT', 'factory'),
     ('forge2_6x5', lambda: forge_bank(2), 6, 5, 'UNSAT', 'factory'),
+    ('forge2a_6x5', lambda: forge_bank(2, arms=True), 6, 5, 'SAT', 'factory'),
+    ('forge2a_5x5', lambda: forge_bank(2, arms=True), 5, 5, 'UNSAT', 'factory'),
+    ('forge2a_5x6', lambda: forge_bank(2, arms=True), 5, 6, 'UNSAT', 'factory'),
+    ('forge4a_8x7', lambda: forge_bank(4, arms=True), 8, 7, 'SAT', 'factory_hard'),
     ('forge4_10x6', lambda: forge_bank(4), 10, 6, 'SAT', 'factory_hard'),
     ('forge4_9x6', lambda: forge_bank(4), 9, 6, 'UNSAT', 'factory_hard'),
     ('forge4_8x7', lambda: forge_bank(4), 8, 7, 'UNSAT', 'factory_hard'),
