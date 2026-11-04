@@ -393,7 +393,7 @@ export class View {
     if (!shown.length) return;
     ctx.save();
     for (const pl of shown) {
-      const [a, b] = this.toScreen(pl.box[0] - 0.5, pl.box[1] - 0.5), [c, d] = this.toScreen(pl.box[2] + 0.5, pl.box[3] + 0.5);
+      const [a, b] = this.toScreen(pl.box[0], pl.box[1]), [c, d] = this.toScreen(pl.box[2], pl.box[3]);
       ctx.save();
       ctx.beginPath(); ctx.rect(a, b, c - a, d - b); ctx.clip();
       ctx.strokeStyle = pl.on ? 'rgba(255,211,77,0.22)' : 'rgba(255,211,77,0.10)'; ctx.lineWidth = 1;

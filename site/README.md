@@ -20,8 +20,11 @@ open belt ends that stop unless marked as outputs, and the production tab's 2-mi
 Settings: belt speed 32 or 31 units per tick (31 comes from another summation order of the belt techs; not
 confirmed), underground range 5/6/7, the splitter start output, world position.
 
-Behind "unverified" toggles: tile hash-map order for piece creation (hash read from the exe; table growth and
-paste order inferred), roundf instead of half-to-even for lengths, arms taking from extractor stock (inferred).
+Traced and on: roundf (halves away from zero) for lengths and arm projections, arms taking from extractor stock,
+building boxes by size (1x1 +-0.4998 ...) for power plant range overlap.
+
+Behind an "unverified" toggle: tile hash-map order for piece creation (hash read from the exe; table growth and
+paste order inferred).
 
 Not traced yet: what labs accept (here they take every item), storage tier limits (250 assumed), teleporters,
 the splitter start index after a paste, and iOS fused multiply-adds.

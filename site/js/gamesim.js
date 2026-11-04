@@ -75,11 +75,11 @@ const dot2 = (a, b, c, d) => f32(f32(f32(a) * f32(b)) + f32(f32(c) * f32(d)));
 const progAdd = (p, sp) => p + f32(sp * DT);     // progress is a double in the game
 const progSub = (p, sp) => p - f32(sp * DT);
 
-// Length rounding. The game uses C roundf (half away from zero); the sim used half-to-even until confirmed.
-// They differ only when length * 800 lands exactly on .5. setRoundf(true) switches to roundf (Math.round is the
-// same for values >= 0). Not confirmed in game.
-let RND = null;
-export function setRoundf(on) { RND = on ? Math.round : null; }
+// Length rounding: segment lengths and an arm's projection onto a belt use CRT roundf, halves away from zero
+// (traced). setRoundf(false) brings back the old half-to-even, for comparisons only.
+const roundf = x => Math.sign(x) * Math.floor(Math.abs(x) + 0.5);
+let RND = roundf;
+export function setRoundf(on) { RND = on ? roundf : null; }
 
 // Tile hash map order (CHAINS.md section 3, FUN_140e89370; the map type, its growth and paste insertion order are
 // inferred). The game walks its tile maps in bucket order, which decides creation order within a pass.
@@ -706,11 +706,21 @@ class Extractor {
 // runs down by DT and at 0 burns a load if it has one (timer = 120 s / 30 s). While the timer runs it boosts every
 // machine, arm and extractor whose tiles overlap the box of `radius` tiles around it (+0.4 / +0.2); a building in
 // range of several plants takes the largest, never the sum.
+// A building's box as the game stores it (by Size, rotated with the building; traced): 1x1 +-0.4998, 2x2
+// -0.4998..1.4998, 3x3 +-1.4998, nuclear 3x4 x +-1.4998 / y -1.4998..2.4998, 4x4 -1.4998..2.4998.
+export function buildingBox(b) {
+  const d = BDEF[b.id] || { w: 1, h: 1 }, w = d.w || 1, l = d.h || 1, e = f32(0.4998), o = grot(b);
+  const lx0 = -Math.floor((w - 1) / 2) - e, lx1 = Math.floor(w / 2) + e, ly0 = -Math.floor((l - 1) / 2) - e, ly1 = Math.floor(l / 2) + e;
+  const cs = [[lx0, ly0], [lx1, ly0], [lx0, ly1], [lx1, ly1]].map(([ox, oy]) => rot(b.x, b.y, o, ox, oy));
+  const xs = cs.map(c => c[0]), ys = cs.map(c => c[1]);
+  return [f32(Math.min(...xs)), f32(Math.min(...ys)), f32(Math.max(...xs)), f32(Math.max(...ys))];
+}
+
 class Plant {
   constructor(b, p) {
     this.b = b; this.p = p; this.fuel = p.fuel[0]; this.have = 0; this.t = f32(0); this.burned = 0;
-    const fp = footprint(b), xs = fp.map(q => q[0]), ys = fp.map(q => q[1]), r = p.radius;
-    this.box = [Math.min(...xs) - r, Math.min(...ys) - r, Math.max(...xs) + r, Math.max(...ys) + r];
+    const r = f32(p.radius), bb = buildingBox(b);
+    this.box = [f32(bb[0] - r), f32(bb[1] - r), f32(bb[2] + r), f32(bb[3] + r)];   // game box grown by the radius
   }
   tick() {
     this.t = f32(Math.max(0, f32(this.t - DT32)));
@@ -771,8 +781,8 @@ export class Factory extends World {
     // which plants reach each boosted building (box overlap against the building's tiles)
     for (const o of [...this.machines, ...this.arms, ...this.extractors]) {
       o.baseBoost = o.boost;
-      const fp = footprint(o.b);
-      o.plants = this.plants.filter(pl => fp.some(([x, y]) => x >= pl.box[0] && x <= pl.box[2] && y >= pl.box[1] && y <= pl.box[3]));
+      const bb = buildingBox(o.b);   // overlap inclusive, every plant in range counts, the largest boost wins
+      o.plants = this.plants.filter(pl => bb[0] <= pl.box[2] && pl.box[0] <= bb[2] && bb[1] <= pl.box[3] && pl.box[1] <= bb[3]);
     }
     // Outputs. In game an open belt end just stops: items queue at it and back up. Only ends marked as outputs
     // take items: drain tiles the page added (added: 'out'), tiles listed in opts.sinks ([[x, y]]), or every
@@ -788,7 +798,8 @@ export class Factory extends World {
       if (g) this.feeds.push(new Feed(g, f.kind, f.perMin ?? 480));
     }
     this.labsTakeAll = opts.labsTakeAll !== false;
-    this.armsFromExtractors = !!opts.armsFromExtractors;   // inferred: extractors keep stock in the same container
+    // arms take from any building with the 0x572c container, extractors included (traced)
+    this.armsFromExtractors = opts.armsFromExtractors !== false;
     this.tickNo = 0;
   }
 

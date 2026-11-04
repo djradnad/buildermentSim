@@ -85,7 +85,6 @@ function loadBlueprint(rows, meta = {}, id = null) {
 }
 
 function rebuild() {
-  setRoundf($('roundf').checked);
   const ext = {};
   for (const e of state.extractors) ext[e.x + ',' + e.y] = e.item;
   const bs = state.buildings.map(b => ({ ...b }));
@@ -95,7 +94,7 @@ function rebuild() {
     extractors: ext, gen: +$('gen').value, boosted: $('boosted').checked,
     qtOffset: [Math.round(+$('wx').value || 0), Math.round(+$('wy').value || 0)],
     M: +$('beltM').value, ugRange: +$('ugRange').value, splitStart: +$('splitStart').value, plants: $('plants').checked,
-    hashOrder: $('hashOrder').checked, armsFromExtractors: $('armsExt').checked,
+    hashOrder: $('hashOrder').checked,
     qt: new QuadTree(),             // loading a build in game starts a fresh belt quadtree (arm lookups)
   });
   state.history = [snapshot()];
@@ -177,7 +176,7 @@ function renderInputs() {
 $('gen').addEventListener('change', rebuild);
 $('boosted').addEventListener('change', rebuild);
 $('wx').addEventListener('change', rebuild);
-for (const k of ['beltM', 'ugRange', 'splitStart', 'plants', 'hashOrder', 'roundf', 'armsExt']) $(k).addEventListener('change', rebuild);
+for (const k of ['beltM', 'ugRange', 'splitStart', 'plants', 'hashOrder']) $(k).addEventListener('change', rebuild);
 $('wy').addEventListener('change', rebuild);
 
 // ------------------------------------------------------------------ running
