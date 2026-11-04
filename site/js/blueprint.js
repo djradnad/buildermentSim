@@ -58,25 +58,24 @@ export function gridToRows(text) {
 }
 
 // Blueprint codes go through Human-Crow's worker, as his tools do: POST the code to /downloadBlp (answers the
-// game's blueprint file), then POST that file to /readBlp (answers the decoded form below). The worker allows
-// any origin.
+// game's blueprint file), then POST that file to /readBlp (answers the decoded form below).
+// Both go as text/plain: the worker answers Access-Control-Allow-Origin * but no Allow-Headers, so a browser's
+// preflight for any other content type (or a Content-Encoding header) fails and the fetch dies with no detail.
 //   decoded: u32 metadata length, JSON metadata, then 4-byte aligned columns of `count` values each:
 //   id u16, x i32, y i32, rotation u8, tier u8, recipe/filter i16, colour u32
-const MAX_SIZE = 1.5 * 1024 * 1024;      // bigger bodies go gzipped, as Human-Crow's api.js does
-
 async function gunzipIfNeeded(buf) {
   const u = new Uint8Array(buf);
   if (u[0] !== 0x1f || u[1] !== 0x8b) return buf;
   return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
 }
 
-async function post(path, body, type) {
-  const headers = { 'Content-Type': type };
-  if (body.byteLength > MAX_SIZE) {
-    body = await new Response(new Blob([body]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
-    headers['Content-Encoding'] = 'gzip';
+async function post(path, body) {
+  let r;
+  try {
+    r = await fetch(WORKER + path, { method: 'POST', body, headers: { 'Content-Type': 'text/plain' } });
+  } catch (e) {
+    throw new Error(`could not reach the blueprint service (${path}): ${e.message}`);
   }
-  const r = await fetch(WORKER + path, { method: 'POST', body, headers });
   if (!r.ok) throw new Error(`blueprint service ${path}: ${r.status} ${(await r.text()).slice(0, 200)}`);
   return gunzipIfNeeded(await r.arrayBuffer());
 }
@@ -102,8 +101,8 @@ export function decodeBlueprint(buf) {
 
 export async function fetchBlueprint(id) {
   id = id.trim().replace(/^.*[\/=]/, '');
-  const file = await post('/downloadBlp', new TextEncoder().encode(id), 'text/plain');
-  const { meta, rows } = decodeBlueprint(await post('/readBlp', file, 'application/octet-stream'));
+  const file = await post('/downloadBlp', new TextEncoder().encode(id));
+  const { meta, rows } = decodeBlueprint(await post('/readBlp', file));
   if (!rows.length) throw new Error(`blueprint ${id} has no buildings`);
   return { meta: { name: id, ...meta }, rows };
 }
