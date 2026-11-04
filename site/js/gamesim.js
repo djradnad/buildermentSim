@@ -13,7 +13,8 @@ export const DT = f32(1 / 60);
 export const SP = 240, SNAP = 28, M_DEFAULT = 32;
 
 // Belt speed techs (PC D_BaseTechnology, table order) and their BeltSpeedMultiplier. The game starts at 1.0f, adds
-// each researched tech in research order with float32 adds and uses v = (int)(sum * 10f) units per tick.
+// each researched tech in research order with float32 adds and uses v = (int)(sum * 10f) units per tick. The techs
+// are one prerequisite chain, so in game the order is always table order.
 export const BELT_TECHS = [[4053, 0.1], [4054, 0.1], [4055, 0.1], [4056, 0.1], [4057, 0.2], [4058, 0.2], [4059, 0.2],
   [4060, 0.2], [4061, 0.3], [4062, 0.3], [4074, 0.2], [4075, 0.2]];
 export function beltSpeed(ids) {

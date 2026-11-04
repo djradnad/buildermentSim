@@ -1,6 +1,6 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
-import { Factory, GAMEDATA, QuadTree, World, setRoundf, beltSpeed, gameLabel } from './gamesim.js';
+import { Factory, GAMEDATA, QuadTree, World, setRoundf, beltSpeed, gameLabel, BELT_TECHS } from './gamesim.js';
 import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
@@ -84,9 +84,9 @@ function loadBlueprint(rows, meta = {}, id = null) {
   ['play', 'step', 'reset'].forEach(k => $(k).disabled = false);
 }
 
-// belt speed from the researched techs, in research order
+// belt speed from the number of researched speed techs (a prerequisite chain, so always table order)
 function beltM() {
-  const ids = ($('beltTechs').value.match(/\d+/g) || []).map(Number);
+  const ids = BELT_TECHS.slice(0, +$('beltTechs').value).map(t => t[0]);
   const M = beltSpeed(ids);
   $('beltSpeedOut').textContent = `${M} /tick = ${M * 15}/min`;
   return M;
