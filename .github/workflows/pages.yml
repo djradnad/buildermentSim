@@ -20,6 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # Pages lets browsers cache files for 10 minutes, so right after a deploy a phone can mix a new
+      # index.html with old scripts (or old modules with new ones) and break. Every script and style link
+      # gets the commit as a version, so each deploy is a fresh, consistent set.
+      - name: Version script and style links
+        run: |
+          v=${GITHUB_SHA::8}
+          find site -name '*.js' -o -name '*.html' | xargs sed -i -E \
+            -e "s#(from '\./[A-Za-z0-9_]+\.js)'#\1?v=$v'#g" \
+            -e "s#(new URL\('\./[A-Za-z0-9_]+\.js)'#\1?v=$v'#g" \
+            -e "s#(src=\"js/[A-Za-z0-9_]+\.js)\"#\1?v=$v\"#g" \
+            -e "s#(href=\"css/[A-Za-z0-9_]+\.css)\"#\1?v=$v\"#g"
+          grep -rhoE "[A-Za-z0-9_]+\.(js|css)\?v=[0-9a-f]+" site | sort | uniq -c
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
