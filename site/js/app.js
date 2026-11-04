@@ -1,6 +1,6 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
-import { Factory, GAMEDATA, QuadTree, World, setRoundf } from './gamesim.js';
+import { Factory, GAMEDATA, QuadTree, World, setRoundf, beltSpeed, gameLabel } from './gamesim.js';
 import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
@@ -84,6 +84,14 @@ function loadBlueprint(rows, meta = {}, id = null) {
   ['play', 'step', 'reset'].forEach(k => $(k).disabled = false);
 }
 
+// belt speed from the researched techs, in research order
+function beltM() {
+  const ids = ($('beltTechs').value.match(/\d+/g) || []).map(Number);
+  const M = beltSpeed(ids);
+  $('beltSpeedOut').textContent = `${M} /tick = ${M * 15}/min`;
+  return M;
+}
+
 function rebuild() {
   const ext = {};
   for (const e of state.extractors) ext[e.x + ',' + e.y] = e.item;
@@ -93,7 +101,7 @@ function rebuild() {
     sinks: state.sinks,
     extractors: ext, gen: +$('gen').value, boosted: $('boosted').checked,
     qtOffset: [Math.round(+$('wx').value || 0), Math.round(+$('wy').value || 0)],
-    M: +$('beltM').value, ugRange: +$('ugRange').value, splitStart: +$('splitStart').value, plants: $('plants').checked,
+    M: beltM(), ugRange: +$('ugRange').value, splitStart: +$('splitStart').value, plants: $('plants').checked,
     hashOrder: $('hashOrder').checked,
     qt: new QuadTree(),             // loading a build in game starts a fresh belt quadtree (arm lookups)
   });
@@ -176,7 +184,7 @@ function renderInputs() {
 $('gen').addEventListener('change', rebuild);
 $('boosted').addEventListener('change', rebuild);
 $('wx').addEventListener('change', rebuild);
-for (const k of ['beltM', 'ugRange', 'splitStart', 'plants', 'hashOrder']) $(k).addEventListener('change', rebuild);
+for (const k of ['beltTechs', 'ugRange', 'splitStart', 'plants', 'hashOrder']) $(k).addEventListener('change', rebuild);
 $('wy').addEventListener('change', rebuild);
 
 // ------------------------------------------------------------------ running
@@ -522,7 +530,10 @@ function pickTile([x, y], click) {
     lines.push(`${name} at ${b.x}, ${b.y}, tier ${b.tier}${b.added ? ' (added ' + (b.added === 'in' ? 'input' : 'output') + ')' : ''}`);
     const o = w.bobj.get(b);
     // the game's building label: ideal rate with the live boost, no tick rounding
-    if (o && o.rec) lines.push(`game label: ${+(60 / (o.rec.seconds / ((o.boost + 1) * o.mult)) * o.outAmount).toFixed(2)}/min`);
+    if (o && o.rec) {
+      const f = Math.fround, rate = f(f(f(60) / f(f(o.rec.seconds) / f(f(o.boost + 1) * o.mult))) * o.outAmount);
+      lines.push(`game label: ${gameLabel(rate)}/min`);
+    }
     if (o && o.rec) lines.push(`recipe: ${o.rec.in.map(i => i.amount + ' ' + i.item).join(' + ')} -> ${o.outAmount} ${o.outItem} in ${o.rec.seconds} s`,
       `holding: ${Object.entries(o.have).map(([k2, v]) => v + ' ' + k2).join(', ')}; waiting output ${o.out}; made ${o.made}`);
     if (b.id === 3004) {

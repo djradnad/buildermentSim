@@ -11,6 +11,25 @@ export { GAMEDATA };
 const f32 = Math.fround;
 export const DT = f32(1 / 60);
 export const SP = 240, SNAP = 28, M_DEFAULT = 32;
+
+// Belt speed techs (PC D_BaseTechnology, table order) and their BeltSpeedMultiplier. The game starts at 1.0f, adds
+// each researched tech in research order with float32 adds and uses v = (int)(sum * 10f) units per tick.
+export const BELT_TECHS = [[4053, 0.1], [4054, 0.1], [4055, 0.1], [4056, 0.1], [4057, 0.2], [4058, 0.2], [4059, 0.2],
+  [4060, 0.2], [4061, 0.3], [4062, 0.3], [4074, 0.2], [4075, 0.2]];
+export function beltSpeed(ids) {
+  const mult = new Map(BELT_TECHS);
+  let sum = Math.fround(1);
+  for (const id of ids) if (mult.has(id)) sum = Math.fround(sum + Math.fround(mult.get(id)));
+  return Math.trunc(Math.fround(sum * Math.fround(10)));
+}
+
+// The game's number labels: from 10 up, whole numbers with halves rounded toward zero (modff, +1 only when the
+// fraction is over 0.5, so 54.5 shows 54); below 10, at most 2 decimals rounded half to even.
+export function gameLabel(v) {
+  if (v >= 10) { const i = Math.trunc(v); return String(v - i > 0.5 ? i + 1 : i); }
+  const x = v * 100, r = Math.round(x), even = (Math.abs(x % 1) === 0.5 && r % 2 !== 0) ? r - 1 : r;
+  return String(+(even / 100).toFixed(2));
+}
 export const UG_RANGE = 6;                         // exit 1..7 tiles away: reach 5 + 1 per underground tech (2)
 const ARM_DROP = 2.7333333333333334, ARM_END = 4.0;
 const OUT_CAP = 10;                                // no new craft while this many products wait
