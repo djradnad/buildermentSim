@@ -1,6 +1,6 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
-import { Factory, GAMEDATA, QuadTree, World } from './gamesim.js';
+import { Factory, GAMEDATA, QuadTree, World, setRoundf } from './gamesim.js';
 import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
@@ -85,6 +85,7 @@ function loadBlueprint(rows, meta = {}, id = null) {
 }
 
 function rebuild() {
+  setRoundf($('roundf').checked);
   const ext = {};
   for (const e of state.extractors) ext[e.x + ',' + e.y] = e.item;
   const bs = state.buildings.map(b => ({ ...b }));
@@ -94,6 +95,7 @@ function rebuild() {
     extractors: ext, gen: +$('gen').value, boosted: $('boosted').checked,
     qtOffset: [Math.round(+$('wx').value || 0), Math.round(+$('wy').value || 0)],
     M: +$('beltM').value, ugRange: +$('ugRange').value, splitStart: +$('splitStart').value, plants: $('plants').checked,
+    hashOrder: $('hashOrder').checked, armsFromExtractors: $('armsExt').checked,
     qt: new QuadTree(),             // loading a build in game starts a fresh belt quadtree (arm lookups)
   });
   state.history = [snapshot()];
@@ -175,7 +177,7 @@ function renderInputs() {
 $('gen').addEventListener('change', rebuild);
 $('boosted').addEventListener('change', rebuild);
 $('wx').addEventListener('change', rebuild);
-for (const k of ['beltM', 'ugRange', 'splitStart', 'plants']) $(k).addEventListener('change', rebuild);
+for (const k of ['beltM', 'ugRange', 'splitStart', 'plants', 'hashOrder', 'roundf', 'armsExt']) $(k).addEventListener('change', rebuild);
 $('wy').addEventListener('change', rebuild);
 
 // ------------------------------------------------------------------ running
@@ -502,6 +504,14 @@ function settledAt(pm) {
 }
 
 // ------------------------------------------------------------------ picking a tile
+// a quadtree box in world coordinates, exactly as stored (float32)
+const fmtBox = b => `(${b.map(v => +v.toPrecision(9)).join(', ')})`;
+// an arm's candidate piece: its number, grid depth, and whether it sits on a split line
+function cand(g) {
+  const loc = state.w.qt && state.w.qt.locate(g);
+  return '#' + g.idx + (loc ? ` (depth ${loc.depth}${loc.onSplit ? ', split line' : ''})` : '');
+}
+
 function pickTile([x, y], click) {
   const w = state.w;
   if (!w) return;
@@ -533,11 +543,15 @@ function pickTile([x, y], click) {
       const dst = w.segAt(arm.dst);
       const db = w.occ.get(arm.dst[0] + ',' + arm.dst[1]);
       if (dst.length && (!db || (db.id >= 3000 && db.id <= 3003)))
-        lines.push(`drops on piece #${dst[0][0].idx} (grid order here: ${dst.map(([g]) => '#' + g.idx).join(', ')}; the first one is used even when full)`);
+        lines.push(`drops on piece #${dst[0][0].idx} (grid order here: ${dst.map(([g]) => cand(g)).join(', ')}; the first one is used even when full)`);
+      const g0 = dst.length && dst[0][0];
+      if (g0 && g0.nodes.length === 2 && World.isSplit(g0.nodes[0]) && dst.some(([g]) => g !== g0 && g.nodes[g.nodes.length - 1] === g0.nodes[0]))
+        lines.push('DEAD SPOT: the first candidate is a splitter output stub, not the belt into the splitter');
       const src = w.segAt(arm.src);
-      if (src.length) lines.push(`picks from ${src.map(([g]) => '#' + g.idx).join(', then ')} (the next is tried when one has no item in reach)`);
+      if (src.length) lines.push(`picks from ${src.map(([g]) => cand(g)).join(', then ')} (the next is tried when one has no item in reach)`);
     }
   }
+  const pickCells = [];
   const tr = view.tileRates && view.tileRates.get(k);
   if (tr != null) lines.push(`throughput ${fmtRate(tr)} items/min`);
   for (const g of w.segs) {
@@ -545,11 +559,13 @@ function pickTile([x, y], click) {
     const loc = w.qt && w.qt.locate(g);
     const stub = g.nodes.length === 2 && World.isSplit(g.nodes[0]);
     lines.push(`piece #${g.idx}${stub ? ' (splitter output stub)' : ''}: ${g.nodes.length} tiles, length ${(g.L / 800).toFixed(3)}, ${g.items.length} items${g.flag ? '' : ' (tunnel)'}` +
-      (loc ? `; grid cell depth ${loc.depth}${loc.onSplit ? ', ON A SPLIT LINE (listed first)' : ''}` : ''));
+      (loc ? `; grid cell depth ${loc.depth}${loc.onSplit ? ', ON A SPLIT LINE (listed first)' : ''}, cell ${fmtBox(loc.node.b)} ${loc.onSplit ? `keeps ${loc.count} pieces on its split lines` : `holds ${loc.count} of 33`}` +
+        (loc.box ? `, piece box ${fmtBox(loc.box)}` : '') : ''));
+    if (loc) pickCells.push(loc.node);
   }
   const actions = click ? inputActions(x, y) : [];
   if (!b && actions.length) lines.push(`empty tile at ${x}, ${y}`);
-  if (!lines.length) { $('pickCard').hidden = true; view.pick = null; view.draw(); return; }
+  if (!lines.length) { $('pickCard').hidden = true; view.pick = null; view.pickCells = null; view.draw(); return; }
   if (click) {
     const box = $('pickActions');
     box.innerHTML = '';
@@ -560,6 +576,7 @@ function pickTile([x, y], click) {
       box.appendChild(btn);
     }
     view.pick = [x, y];
+    view.pickCells = pickCells;
     $('pickCard').hidden = false;
     $('pickInfo').textContent = lines.join('\n');
     $('panel').classList.remove('collapsed');

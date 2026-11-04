@@ -99,6 +99,12 @@
         <label title="Which output every splitter serves first">Splitter start <select id="splitStart"><option value="0">first</option><option value="1">second</option><option value="2">third</option></select></label>
         <label title="Fuelled power plants boost machines, arms and extractors in range (nuclear r9 +40%, coal r5 +20%, largest wins)"><input type="checkbox" id="plants" checked> power plants</label>
       </div>
+      <div class="row small" title="Rules read from the game's code but not yet confirmed in game. Off = the sim's earlier behaviour.">
+        <span class="muted">Unverified:</span>
+        <label title="Create belt pieces in the game's tile hash-map order (bucket order at this world position) instead of blueprint row order. Decides merge priority and grid order; table growth and paste order are inferred."><input type="checkbox" id="hashOrder"> hash-map piece order</label>
+        <label title="Round belt lengths half away from zero (C roundf) instead of half to even. Differs only when a length lands exactly on .5 units."><input type="checkbox" id="roundf"> roundf lengths</label>
+        <label title="Arms behind an extractor take from its stock (extractors keep output in the same container machines use; inferred)."><input type="checkbox" id="armsExt"> arms take from extractors</label>
+      </div>
       <div id="inputs" class="list"></div>
     </div>
 
@@ -115,7 +121,7 @@
     <div class="card muted small about">
       <p>The game-exact sim follows the game's own code: belt segments with exact float32 lengths, item spacing, merge
         priority, splitter round robin, undergrounds, arms, machines, storage and extractors, 60 ticks a second.
-        Open belt starts become inputs. Open belt ends that face out of the build become outputs (red tiles; inputs are green); any other open end stops, as in game. Tap a tile to add or remove an input or output. Labs and power plants take every item (not traced yet).</p>
+        Open belt starts become inputs. Open belt ends that face out of the build become outputs (red tiles; inputs are green); any other open end stops, as in game. Tap a tile to add or remove an input or output. Labs take every item (not traced yet); power plants take one load of fuel and boost what is in range.</p>
     </div>
   </aside>
 </main>

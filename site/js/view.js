@@ -259,6 +259,22 @@ export class View {
       }
     }
 
+    // output labels, numbered as in the Outputs list
+    if (s >= 10) {
+      let i = 0;
+      ctx.font = `${Math.max(8, Math.min(12, s * 0.28))}px ui-monospace, monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      for (const g of w.segs) {
+        if (!(g.target && g.target.sink)) continue;
+        i++;
+        const n = g.nodes[g.nodes.length - 1];
+        if (!vis(n.x, n.y)) continue;
+        const [sx, sy] = this.toScreen(n.x, n.y);
+        ctx.fillStyle = '#ff8a80';
+        ctx.fillText('out ' + i, sx, sy - s * 0.3);
+      }
+    }
+
     if (this.pick) {
       const [sx, sy] = this.toScreen(this.pick[0], this.pick[1]);
       ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2;
@@ -294,6 +310,14 @@ export class View {
         }
       }
       ctx.setLineDash([]);
+      // the grid cell of each piece on the picked tile
+      for (const n of this.pickCells || []) {
+        const [a, b] = this.toScreen(n.b[0] - ox, n.b[1] - oy), [c, e] = this.toScreen(n.b[2] - ox, n.b[3] - oy);
+        const W = this.canvas.width, H = this.canvas.height;
+        ctx.strokeStyle = '#ffd34d'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+        ctx.strokeRect(Math.max(a, -10), Math.max(b, -10), Math.min(c, W + 10) - Math.max(a, -10), Math.min(e, H + 10) - Math.max(b, -10));
+        ctx.setLineDash([]);
+      }
     }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const g of w.segs) {
