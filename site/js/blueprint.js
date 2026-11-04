@@ -57,20 +57,55 @@ export function gridToRows(text) {
   return rows;
 }
 
+// Blueprint codes go through Human-Crow's worker, as his tools do: POST the code to /downloadBlp (answers the
+// game's blueprint file), then POST that file to /readBlp (answers the decoded form below). The worker allows
+// any origin.
+//   decoded: u32 metadata length, JSON metadata, then 4-byte aligned columns of `count` values each:
+//   id u16, x i32, y i32, rotation u8, tier u8, recipe/filter i16, colour u32
+const MAX_SIZE = 1.5 * 1024 * 1024;      // bigger bodies go gzipped, as Human-Crow's api.js does
+
+async function gunzipIfNeeded(buf) {
+  const u = new Uint8Array(buf);
+  if (u[0] !== 0x1f || u[1] !== 0x8b) return buf;
+  return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+}
+
+async function post(path, body, type) {
+  const headers = { 'Content-Type': type };
+  if (body.byteLength > MAX_SIZE) {
+    body = await new Response(new Blob([body]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+    headers['Content-Encoding'] = 'gzip';
+  }
+  const r = await fetch(WORKER + path, { method: 'POST', body, headers });
+  if (!r.ok) throw new Error(`blueprint service ${path}: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  return gunzipIfNeeded(await r.arrayBuffer());
+}
+
+export function decodeBlueprint(buf) {
+  const dv = new DataView(buf);
+  const ml = dv.getUint32(0, true);
+  const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, ml)));
+  if (!meta.buildings) return { meta, rows: [] };
+  const n = meta.count;
+  let off = 4 + ml;
+  const cols = [];
+  for (const [get, size] of [['getUint16', 2], ['getInt32', 4], ['getInt32', 4], ['getUint8', 1], ['getUint8', 1],
+                             ['getInt16', 2], ['getUint32', 4]]) {
+    off = (off + 3) & ~3;
+    const c = new Array(n);
+    for (let i = 0; i < n; i++) c[i] = dv[get](off + i * size, true);
+    cols.push(c);
+    off += n * size;
+  }
+  return { meta, rows: cols[0].map((_, i) => cols.map(c => c[i])) };
+}
+
 export async function fetchBlueprint(id) {
   id = id.trim().replace(/^.*[\/=]/, '');
-  const urls = [`${WORKER}/blueprint/${id}`, `${WORKER}/${id}`, `${WORKER}/?id=${id}`];
-  let last;
-  for (const u of urls) {
-    try {
-      const r = await fetch(u);
-      if (!r.ok) { last = new Error(`${u}: ${r.status}`); continue; }
-      const d = await r.json();
-      if (d.rows) return { meta: d.meta || { name: id }, rows: d.rows };
-      last = new Error('unexpected answer from the blueprint service');
-    } catch (e) { last = e; }
-  }
-  throw last;
+  const file = await post('/downloadBlp', new TextEncoder().encode(id), 'text/plain');
+  const { meta, rows } = decodeBlueprint(await post('/readBlp', file, 'application/octet-stream'));
+  if (!rows.length) throw new Error(`blueprint ${id} has no buildings`);
+  return { meta: { name: id, ...meta }, rows };
 }
 
 const k = (x, y) => x + ',' + y;
