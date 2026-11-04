@@ -175,7 +175,8 @@ class Model:
                 m.Add(l >= sum(push) + sum(acc) - 1)
                 new_link(p, q, l, 'push')
                 for v in nz([V(p, 'B', d), V(p, 'O', d)]):
-                    m.AddImplication(v, l)          # a belt or exit must hand its items on
+                    if not win.arm_cap:             # a belt or exit must hand its items on (with arms a belt
+                        m.AddImplication(v, l)      # may dead-end: arms then take everything that reaches it)
 
         # ---- robotic arms: take from behind (a belt piece or any machine tile, World.armTick), put in front (a belt
         # piece or a machine tile, World.armDrop); one item kind each (the arm's filter)
@@ -190,7 +191,8 @@ class Model:
                         m.Add(a == 0)
                         continue
                     m.AddBoolOr(carry(src)).OnlyEnforceIf(a)
-                    m.AddBoolOr(carry(dst)).OnlyEnforceIf(a)
+                    m.AddBoolOr([v for v in carry(dst) if v not in nz([V(dst, 'S', k) for k in range(4)])]).OnlyEnforceIf(a)
+                    # (no drops onto splitters: which segment takes the item depends on the game's quadtree order)
                     self.arm_links.append((p, new_link(src, dst, a, 'arm')))
 
         cx = win.clear_col
@@ -333,20 +335,34 @@ class Model:
                     for v in acceptors(p, back):
                         m.Add(v == 0)
 
-        # an arm reaches an underground entrance only while something feeds it: a lone entrance has no belt
-        # segment the arm can see (its tunnel segment is unflagged, World.buildSegments / segAt)
+        # an arm sees a belt piece only through a flagged belt segment (World.buildSegments / segAt): a lone belt
+        # (nothing in or out), an underground entrance nothing feeds (its tunnel segment is unflagged), an exit that
+        # hands nothing on, or a splitter nothing feeds (the arm would see one output segment only, so items it
+        # drops go to that output alone) has none
+        def port_lits(q, want):
+            out = []
+            for d in range(4):
+                spec = win.ports.get((q, d))
+                if spec is not None and (spec[0] if isinstance(spec, tuple) else spec) == want:
+                    return None                         # a fixed port: always connected
+                out += [l for l, k, _ in optional.get((q, d), []) if k == want]
+            return out
         for p, i in self.arm_links:
             a = links[i][2]
             for q in (links[i][0], links[i][1]):
-                feeders = [links[j][2] for j in lin[q] if links[j][3] == 'push']
-                feeders += [v if v is not True else None for (t, d), v in self.port_active.items()
-                            if t == q and (inflow[q] != [0] * nc or (t, d) in optional)]
-                if any(f is None for f in feeders):
-                    continue
-                for o in range(4):
-                    v = V(q, 'I', o)
-                    if v is not None:
-                        m.AddBoolOr(feeders).OnlyEnforceIf([a, v])
+                fin, fout = port_lits(q, 'in'), port_lits(q, 'out')
+                if fin is not None:
+                    fin += [links[j][2] for j in lin[q] if links[j][3] in ('push', 'ug', 'tin')]
+                if fout is not None:
+                    fout += [links[j][2] for j in lout[q] if links[j][3] == 'push']
+                for k, need in (('B', None if fin is None or fout is None else fin + fout),
+                                ('I', fin), ('S', fin), ('O', fout)):
+                    if need is None:
+                        continue
+                    for o in range(4):
+                        v = V(q, k, o)
+                        if v is not None:
+                            m.AddBoolOr(need).OnlyEnforceIf([a, v])
         self.lin, self.lout, self.splitter_edge, self.optional = lin, lout, splitter_edge, optional
         self._machine_links = (lin, lout, inflow, outflow)
         self.inflow, self.outflow = inflow, outflow
@@ -492,12 +508,19 @@ class Model:
                     for c in range(nc):
                         m.Add(sum(self.F[i, c] for i in fwd) - sum(self.F[i, c] for i in back) == net[c])
                 if mode in ('card', 'both'):
-                    tot = sum(net)
-                    if not isinstance(tot, int):
-                        continue
-                    need, lits = -(-abs(tot) // D), [links[i][2] for i in (fwd if tot > 0 else back)]
-                    if need:
-                        m.Add(sum(lits) >= need)
+                    # net total across the line: fixed ports plus, per free-port group, its smallest / largest share
+                    sgn = lambda kind: 1 if kind == 'in' else -1 if kind == 'out' else 0
+                    on = lambda t: t[axis] > x
+                    fixed = sum(sgn(sp[0] if isinstance(sp, tuple) else sp) * sum(sp[1]) for (t, d), sp in win.ports.items()
+                                if on(t) and isinstance(sp, tuple))
+                    lo = hi = fixed
+                    for group in win.port_options:
+                        shares = [sum(sgn(k) * sum(v) for (t, d), (k, v) in opt.items() if on(t)) for opt in group]
+                        lo, hi = lo + min(shares), hi + max(shares)
+                    if lo > 0:
+                        m.Add(sum(links[i][2] for i in fwd) >= -(-lo // D))
+                    elif hi < 0:
+                        m.Add(sum(links[i][2] for i in back) >= -(-(-hi) // D))
 
     def _machine_flows(self, win, links, lin, lout, inflow, outflow, pure_feeds=True):
         """A placed machine takes in exactly need and puts out exactly make, summed over its port tiles.
@@ -528,7 +551,42 @@ class Model:
                       == mt['make'][c]).OnlyEnforceIf(y)
 
     def _arm_flows(self, win):
-        m, F, nc = self.m, self.F, win.ncom
+        """Arm flow limits, and arm lines: an arm takes items from a belt only as they pass while it is idle, so
+        on a belt that carries items on to anything else the split between arm and belt is not a fixed share.
+        A belt piece an arm takes from must be on an arm line: everything that reaches it ends in arms (the
+        line goes on only into more line pieces and may dead-end; no port, machine or tunnel out of the window)."""
+        m, F, nc, X, links = self.m, self.F, win.ncom, self.X, self.links
+        L = self.line = {}
+        for q in self.cells:
+            L[q] = m.NewBoolVar('L')
+            belt = [X[q, k + str(o)] for k in 'BSIO' for o in range(4) if (q, k + str(o)) in X]
+            m.AddBoolOr(belt).OnlyEnforceIf(L[q])
+            if any(not isinstance(t, int) or t for t in self.outflow[q]):
+                m.Add(sum(self.outflow[q]) == 0).OnlyEnforceIf(L[q])
+        # one item kind per line: an item that passes the last arm taking its kind waits at the dead end forever
+        # and in a mixed line soon blocks the items behind it
+        K = {q: [m.NewBoolVar('K') for c in range(nc)] for q in self.cells}
+        for q in self.cells:
+            m.AddAtMostOne(K[q])
+        for i, (p, q, l, kind) in enumerate(links):
+            if kind == 'arm' or p is None:
+                continue
+            if q is None:
+                m.AddImplication(L[p], l.Not())
+                continue
+            m.AddBoolOr([L[q], l.Not()]).OnlyEnforceIf(L[p])
+            for c in range(nc):
+                m.Add(F[i, c] == 0).OnlyEnforceIf([L[p], K[p][c].Not()])
+                m.AddImplication(K[p][c], K[q][c]).OnlyEnforceIf([L[p], l])
+        # no item loop through an arm: arms pick up only part of what passes, so a loop with an arm fills up with
+        # circulating items (flows alone allow any amount going round). Levels never drop along a link and rise
+        # across every arm.
+        R = len(self.cells)
+        P = {q: m.NewIntVar(0, R, 'P') for q in self.cells}
+        for i, (p, q, l, kind) in enumerate(links):
+            if p is None or q is None:
+                continue
+            m.Add(P[q] >= P[p] + (1 if kind == 'arm' else 0)).OnlyEnforceIf(l)
         self.arm_kind = {}
         for p, i in self.arm_links:
             m.Add(sum(F[i, c] for c in range(nc)) <= win.arm_cap)
@@ -537,6 +595,10 @@ class Model:
                 m.Add(F[i, c] == 0).OnlyEnforceIf(bs[c].Not())
             m.AddAtMostOne(bs)
             self.arm_kind[i] = bs
+            src, a = links[i][0], links[i][2]
+            m.AddBoolOr([L[src]] + ([X[src, 'M']] if (src, 'M') in X else [])).OnlyEnforceIf(a)
+            for c in range(nc):
+                m.AddImplication(bs[c], K[src][c]).OnlyEnforceIf(L[src])
 
     def arm_filters(self, solver):
         """{arm tile: item index it carries} for the placed arms."""

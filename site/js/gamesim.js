@@ -703,9 +703,13 @@ export class Factory extends World {
       }
     }
     if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors]) L.reverse();
-    for (const g of this.segs) {                // open ends: an endless belt takes everything
+    // open ends: an endless belt takes everything. opts.sinks [[x, y]] limits that to belts ending on those tiles
+    // (any other dead end just stops, as in the game)
+    const only = opts.sinks ? new Set(opts.sinks.map(([x, y]) => key(x, y))) : null;
+    for (const g of this.segs) {
       const last = g.nodes[g.nodes.length - 1];
-      if (g.target === null && !last.outputs.length && last.kind === 0 && last.sub === 0) g.target = { sink: true };
+      if (g.target === null && !last.outputs.length && last.kind === 0 && last.sub === 0 &&
+          (!only || only.has(key(last.x, last.y)))) g.target = { sink: true };
     }
     for (const f of opts.feeds || []) {
       const g = this.segs.find(s => s.nodes[0].x === f.at[0] && s.nodes[0].y === f.at[1]);

@@ -56,7 +56,7 @@ def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, 
             bs += [dict(id=3000, x=p[0], y=p[1], o=d) for p in (p1, p2)]
             outs.append('%d,%d' % p2)
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
-        json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes), f)
+        json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=[list(map(int, k.split(','))) for k in outs]), f)
         path = f.name
     if os.environ.get('GSIM_DUMP'):
         import shutil
