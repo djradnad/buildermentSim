@@ -62,7 +62,7 @@ class Window:
 class Model:
     """Builds the CP-SAT model of a window. After solving, grid(solver) reads the layout back."""
 
-    def __init__(self, win, objective=False, weights=None, turn_weight=0):
+    def __init__(self, win, objective=False, weights=None, turn_weight=0, flows=True):
         self.win = win
         m = self.m = cp_model.CpModel()
         W, H, D, nc = win.W, win.H, win.D, win.ncom
@@ -269,46 +269,10 @@ class Model:
                     for v in acceptors(p, back):
                         m.Add(v == 0)
 
-        # ---- integer flows
-        F = self.F = {}
-        for i, (p, q, l, kind) in enumerate(links):
-            tot = []
-            for c in range(nc):
-                f = m.NewIntVar(0, D, '')
-                m.Add(f == 0).OnlyEnforceIf(l.Not())
-                F[i, c] = f
-                tot.append(f)
-            m.Add(sum(tot) <= D)
-            m.Add(sum(tot) >= 1).OnlyEnforceIf(l)
-            if kind == 'tin':
-                for c in range(nc):
-                    m.Add(F[i, c] == tin_vec[i][c]).OnlyEnforceIf(l)
-        for key, vec in win.tun_out.items():
-            ls = tout_links.get(key, [])
-            if not ls:
-                m.Add(0 == 1)               # nothing inside can reach that exit
-                continue
-            for c in range(nc):
-                m.Add(sum(F[i, c] for i in ls) == vec[c])
-        for p in cells:
-            for c in range(nc):
-                m.Add(inflow[p][c] + sum(F[i, c] for i in lin[p]) == outflow[p][c] + sum(F[i, c] for i in lout[p]))
-            for i in lin[p] + lout[p]:
-                m.AddImplication(X[p, 'E'], links[i][2].Not())
-            sp = nz([V(p, 'S', o) for o in range(4)])
-            if not sp:
-                continue
-            outs = [i for i in lout[p] if links[i][3] == 'push']
-            for c in range(nc):                 # equal share through every used output of a splitter
-                share = m.NewIntVar(0, D, '')
-                for i in outs:
-                    for s in sp:
-                        m.Add(F[i, c] == share).OnlyEnforceIf([s, links[i][2]])
-                for d in range(4):
-                    if (p, d) in splitter_edge:
-                        cond = [] if splitter_edge[p, d] is True else [splitter_edge[p, d]]
-                        for s in nz([V(p, 'S', o) for o in (d, d + 1, d + 3)]):
-                            m.Add(share == outflow[p][c]).OnlyEnforceIf([s] + cond)
+        self.lin, self.lout, self.splitter_edge, self.optional = lin, lout, splitter_edge, optional
+        self.inflow, self.outflow = inflow, outflow
+        if flows:
+            self._flows(win, links, lin, lout, inflow, outflow, splitter_edge, tin_vec, tout_links, V, nz)
 
         # ---- symmetry
         if win.symmetry:
@@ -380,6 +344,50 @@ class Model:
         for p, k in win.hint.items():
             if (p, k or 'E') in X:
                 m.AddHint(X[p, k or 'E'], 1)
+
+    def _flows(self, win, links, lin, lout, inflow, outflow, splitter_edge, tin_vec, tout_links, V, nz):
+        m, X, cells, D, nc = self.m, self.X, self.cells, win.D, win.ncom
+        # ---- integer flows
+        F = self.F = {}
+        for i, (p, q, l, kind) in enumerate(links):
+            tot = []
+            for c in range(nc):
+                f = m.NewIntVar(0, D, '')
+                m.Add(f == 0).OnlyEnforceIf(l.Not())
+                F[i, c] = f
+                tot.append(f)
+            m.Add(sum(tot) <= D)
+            m.Add(sum(tot) >= 1).OnlyEnforceIf(l)
+            if kind == 'tin':
+                for c in range(nc):
+                    m.Add(F[i, c] == tin_vec[i][c]).OnlyEnforceIf(l)
+        for key, vec in win.tun_out.items():
+            ls = tout_links.get(key, [])
+            if not ls:
+                m.Add(0 == 1)               # nothing inside can reach that exit
+                continue
+            for c in range(nc):
+                m.Add(sum(F[i, c] for i in ls) == vec[c])
+        for p in cells:
+            for c in range(nc):
+                m.Add(inflow[p][c] + sum(F[i, c] for i in lin[p]) == outflow[p][c] + sum(F[i, c] for i in lout[p]))
+            for i in lin[p] + lout[p]:
+                m.AddImplication(X[p, 'E'], links[i][2].Not())
+            sp = nz([V(p, 'S', o) for o in range(4)])
+            if not sp:
+                continue
+            outs = [i for i in lout[p] if links[i][3] == 'push']
+            for c in range(nc):                 # equal share through every used output of a splitter
+                share = m.NewIntVar(0, D, '')
+                for i in outs:
+                    for s in sp:
+                        m.Add(F[i, c] == share).OnlyEnforceIf([s, links[i][2]])
+                for d in range(4):
+                    if (p, d) in splitter_edge:
+                        cond = [] if splitter_edge[p, d] is True else [splitter_edge[p, d]]
+                        for s in nz([V(p, 'S', o) for o in (d, d + 1, d + 3)]):
+                            m.Add(share == outflow[p][c]).OnlyEnforceIf([s] + cond)
+
 
     def grid(self, solver):
         return {p: k for (p, k), v in self.X.items() if k != 'E' and solver.Value(v)}
