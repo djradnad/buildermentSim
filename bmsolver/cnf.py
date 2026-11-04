@@ -258,7 +258,7 @@ class _Values:
     BooleanValue = Value
 
 
-def solve(mod, engine='cadical195', timeout=None, log=False, enc='binary'):
+def solve(mod, engine='cadical195', timeout=None, log=False, enc='binary', procs=None):
     """mod: a model.Model. Returns dict(status, time, grid?, build, clauses, vars)."""
     t0 = time.time()
     tr = (BinTranslation if enc == 'binary' else Translation)(mod.m)
@@ -267,7 +267,7 @@ def solve(mod, engine='cadical195', timeout=None, log=False, enc='binary'):
     res = dict(build=tb, vars=f.nv, clauses=len(f.clauses), engine=engine)
     t1 = time.time()
     if os.path.sep in engine or os.path.isfile(engine):
-        sat, model_ = _external(engine, f, timeout)
+        sat, model_ = _external(engine, f, timeout, procs)
     else:
         from pysat.solvers import Solver
         with Solver(name=engine, bootstrap_with=f.clauses) as s:
@@ -295,24 +295,22 @@ def write_dimacs(f, path):
             fh.write(' '.join(map(str, c)) + ' 0\n')
 
 
-def _external(binary, f, timeout):
+def _external(binary, f, timeout, procs=None):
+    """Run a DIMACS solver binary. procs: an optional list the running process is added to (so another thread
+    can stop it)."""
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, 'm.cnf')
         write_dimacs(f, path)
+        p = subprocess.Popen([binary, path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        if procs is not None:
+            procs.append(p)
         try:
-            out = subprocess.run([binary, path], capture_output=True, text=True, timeout=timeout).stdout
+            out = p.communicate(timeout=timeout)[0]
         except subprocess.TimeoutExpired:
+            p.kill()
+            p.communicate()
             return None, None
-    status = [l for l in out.splitlines() if l.startswith('s ')]
-    if not status or 'UNKNOWN' in status[0]:
-        return None, None
-    if 'UNSATISFIABLE' in status[0]:
-        return False, None
-    vals = []
-    for l in out.splitlines():
-        if l.startswith('v '):
-            vals += [int(x) for x in l[2:].split() if x != '0']
-    return True, vals
+    return _parse(out or '')
 
 
 def violations(tr, sat_model, limit=10):
@@ -583,3 +581,79 @@ def race(win, binaries, timeout=600, cpsat_workers=1, enc='binary', log=print):
             cp.kill()
         import shutil
         shutil.rmtree(d, ignore_errors=True)
+
+
+def cubes(win, mirror=False):
+    """Split a window into independent sub-windows, one per choice of port positions (each option group fixed).
+    The window is feasible iff some cube is. mirror=True drops top/bottom mirror images of a choice: only for specs
+    where the order of inputs and of outputs doesn't matter (1:N splitters, N:N balancers), since a mirror
+    reverses that order."""
+    import copy
+    import itertools
+    from .pieces import MIRROR_Y
+    if not win.port_options:
+        return [win]
+    H = win.H
+
+    def mir(opt):
+        return frozenset((((x, H - 1 - y), MIRROR_Y[d]), kind) for ((x, y), d), (kind, vec) in opt.items())
+
+    keyed = [[frozenset(((t, kind) for t, (kind, vec) in opt.items())) for opt in g] for g in win.port_options]
+    seen, out = set(), []
+    for combo in itertools.product(*[range(len(g)) for g in win.port_options]):
+        key = frozenset(keyed[i][c] for i, c in enumerate(combo))
+        mkey = frozenset(mir(win.port_options[i][c]) for i, c in enumerate(combo))
+        fixed_ports = set(win.ports)
+        if mirror and win.symmetry is None and win.tun_in == {} and not win.blocked and \
+                {(t[0][0], H - 1 - t[0][1]) for t in fixed_ports} == {t[0] for t in fixed_ports} and mkey in seen:
+            continue
+        seen.add(key)
+        w = copy.copy(win)
+        w.ports = dict(win.ports)
+        for i, c in enumerate(combo):
+            w.ports.update(win.port_options[i][c])
+        w.port_options = []
+        out.append(w)
+    return out
+
+
+def prove(win, binary, procs=4, timeout=None, enc='binary', mirror=False, log=print):
+    """Cube and conquer: solve every cube of win with an external SAT binary, procs at a time. Stops at the first
+    layout found. Returns dict(status, time, grid?, cubes, done)."""
+    import concurrent.futures as cf
+    from . import model
+    t0 = time.time()
+    cs = cubes(win, mirror)
+    res = dict(status='UNKNOWN', cubes=len(cs), done=0)
+
+    running, stop = [], [False]
+
+    def one(w):
+        if stop[0]:
+            return dict(status='CANCELLED', time=0)
+        mod = model.Model(w)
+        return solve(mod, engine=binary, timeout=timeout, enc=enc, procs=running)
+
+    with cf.ThreadPoolExecutor(procs) as ex:
+        futs = {ex.submit(one, w): k for k, w in enumerate(cs)}
+        unknown = False
+        for f in cf.as_completed(futs):
+            r = f.result()
+            res['done'] += 1
+            if log:
+                log('  cube %d/%d %s %.1fs' % (futs[f] + 1, len(cs), r['status'], r['time']))
+            if r['status'] == 'FEASIBLE':
+                res.update(status='FEASIBLE', grid=r['grid'])
+                stop[0] = True
+                for g in futs:
+                    g.cancel()
+                for p in running:
+                    if p.poll() is None:
+                        p.kill()
+                break
+            if r['status'] == 'UNKNOWN':
+                unknown = True
+        else:
+            res['status'] = 'UNKNOWN' if unknown else 'INFEASIBLE'
+    res['time'] = time.time() - t0
+    return res
