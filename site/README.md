@@ -17,14 +17,13 @@ Traced and modelled: the belt quadtree for arm lookups (33 per cell, fresh on lo
 position), the full arm filter item-id table, power plants (fuel load, timer, radius box, largest boost wins),
 open belt ends that stop unless marked as outputs, and the production tab's 2-minute float32 readout.
 
-Settings: belt speed 32 or 31 units per tick (31 comes from another summation order of the belt techs; not
-confirmed), underground range 5/6/7, the splitter start output, world position.
+Settings: number of researched belt speed techs (0 to 12; they form one prerequisite chain, so 12 gives exactly
+480/min), underground range 5/6/7, the splitter start output, world position.
 
 Traced and on: roundf (halves away from zero) for lengths and arm projections, arms taking from extractor stock,
-building boxes by size (1x1 +-0.4998 ...) for power plant range overlap.
+building boxes by size (1x1 +-0.4998 ...) for power plant range overlap, and the tile hash-map order for piece
+creation (robin_hood 3.11 maps filled in blueprint row order, checked slot for slot against the real robin_hood.h).
 
-Behind an "unverified" toggle: tile hash-map order for piece creation (hash read from the exe; table growth and
-paste order inferred).
-
-Not traced yet: what labs accept (here they take every item), storage tier limits (250 assumed), teleporters,
-the splitter start index after a paste, and iOS fused multiply-adds.
+Also traced: labs and gold vaults take any item, crafters one craft's worth, storage 250 with no tier factor (same
+on iOS Gen 2), the teleporter is a plain crafter, gem trees. Not modelled: iOS fused multiply-adds (expected to be
+tiny).

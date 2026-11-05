@@ -103,8 +103,8 @@ const roundf = x => Math.sign(x) * Math.floor(Math.abs(x) + 0.5);
 let RND = roundf;
 export function setRoundf(on) { RND = on ? roundf : null; }
 
-// Tile hash map order (CHAINS.md section 3, FUN_140e89370; the map type, its growth and paste insertion order are
-// inferred). The game walks its tile maps in bucket order, which decides creation order within a pass.
+// Tile hash map order (CHAINS.md section 3, FUN_140e89370; map type robin_hood 3.11, growth and paste/load insertion
+// order traced; checked slot for slot against the real robin_hood.h with the game's key hash). The game walks its tile maps in bucket order, which decides creation order within a pass.
 const U64 = (1n << 64n) - 1n, HM = 0xFF51AFD7ED558CCDn, HMUL0 = 0xc4ceb9fe1a85ec53n;
 // the key hash before the table's multiplier
 function tileKeyHash(x, y) {
@@ -141,7 +141,7 @@ class TileMap {
   tryIncreaseInfo() {
     if (this.inc <= 2) return false;
     this.inc >>= 1; this.shift++;
-    const buf = this.mask + 1 + Math.min(this.max, 0xFF);
+    const buf = this.mask + 1 + Math.min(this.maxAllowed(this.mask + 1), 0xFF);   // computed, not this.max (may be 0)
     for (let i = 0; i < buf; i++) this.info[i] >>= 1;
     this.info[buf] = 1;
     this.max = this.maxAllowed(this.mask + 1);
