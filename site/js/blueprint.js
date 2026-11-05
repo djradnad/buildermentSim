@@ -243,3 +243,20 @@ export function guessFeedItems(w, segs, fallbacks) {
   }
   return items.map((it, f) => it ?? fallbacks[f]);
 }
+
+// game link for a blueprint id: the game's "Import New Blueprint" box accepts it, and on a phone it opens the app
+export function bpLink(id) { return 'https://builderment.com/blueprints?id=' + id; }
+export function bpLinkBits(id) {
+  const span = document.createElement('span');
+  const a = document.createElement('a');
+  a.href = bpLink(id); a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'open in game (' + id + ')';
+  const b = document.createElement('button');
+  b.className = 'small'; b.textContent = 'Copy link';
+  b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(bpLink(id)); b.textContent = 'Copied'; }
+    catch { b.textContent = bpLink(id); }
+    setTimeout(() => { b.textContent = 'Copy link'; }, 2000);
+  });
+  span.append(a, ' ', b);
+  return span;
+}

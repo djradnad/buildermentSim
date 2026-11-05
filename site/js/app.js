@@ -1,7 +1,7 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
 import { Factory, GAMEDATA, QuadTree, World, setRoundf, beltSpeed, gameLabel, BELT_TECHS } from './gamesim.js';
-import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS } from './blueprint.js';
+import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS, bpLinkBits } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
 import { initWorld } from './world.js';
@@ -45,7 +45,8 @@ async function loadFromInput(text) {
     let bp;
     if (/^[{\[]/.test(text) || text.includes('\n')) bp = parseBlueprintText(text);
     else bp = await fetchBlueprint(text);
-    loadBlueprint(bp.rows, bp.meta, /^[a-z0-9]{6}$/i.test(text) ? text : null);
+    const idm = text.match(/^(?:.*(?:[?&]id=|\/blueprints?\/))?([a-z0-9]{6})\/?$/i);
+    loadBlueprint(bp.rows, bp.meta, idm ? idm[1] : null);
   } catch (e) {
     setStatus('Could not load: ' + e.message);
   }
@@ -56,6 +57,7 @@ function loadBlueprint(rows, meta = {}, id = null) {
   if (id) history.replaceState(null, '', '#bp=' + id);
   const n = rows.length;
   $('bpMeta').textContent = `${meta.name || id || 'blueprint'}: ${n} pieces`;
+  if (id) $('bpMeta').append(' · ', bpLinkBits(id));
   // inputs: open belt starts; their item guessed from the machines downstream
   const bs = rowsToBuildings(rows);
   const added = addFeeders(bs);

@@ -3,7 +3,7 @@
 // running solver (python -m bmsolver ... --live).
 
 import { World } from './gamesim.js';
-import { rowsToBuildings } from './blueprint.js';
+import { rowsToBuildings, bpLink, bpLinkBits } from './blueprint.js';
 import { View } from './view.js';
 
 const $ = id => document.getElementById(id);
@@ -100,6 +100,10 @@ export function initDesigner({ openInSim }) {
     $('dinfo').textContent = (d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '') +
       (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
     $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}`;
+    st.bpId = d.id || null;
+    $('dLink').disabled = !st.bpId;
+    $('dLink').title = st.bpId ? 'Copies ' + bpLink(st.bpId) + ' (paste it into the game\'s Import New Blueprint box)' : 'Only community designs have a game blueprint id so far';
+    if (st.bpId) $('dinfo').append(' ', bpLinkBits(st.bpId));
     document.querySelectorAll('#dAll .gal').forEach(x => x.classList.toggle('on', x.dataset.k === d._k));
   }
 
@@ -130,7 +134,7 @@ export function initDesigner({ openInSim }) {
         : `No ${MODE_NAME[st.mode]} ${n}:${m} layout known yet${all.length ? ' (other rules have some, listed below)' : ''}. Run the command below to search for one.`;
       $('dBest').innerHTML = `<div class="muted small">${why}</div>`;
       st.current = null;
-      $('dSim').disabled = $('dCopy').disabled = true;
+      $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = true;
       $('dinfo').innerHTML = '&nbsp;';
       view.setWorld(null);
       $('dstatus').textContent = 'Nothing known for this choice yet';
@@ -143,6 +147,12 @@ export function initDesigner({ openInSim }) {
     const json = JSON.stringify({ meta: { name: st.current.meta.name || 'layout', count: st.current.rows.length }, rows: st.current.rows });
     try { await navigator.clipboard.writeText(json); $('dinfo').textContent = 'Copied blueprint json.'; }
     catch { $('dinfo').textContent = json; }
+  });
+
+  $('dLink').addEventListener('click', async () => {
+    if (!st.bpId) return;
+    try { await navigator.clipboard.writeText(bpLink(st.bpId)); $('dinfo').textContent = 'Copied ' + bpLink(st.bpId); }
+    catch { $('dinfo').textContent = bpLink(st.bpId); }
   });
 
   fetch('catalogue.json').then(r => r.json()).then(c => {
