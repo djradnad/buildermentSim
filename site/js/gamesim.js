@@ -847,6 +847,7 @@ export class Factory extends World {
   constructor(buildings, opts = {}) {
     super(buildings, opts);
     this.machines = []; this.storages = []; this.arms = []; this.feeds = []; this.extractors = []; this.plants = []; this.trees = [];
+    this.harvestPool = [];                     // extractors and gem trees: one pool, ticked in pool order (FUN_140ee7e90)
     this.bobj = new Map();
     this.sinks = new Map();                    // segment -> {kind: count}
     const gen = opts.gen || 2, ext = opts.extractors || {};
@@ -870,14 +871,14 @@ export class Factory extends World {
         this.plants.push(pl); this.bobj.set(b, pl);
       } else if (b.id === GEM_TREE_ID) {
         const t = new GemTree(b, d.harvest_seconds);
-        this.trees.push(t); this.bobj.set(b, t);
+        this.trees.push(t); this.harvestPool.push(t); this.bobj.set(b, t);
       } else if (b.id === EXTRACTOR_ID && ext[key(b.x, b.y)]) {
         const e = new Extractor(b, ext[key(b.x, b.y)], gen, !!opts.boosted);
         e.seg = this.outSeg.get(b) || null;
-        this.extractors.push(e); this.bobj.set(b, e);
+        this.extractors.push(e); this.harvestPool.push(e); this.bobj.set(b, e);
       }
     }
-    if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors, this.plants, this.trees]) L.reverse();
+    if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors, this.plants, this.trees, this.harvestPool]) L.reverse();
     // which plants reach each boosted building (box overlap against the building's tiles)
     for (const o of [...this.machines, ...this.arms, ...this.extractors, ...this.trees]) {
       o.baseBoost = o.boost;
@@ -1015,8 +1016,7 @@ export class Factory extends World {
     const M = this.M;
     for (const g of this.segs) segTick(g, M, this);
     for (const m of this.machines) m.tick(this);
-    for (const e of this.extractors) e.tick(this);
-    for (const t of this.trees) t.tick();
+    for (const e of this.harvestPool) e.tick(this);   // extractors and gem trees, mixed in pool order
     if (this.plants.length) {
       for (const pl of this.plants) pl.tick();
       for (const o of [...this.machines, ...this.arms, ...this.extractors, ...this.trees]) {
