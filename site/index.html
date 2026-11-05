@@ -102,7 +102,7 @@
       </div>
       <div class="row small" title="Rules read from the game's code but not yet confirmed in game. Off = the sim's earlier behaviour.">
         <span class="muted">Unverified:</span>
-        <label title="Create belt pieces in the game's tile hash-map order (bucket order at this world position) instead of blueprint row order. Decides merge priority and grid order; table growth and paste order are inferred."><input type="checkbox" id="hashOrder"> hash-map piece order</label>
+        <label title="Create belt pieces in the game's tile hash-map order (robin_hood bucket order at this world position, filled in blueprint row order as on a paste or load). Decides merge priority and grid order. Traced and checked against the real robin_hood map; turn off only to compare with plain row order."><input type="checkbox" id="hashOrder" checked> hash-map piece order</label>
       </div>
       <div id="inputs" class="list"></div>
     </div>
