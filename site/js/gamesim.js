@@ -45,6 +45,7 @@ export const BDEF = {};
 for (const [key, b] of Object.entries(GAMEDATA.buildings)) BDEF[b.id] = { ...b, key };
 export const RECIPES = {};
 for (const r of Object.values(GAMEDATA.recipes)) RECIPES[r.id] = r;
+const GEM_TREE_ID = 3029;
 export const LAB_IDS = new Set([3013]);   // a crafter with no recipe takes nothing
 export const FACTORY_IDS = new Set([3005, 3006, 3007, 3008, 3009, 3010, 3014]);
 const STORAGE_ID = 3011, ARM_ID = 3012, EXTRACTOR_ID = 3004;
@@ -814,6 +815,18 @@ class Plant {
 }
 const DT32 = f32(1 / 60);
 
+// Gem tree (traced): holds one Gem Apple; while empty its 300 s timer runs at (boost + 1), and it restarts only once
+// the tree is empty again. No belt output: arms take the apple.
+class GemTree {
+  constructor(b, secs) { this.b = b; this.dur = secs; this.item = 'Gem Apple'; this.count = 0; this.prog = 0.0; this.boost = 0; this.mult = f32(1); this.made = 0; }
+  get out() { return this.count; }
+  tick() {
+    if (this.count) return;
+    this.prog = progAdd(this.prog, f32(f32(this.boost + 1) * this.mult));
+    if (this.dur <= this.prog) { this.count = 1; this.made++; this.prog = 0.0; }
+  }
+}
+
 // An open input belt: items of one kind at up to `perMin` (480 = a full belt, as fast as it can take them).
 class Feed {
   constructor(seg, kind, perMin) { this.seg = seg; this.kind = kind; this.perMin = perMin; this.n = 0; this.acc = 0; }
@@ -833,7 +846,7 @@ export class Factory extends World {
   // sinks [[x, y]] / openEndsSink (which open belt ends take items, see below)
   constructor(buildings, opts = {}) {
     super(buildings, opts);
-    this.machines = []; this.storages = []; this.arms = []; this.feeds = []; this.extractors = []; this.plants = [];
+    this.machines = []; this.storages = []; this.arms = []; this.feeds = []; this.extractors = []; this.plants = []; this.trees = [];
     this.bobj = new Map();
     this.sinks = new Map();                    // segment -> {kind: count}
     const gen = opts.gen || 2, ext = opts.extractors || {};
@@ -855,15 +868,18 @@ export class Factory extends World {
       } else if (d.power && opts.plants !== false) {
         const pl = new Plant(b, d.power);
         this.plants.push(pl); this.bobj.set(b, pl);
+      } else if (b.id === GEM_TREE_ID) {
+        const t = new GemTree(b, d.harvest_seconds);
+        this.trees.push(t); this.bobj.set(b, t);
       } else if (b.id === EXTRACTOR_ID && ext[key(b.x, b.y)]) {
         const e = new Extractor(b, ext[key(b.x, b.y)], gen, !!opts.boosted);
         e.seg = this.outSeg.get(b) || null;
         this.extractors.push(e); this.bobj.set(b, e);
       }
     }
-    if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors, this.plants]) L.reverse();
+    if (opts.newestFirst !== false) for (const L of [this.machines, this.storages, this.arms, this.extractors, this.plants, this.trees]) L.reverse();
     // which plants reach each boosted building (box overlap against the building's tiles)
-    for (const o of [...this.machines, ...this.arms, ...this.extractors]) {
+    for (const o of [...this.machines, ...this.arms, ...this.extractors, ...this.trees]) {
       o.baseBoost = o.boost;
       const bb = buildingBox(o.b);   // overlap inclusive, every plant in range counts, the largest boost wins
       o.plants = this.plants.filter(pl => bb[0] <= pl.box[2] && pl.box[0] <= bb[2] && bb[1] <= pl.box[3] && pl.box[1] <= bb[3]);
@@ -955,7 +971,7 @@ export class Factory extends World {
       let got = null;
       const b = this.occ.get(key(a.src[0], a.src[1]));
       const o = b ? this.bobj.get(b) : undefined;
-      if (o && o.out && (o instanceof Machine || o instanceof Storage || (this.armsFromExtractors && o instanceof Extractor))) {
+      if (o && o.out && (o instanceof Machine || o instanceof Storage || (this.armsFromExtractors && o instanceof Extractor) || o instanceof GemTree)) {
         const item = o instanceof Machine ? o.outItem : o.item;
         if (a.filt === 0 || a.filt === item) {
           if (o instanceof Machine) o.out--; else o.count--;
@@ -1000,9 +1016,10 @@ export class Factory extends World {
     for (const g of this.segs) segTick(g, M, this);
     for (const m of this.machines) m.tick(this);
     for (const e of this.extractors) e.tick(this);
+    for (const t of this.trees) t.tick();
     if (this.plants.length) {
       for (const pl of this.plants) pl.tick();
-      for (const o of [...this.machines, ...this.arms, ...this.extractors]) {
+      for (const o of [...this.machines, ...this.arms, ...this.extractors, ...this.trees]) {
         let bo = o.baseBoost;
         for (const pl of o.plants) if (pl.on && pl.p.multiplier > bo) bo = pl.p.multiplier;
         o.boost = f32(bo);
