@@ -1,7 +1,7 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
 import { Factory, GAMEDATA, QuadTree, World, setRoundf, beltSpeed, gameLabel, BELT_TECHS } from './gamesim.js';
-import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS, bpLinkBits } from './blueprint.js';
+import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS, bpLinkBits, makeBlueprintButton } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
 import { initWorld } from './world.js';
@@ -58,6 +58,8 @@ function loadBlueprint(rows, meta = {}, id = null) {
   const n = rows.length;
   $('bpMeta').textContent = `${meta.name || id || 'blueprint'}: ${n} pieces`;
   if (id) $('bpMeta').append(' · ', bpLinkBits(id));
+  else if (n) $('bpMeta').append(' · ', makeBlueprintButton(rows, meta.name || 'build',
+    code => history.replaceState(null, '', '#bp=' + code)));
   // inputs: open belt starts; their item guessed from the machines downstream
   const bs = rowsToBuildings(rows);
   const added = addFeeders(bs);
@@ -132,6 +134,7 @@ fetch('examples/index.json').then(r => r.json()).then(list => {
   for (const ex of list) {
     const o = document.createElement('option');
     o.value = ex.file; o.textContent = ex.name;
+    if (ex.id) o.dataset.id = ex.id;
     $('examples').appendChild(o);
   }
 }).catch(() => {});
@@ -140,7 +143,8 @@ $('examples').addEventListener('change', async e => {
   if (!f) return;
   const text = await (await fetch('examples/' + f)).text();
   const bp = parseBlueprintText(text);
-  loadBlueprint(bp.rows, { ...bp.meta, name: e.target.selectedOptions[0].textContent });
+  const opt = e.target.selectedOptions[0];
+  loadBlueprint(bp.rows, { ...bp.meta, name: opt.textContent }, opt.dataset.id || null);
   e.target.value = '';
 });
 
@@ -665,9 +669,9 @@ const m = location.hash.match(/bp=([a-z0-9]+)/i);
 if (m) { $('bpInput').value = m[1]; loadFromInput(m[1]); }
 else fetch('examples/split_1_5_3x5.txt').then(r => r.text()).then(t => loadBlueprint(parseBlueprintText(t).rows, { name: '1:5 splitter 3x5' }));
 
-initDesigner({ openInSim: (rows, meta) => {
+initDesigner({ openInSim: (rows, meta, id) => {
   document.querySelector('.tab[data-tab="sim"]').click();
-  loadBlueprint(rows, meta);
+  loadBlueprint(rows, meta, id || null);
 } });
 
 initWorld({

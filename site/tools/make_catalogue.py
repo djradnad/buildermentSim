@@ -3,7 +3,11 @@ sorted into symmetric / quasi-symmetric / asymmetric.
 
     python site/tools/make_catalogue.py SOURCE... > site/catalogue.json
 
-A SOURCE is a .txt grid, a blueprint .json ({"rows"} or {"grid"}), or a .jsonl file with one design per line:
+To add designs to the current catalogue, pass it as the first source:
+
+    python site/tools/make_catalogue.py site/catalogue.json site/tools/catalogue_extra.jsonl > new.json
+
+A SOURCE is an earlier catalogue.json, a .txt grid, a blueprint .json ({"rows"} or {"grid"}), or a .jsonl file with one design per line:
 {"name", "source", "id" (blueprint id, optional), "rows" | "grid" | "text" | "b"}. "b" is [[x, y, building id,
 rotation], ...] as in wiki dumps. File names like bal44_9x6.txt or split_1_12_2x12.txt give no ratio: it is read
 from the design itself (its open inputs and outputs).
@@ -39,6 +43,9 @@ def load_any(path):
     if path.endswith('.txt'):
         return [dict(name=os.path.basename(path)[:-4], text=open(path).read(), source='ours')]
     d = json.load(open(path))
+    if 'designs' in d:                       # an earlier catalogue.json: re-check its designs and keep their ids
+        return [dict(name=e['name'], source=e['source'], id=e.get('id'), text='\n'.join(e['grid']),
+                     **({'proven_for': e['proven_for']} if e.get('proven_for') else {})) for e in d['designs']]
     d.setdefault('name', os.path.basename(path)[:-5])
     return [d]
 
@@ -166,6 +173,8 @@ def main(paths):
                     seen[key] = old = ent        # credit the community design when ours is the same
                 if pf:
                     old['proven_for'] = pf
+                if not old.get('id') and ent.get('id'):
+                    old['id'] = ent['id']
                 continue
             seen[key] = ent
             print('%-8s %-7s %3dx%-3d %4d pcs %-5s %s' % (kind, '%d:%d' % (n, m), W, H, len(r), ent['mode'],
