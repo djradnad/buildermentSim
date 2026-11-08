@@ -87,7 +87,7 @@ def grid_rows(grid):
 def _post(path, body):
     # the worker refuses Python's default User-Agent
     req = urllib.request.Request(WORKER + path, data=body, method='POST',
-                                 headers={'Content-Type': 'text/plain', 'User-Agent': 'buildermentsim-catalogue'})
+                                 headers={'Content-Type': 'text/plain', 'User-Agent': 'Mozilla/5.0 (buildermentsim catalogue tool)'})
     with urllib.request.urlopen(req, timeout=60) as r:
         data = r.read()
     return gzip.decompress(data) if data[:2] == b'\x1f\x8b' else data
@@ -110,7 +110,7 @@ def download(code):
 
 
 def upload(data):
-    """game file bytes -> blueprint code"""
+    """game file bytes -> blueprint code (sent as is; the service wants gzip only above 1.5 MB)"""
     res = json.loads(_post('/uploadBlp', data).decode())
     return res.get('id') or res.get('blpId') or res.get('code')
 

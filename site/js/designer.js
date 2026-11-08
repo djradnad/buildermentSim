@@ -73,9 +73,11 @@ export function initDesigner({ openInSim }) {
     update();
   });
 
+  // ties: fewer pieces, stricter rule, no splitter facing out of a non-output edge, a ready blueprint, wiki first
+  const tail = d => [d.pieces, LOOSE[d.mode], d.stray_out ? 1 : 0, d.id ? 0 : 1, d.source === 'wiki' ? 0 : 1];
   const score = d => st.goal === 'area'
-    ? [d.W * d.H, Math.max(d.W, d.H), d.pieces, LOOSE[d.mode], d.source === 'wiki' ? 0 : 1]
-    : [Math.max(d.W, d.H), d.W * d.H, d.pieces, LOOSE[d.mode], d.source === 'wiki' ? 0 : 1];
+    ? [d.W * d.H, Math.max(d.W, d.H), ...tail(d)]
+    : [Math.max(d.W, d.H), d.W * d.H, ...tail(d)];
   const cmp = (a, b) => { const x = score(a), y = score(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };
 
   function command(n, m) {

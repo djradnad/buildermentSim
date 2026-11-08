@@ -314,9 +314,8 @@ const shapeKey = rows => {
 export async function makeBlueprint(rows, name) {
   const key = 'bp:' + shapeKey(rows);
   try { const c = localStorage.getItem(key); if (c) return c; } catch { /* storage off */ }
-  const file = gameFile(name, rows);
-  const gz = await new Response(new Blob([file]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
-  const res = JSON.parse(new TextDecoder().decode(await post('/uploadBlp', gz)));
+  // the file goes up as it is (the service only wants gzip, with its own header, above 1.5 MB)
+  const res = JSON.parse(new TextDecoder().decode(await post('/uploadBlp', gameFile(name, rows))));
   const code = res.id || res.blpId || res.code;
   if (!code) throw new Error('the blueprint service gave no code');
   const back = await fetchBlueprint(code);

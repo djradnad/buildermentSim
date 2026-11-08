@@ -52,9 +52,9 @@ async function loadFromInput(text) {
   }
 }
 
-function loadBlueprint(rows, meta = {}, id = null) {
+function loadBlueprint(rows, meta = {}, id = null, { hash = true } = {}) {
   state.rows = rows; state.meta = meta;
-  if (id) history.replaceState(null, '', '#bp=' + id);
+  if (id && hash) history.replaceState(null, '', '#bp=' + id);
   const n = rows.length;
   $('bpMeta').textContent = `${meta.name || id || 'blueprint'}: ${n} pieces`;
   if (id) $('bpMeta').append(' · ', bpLinkBits(id));
@@ -667,7 +667,8 @@ function setStatus(t) { $('status').textContent = t; }
 // start: #bp=<id> in the link, else the first example
 const m = location.hash.match(/bp=([a-z0-9]+)/i);
 if (m) { $('bpInput').value = m[1]; loadFromInput(m[1]); }
-else fetch('examples/split_1_5_3x5.txt').then(r => r.text()).then(t => loadBlueprint(parseBlueprintText(t).rows, { name: '1:5 splitter 3x5' }));
+else fetch('examples/split_1_5_3x5.txt').then(r => r.text())
+  .then(t => loadBlueprint(parseBlueprintText(t).rows, { name: '1:5 splitter 3x5 (wiki)' }, 'fwgldk', { hash: false }));
 
 initDesigner({ openInSim: (rows, meta, id) => {
   document.querySelector('.tab[data-tab="sim"]').click();
