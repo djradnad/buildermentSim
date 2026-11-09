@@ -58,6 +58,8 @@ def sweep_jobs(ns):
                         jobs.append((n, W, H, ia, oa, False))
                 if (H - n) % 2 == 0:
                     jobs.append((n, W, H, (H - n) // 2, (H - n) // 2, True))
+                    if n % 2:
+                        jobs.append((n, W, H, (H - n) // 2, (H - n) // 2, 'quasi'))
     return jobs
 
 
@@ -66,7 +68,7 @@ def run_job(job, engine, timeout, variants=1):
     data holds several different layouts of the same box"""
     from bmsolver import cnf
     n, W, H, ia, oa, sym = job
-    win = S.Spec([S.Group('E', n, at=ia)], [S.Group('W', n, at=oa)]).window(W, H, symmetry='y' if sym else None)
+    win = S.Spec([S.Group('E', n, at=ia)], [S.Group('W', n, at=oa)]).window(W, H, symmetry='y' if sym else None, quasi=1 if sym == 'quasi' else 0)
     if win is None:
         return []
     ar = radix.factorisations(n)[0]
@@ -96,11 +98,15 @@ def main():
     ap.add_argument('--engine', default='~/solvers/cadical')
     ap.add_argument('--sweep', default=None, help='e.g. 2,3,4: systematic sizes instead of random')
     ap.add_argument('--variants', type=int, default=1, help='different layouts per box (sweep mode)')
+    ap.add_argument('--only-quasi', action='store_true')
     ap.add_argument('--part', default='0/1', help='k/m: this process takes every m-th job from k')
     a = ap.parse_args()
     if a.sweep:
         k, mm = map(int, a.part.split('/'))
-        jobs = sweep_jobs([int(x) for x in a.sweep.split(',')])[k::mm]
+        jobs = sweep_jobs([int(x) for x in a.sweep.split(',')])
+        if a.only_quasi:
+            jobs = [j for j in jobs if j[5] == 'quasi']
+        jobs = jobs[k::mm]
         print(len(jobs), 'jobs', flush=True)
         for job in jobs:
             for rec in run_job(job, os.path.expanduser(a.engine), a.timeout, a.variants):
