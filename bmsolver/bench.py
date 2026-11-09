@@ -148,9 +148,9 @@ def run_sat(binary):
     return f
 
 
-def run_cube(binary, procs, mirror=True):
+def run_cube(binary, procs, mirror=True, lemmas=False):
     def f(win, timeout):
-        r = cnf.prove(win, _bin(binary), procs=procs, timeout=timeout, mirror=mirror, log=None)
+        r = cnf.prove(win, _bin(binary), procs=procs, timeout=timeout, mirror=mirror, log=None, lemmas=lemmas)
         st = {'FEASIBLE': 'SAT', 'INFEASIBLE': 'UNSAT'}.get(r['status'], 'UNKNOWN')
         return dict(status=st, time=r['time'], grid=r.get('grid'), window=r.get('window'), machines=r.get('machines'), filters=r.get('filters'), cubes=r['cubes'])
     return f
@@ -170,6 +170,9 @@ CONFIGS = {
     'kissat': run_sat('kissat'),
     'cadical': run_sat('cadical'),
     'cube_kissat4': run_cube('kissat', 4),
+    'cube_bump4L': run_cube('AE_kissat2025_bump', 4, lemmas=True),   # 2025 bronze (UNSAT) + local flow lemmas
+    'cube_vsa4L': run_cube('vsa', 4, lemmas=True),
+    'cube_cad4L': run_cube('cadical', 4, lemmas=True),
     'race3': run_race(['kissat', 'cadical']),
 }
 

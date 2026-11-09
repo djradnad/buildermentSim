@@ -626,7 +626,7 @@ def cubes(win, mirror=False):
     return out
 
 
-def prove(win, binary, procs=4, timeout=None, enc='binary', mirror=False, log=print):
+def prove(win, binary, procs=4, timeout=None, enc='binary', mirror=False, log=print, lemmas=False):
     """Cube and conquer: solve every cube of win with an external SAT binary, procs at a time. Stops at the first
     layout found. Returns dict(status, time, grid?, cubes, done)."""
     import concurrent.futures as cf
@@ -641,6 +641,9 @@ def prove(win, binary, procs=4, timeout=None, enc='binary', mirror=False, log=pr
         if stop[0]:
             return dict(status='CANCELLED', time=0)
         mod = model.Model(w)
+        if lemmas:                      # implied local flow rules (lazy.add_flow_lemmas): ~20% faster per cube
+            from . import lazy
+            lazy.add_flow_lemmas(mod, w)
         return solve(mod, engine=binary, timeout=timeout, enc=enc, procs=running)
 
     with cf.ThreadPoolExecutor(procs) as ex:
