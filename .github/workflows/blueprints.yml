@@ -1,0 +1,37 @@
+# Makes the missing game blueprints for the catalogue (every design, and the mirror image of every design that is
+# not symmetric), each checked by downloading it again, and commits the codes to main.
+name: blueprints
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [site/catalogue.json]
+permissions:
+  contents: write
+  actions: write
+concurrency:
+  group: catalogue
+  cancel-in-progress: false
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python site/tools/blueprints.py upload
+      - name: Commit the codes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git diff --quiet site/catalogue.json && exit 0
+          git config user.name "catalogue bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Catalogue: blueprint codes"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          # pushes made with this workflow's token don't start other workflows: start the site deploy by hand
+          gh workflow run site --ref main
