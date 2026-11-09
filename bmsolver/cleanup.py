@@ -122,7 +122,7 @@ def _boxes(W, H, size, stride):
     return [(x, min(W - 1, x + size - 1), y, min(H - 1, y + size - 1)) for y in ys for x in xs]
 
 
-def cleanup(layout, size=5, timeout=10, workers=4, reporter=None, time_limit=600):
+def cleanup(layout, size=5, timeout=10, workers=4, reporter=None, time_limit=600, full_box=64):
     rep = reporter or Reporter()
     t0 = time.time()
     lay = layout.normalized()
@@ -139,12 +139,16 @@ def cleanup(layout, size=5, timeout=10, workers=4, reporter=None, time_limit=600
         outer = [p for p in h if p not in port_tiles and any(step(p, d) not in h for d in range(4))]
         corner = lambda p: min(abs(p[0] - cx) + abs(p[1] - cy) for cx in (0, W - 1) for cy in (0, H - 1))
         for p in sorted(outer, key=lambda p: (corner(p), p)):
+            tried = set()
             for k in (size, size + 2, size + 4):          # bigger windows only when a small one can't do it
                 if time.time() - t0 > time_limit:
                     break
                 bx = max(0, min(p[0] - k // 2, W - k))
                 by = max(0, min(p[1] - k // 2, H - k))
                 b = (bx, min(W - 1, bx + k - 1), by, min(H - 1, by + k - 1))
+                if b in tried:
+                    continue
+                tried.add(b)
                 new = _try(lay, b, [p], timeout * (k - size + 1), workers, closed=False, objective=False)
                 if new and new.design.size == (W, H) and footprint(new.design) < footprint(lay.design):
                     lay = new
@@ -159,10 +163,14 @@ def cleanup(layout, size=5, timeout=10, workers=4, reporter=None, time_limit=600
         better = True
         while better and time.time() - t0 < time_limit:
             better = False
-            for b in _boxes(W, H, size, max(1, size // 2)):
+            boxes = _boxes(W, H, size, max(1, size // 2))
+            if W * H <= full_box:                 # small layouts: also the whole box at once (moves that span it)
+                boxes.append((0, W - 1, 0, H - 1))
+            for b in boxes:
                 if time.time() - t0 > time_limit:
                     break
-                new = _try(lay, b, (), timeout, workers, closed)
+                cells = (b[1] - b[0] + 1) * (b[3] - b[2] + 1)
+                new = _try(lay, b, (), timeout * max(1, cells // (size * size)), workers, closed)
                 if new and new.design.size == (W, H) and score(new) < score(lay):
                     lay = new
                     rep.solution(lay.design, W, H, 'pieces %d, edge splitters %d, gold %d' % score(lay)[1:])
