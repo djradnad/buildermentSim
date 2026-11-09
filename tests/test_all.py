@@ -101,3 +101,15 @@ if __name__ == '__main__':
         if name.startswith('test_'):
             fn()
             print('ok', name, flush=True)
+
+
+def test_staged_model_accepts_known_balancers():
+    """radix.py (staged networks) must accept the known staged layouts with every tile fixed."""
+    from bmsolver import radix
+    for name, arity in (('bal_2_2_sym_3x8.txt', (2,)), ('bal_4_4_9x6.txt', (2, 2)), ('bal_4_4_11x5.txt', (2, 2))):
+        lay = layout_of(os.path.join(HERE, 'designs', name))
+        W, H = lay.design.size
+        win, sub = cut_window(lay, 0, W - 1)
+        win.fixed = {(x, y): lay.design.tiles.get((x, y)) for x in range(W) for y in range(H)}
+        r = radix.solve(win, arity, 'cpsat', 60)
+        assert r['status'] in ('OPTIMAL', 'FEASIBLE'), (name, r['status'])
