@@ -26,6 +26,24 @@ def heatsink16(arms=True, free=False):
                    ['Copper Ingot', 'Heat Sink'], 30, [2013], D=16, arm_cap=3 if arms else None, free=free)
 
 
+def ingot16(free='each'):
+    """iron ingot T4: 16 furnaces (1 ore -> 1 ingot, 90/min each). 3 ore belts in, 3 ingot belts out. 1 unit = 30/min."""
+    return Factory([(r, [16, 0]) for r in range(3)], [(r, [0, 16]) for r in range(3)],
+                   [dict(bid=3006, count=16, need=[3, 0], make=[0, 3], tier=4)],
+                   ['Iron Ore', 'Iron Ingot'], 30, [2004], D=16, arm_cap=3, free=free)
+
+
+def ore_plating(half=False, free='each'):
+    """iron ore -> ingot -> plating in one module, T4. Whole: 16 furnaces + 12 workshops, 3 ore belts in, 1.5 plating
+    belts out (16 + 8 units). Half: 8 furnaces + 6 workshops, 1.5 ore belts in (16 + 8), 12 units of plating out."""
+    k = 1 if half else 2
+    ins = [(0, [16, 0, 0]), (1, [8, 0, 0])] if half else [(r, [16, 0, 0]) for r in range(3)]
+    outs = [(0, [0, 0, 12])] if half else [(0, [0, 0, 16]), (1, [0, 0, 8])]
+    return Factory(ins, outs, [dict(bid=3006, count=8 * k, need=[3, 0, 0], make=[0, 3, 0], tier=4),
+                               dict(bid=3005, count=6 * k, need=[0, 4, 0], make=[0, 0, 2], tier=4)],
+                   ['Iron Ore', 'Iron Ingot', 'Iron Plating'], 30, [2004, 2014], D=16, arm_cap=3, free=free)
+
+
 def show(grid, machines, W, H):
     """text picture: belt codes, MM for machine tiles"""
     from bmsolver.model import MACHINES
@@ -38,7 +56,8 @@ def show(grid, machines, W, H):
 CASES = dict(plating8=plating8, plating8_noarms=lambda: plating8(False), heatsink16=heatsink16,
              plating8_free=lambda: plating8(free=True), heatsink16_free=lambda: heatsink16(free=True),
              plating8_each=lambda: plating8(free='each'), plating8_edges=lambda: plating8(free='edges'),
-             heatsink16_each=lambda: heatsink16(free='each'))
+             heatsink16_each=lambda: heatsink16(free='each'), ingot16=ingot16,
+             ore_plating=ore_plating, ore_plating_half=lambda: ore_plating(True))
 
 if __name__ == '__main__':
     name, sizes, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])

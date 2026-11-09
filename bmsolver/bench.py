@@ -43,18 +43,19 @@ class Factory:
         groups = []
         edge = [((W - 1, y), 3) for y in range(H)] + [((0, y), 1) for y in range(H)] + \
                [((x, 0), 0) for x in range(W)] + [((x, H - 1), 2) for x in range(W)]
+        outs = self.out if isinstance(self.out, list) else [self.out] if self.out else []   # (row, vec) each
         if self.free == 'edges':        # every input belt and the output at any edge tile, each on its own
             ports = {}
             for r, v in self.ins:
                 groups.append([{k: ('in', v)} for k in edge])
-            if self.out:
-                groups.append([{k: ('out', self.out[1])} for k in edge])
+            for r, v in outs:
+                groups.append([{k: ('out', v)} for k in edge])
         elif self.free == 'each':       # every input belt at any east row on its own, the output at any west row
             ports = {}
             for r, v in self.ins:
                 groups.append([{((W - 1, y), 3): ('in', v)} for y in range(H)])
-            if self.out:
-                groups.append([{((0, y), 1): ('out', self.out[1])} for y in range(H)])
+            for r, v in outs:
+                groups.append([{((0, y), 1): ('out', v)} for y in range(H)])
         elif self.free:
             ports = {}
             n = len(self.ins)
