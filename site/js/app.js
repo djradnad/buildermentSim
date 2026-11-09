@@ -95,7 +95,7 @@ function loadBlueprint(rows, meta = {}, id = null, { hash = true } = {}) {
   state.feeds = added.map((a, i) => {
     const j = found.indexOf(feedSegs[i]);
     const kind = j >= 0 && kinds[j];
-    return { at: a.at, kind: kind || 'In' + (i + 1), perMin: kind || !hasMachines ? 480 : 0 };
+    return { at: a.at, kind: kind || 'In' + (i + 1), perMin: meta.feedRates?.[i] ?? (kind || !hasMachines ? 480 : 0) };
   });
   state.extractors = bs.filter(b => b.id === 3004).map(b => {
     const g = probe.outSeg.get(b);

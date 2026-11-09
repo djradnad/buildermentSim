@@ -105,7 +105,10 @@ export function initDesigner({ openInSim }) {
   }
 
   function pick(d) {
-    show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}`, outputs: d.outs, inputs: d.ins });
+    show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}`, outputs: d.outs, inputs: d.ins,
+      // different amounts on every input, all below the belts' limit: a working balancer shows the same total on
+      // every output (equal steady inputs can stay in step through the splitters and look unmixed)
+      feedRates: d.ins && d.ins.map((_, i) => Math.round(480 * Math.min(1, d.m / d.n) * (i + 1) / d.n)) });
     $('dinfo').textContent = (d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '') +
       (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
     $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}`;
