@@ -26,6 +26,13 @@ def main(src, dst):
         r['pieces'] = len(d)
         r['tag'] = 'edge' if r['edge_splitters'] else 'clean'
         recs.append(r)
+    uniq, seen = [], set()
+    for r in recs:                       # polishing can turn several variants into the same layout
+        k = (r['n'], r['W'], r['H'], r.get('sym'), tuple(r['grid']))
+        if k not in seen:
+            seen.add(k)
+            uniq.append(r)
+    recs = uniq
     groups = {}
     for r in recs:
         groups.setdefault((r['n'], r['W'], r['H'], r.get('sym'), r['tag']), []).append(r)
