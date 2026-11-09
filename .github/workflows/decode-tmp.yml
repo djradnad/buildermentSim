@@ -10,7 +10,7 @@ jobs:
       - run: |
           cd site/tools && python - <<'P'
           import blueprints as b
-          rows = b.download('9bfnha')
+          rows = b.download(open('../../decode.txt').read().strip())
           print('ROWS', rows)
           ID = {v: k for k, v in b.CODE_ID.items()}
           xs=[r[1] for r in rows]; ys=[r[2] for r in rows]
