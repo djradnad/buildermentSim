@@ -3,6 +3,7 @@
     python site/tools/blueprints.py verify [--candidates]   # check every blueprint id in catalogue.json against its
                                                             # grid (--candidates: also try candidate_ids.json)
     python site/tools/blueprints.py upload [--dry]    # make, upload and check a blueprint for every design without one
+                                                      # (and for the mirror image of every non-symmetric design)
     python site/tools/blueprints.py file NAME OUT     # write the game file for one design (to test by hand)
 
 Blueprints go through Human-Crow's blueprint service (the same one the site reads codes with):
@@ -166,27 +167,37 @@ def cmd_verify(cat, save, candidates=False):
     save()
 
 
+def mirror_grid(grid):
+    """Top <-> bottom mirror image of a catalogue grid (north and south swap)."""
+    flip = {'0': '2', '2': '0'}
+    return [''.join(r[i] + flip.get(r[i + 1], r[i + 1]) if r[i] != '.' else '..' for i in range(0, len(r), 2))
+            for r in reversed(grid)]
+
+
 def cmd_upload(cat, save, dry):
-    todo = [d for d in cat['designs'] if not d.get('id')]
-    print(len(todo), 'designs without a blueprint')
-    for d in todo:
-        rows = grid_rows(d['grid'])
-        data = build(design_name(d), game_rows(rows))
+    todo = [(d, 'id', d['grid'], design_name(d)) for d in cat['designs'] if not d.get('id')]
+    # a blueprint for the mirror image of every layout that is not its own mirror image (the designer's Mirror)
+    todo += [(d, 'mirror_id', mirror_grid(d['grid']), design_name(d) + ' mirrored')
+             for d in cat['designs'] if d['mode'] != 'sym' and not d.get('mirror_id')]
+    print(len(todo), 'blueprints to make')
+    for d, field, grid, name in todo:
+        rows = grid_rows(grid)
+        data = build(name, game_rows(rows))
         _, back = decode(_post('/readBlp', data))
         if not same_layout(back, rows):
-            print('XX %-22s the service decodes the file differently: skipped' % design_name(d))
+            print('XX %-22s the service decodes the file differently: skipped' % name)
             continue
         if dry:
-            print('ok %-22s file checks out (%d pieces)' % (design_name(d), len(rows)))
+            print('ok %-22s file checks out (%d pieces)' % (name, len(rows)))
             continue
         code = upload(data)
         got = download(code)
         if same_layout(got, rows):
-            d['id'] = code
-            print('up %-6s %s' % (code, design_name(d)))
+            d[field] = code
+            print('up %-6s %s' % (code, name))
             save()                                       # keep progress if a later upload fails
         else:
-            print('XX %-6s %-22s re-download differs: not used' % (code, design_name(d)))
+            print('XX %-6s %-22s re-download differs: not used' % (code, name))
 
 
 def main(argv):

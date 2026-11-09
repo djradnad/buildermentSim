@@ -43,6 +43,7 @@ jobs:
         run: |
           git config user.name "catalogue bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python site/tools/blueprints.py upload || true     # the mirror image's blueprint
           git add site/catalogue.json site/tools/catalogue_extra.jsonl
           git commit -m "Catalogue: layout submitted by $AUTHOR"
           git pull --rebase origin main

@@ -47,7 +47,8 @@ def load_any(path):
     d = json.load(open(path))
     if 'designs' in d:                       # an earlier catalogue.json: re-check its designs and keep their ids
         return [dict(name=e['name'], source=e['source'], id=e.get('id'), text='\n'.join(e['grid']), n=e['n'], m=e['m'],
-                     **({'proven_for': e['proven_for']} if e.get('proven_for') else {})) for e in d['designs']]
+                     **({'proven_for': e['proven_for']} if e.get('proven_for') else {}),
+                     **({'mirror_id': e['mirror_id']} if e.get('mirror_id') else {})) for e in d['designs']]
     d.setdefault('name', os.path.basename(path)[:-5])
     return [d]
 
@@ -257,6 +258,8 @@ def main(paths):
             ent.update(footprint=cleanup.footprint(r), edge_splitters=cleanup.edge_splitters(lay), gold=cleanup.gold(r))
             if e.get('proven_for'):
                 ent['proven_for'] = e['proven_for']      # smallest area under this rule (and every stricter one)
+            if e.get('mirror_id') and ent['mode'] != 'sym':
+                ent['mirror_id'] = e['mirror_id']        # blueprint of the top <-> bottom mirror image
             sk = (n, m, key)          # one layout can be two ratios (a 2:2 that also balances 4 side-fed lanes)
             if sk in seen:
                 old = seen[sk]
@@ -267,6 +270,8 @@ def main(paths):
                     old['proven_for'] = pf
                 if not old.get('id') and ent.get('id'):
                     old['id'] = ent['id']
+                if not old.get('mirror_id') and ent.get('mirror_id'):
+                    old['mirror_id'] = ent['mirror_id']
                 continue
             seen[sk] = ent
             print('%-8s %-7s %3dx%-3d %4d pcs %-5s %s' % (kind, '%d:%d' % (n, m), W, H, len(r), ent['mode'],

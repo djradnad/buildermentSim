@@ -111,6 +111,7 @@ export function initDesigner({ openInSim }) {
   function pick(d, mirrored = false) {
     st.picked = d; st.mirrored = mirrored;
     $('dMirror').classList.toggle('on', mirrored);
+    $('dMirror').hidden = d.mode === 'sym';         // a symmetric layout is its own mirror image
     const grid = mirrored ? mirrorGrid(d.grid) : d.grid;
     show(gridRows(grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}${mirrored ? ' mirrored' : ''}`,
       outputs: mirrored ? mirrorPorts(d.outs, d.H) : d.outs, inputs: mirrored ? mirrorPorts(d.ins, d.H) : d.ins,
@@ -120,7 +121,7 @@ export function initDesigner({ openInSim }) {
     $('dinfo').textContent = (d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '') +
       (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
     $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}${mirrored ? ', mirrored' : ''}`;
-    st.bpId = mirrored ? null : d.id || null;     // a mirror image gets its own blueprint, made when copied
+    st.bpId = (mirrored ? d.mirror_id : d.id) || null;   // the mirror image has its own blueprint (made if missing)
     st.bpName = `${d.n}:${d.m} ${d.kind === 'split' ? 'splitter' : 'balancer'} ${d.W}x${d.H}${mirrored ? ' mirrored' : ''}`;
     $('dLink').disabled = false;
     $('dLink').title = st.bpId ? 'Copies ' + bpLink(st.bpId) + ' (paste it into the game\'s Import New Blueprint box)'
