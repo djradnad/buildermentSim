@@ -15,13 +15,13 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from bmsolver import radix, spec as S, bench  # noqa: E402
 
-SIZES = {2: (3, 7), 3: (5, 10), 4: (6, 12), 6: (9, 15)}
+SIZES = {2: (3, 7), 3: (8, 11), 4: (8, 12)}   # widths where layouts usually fit (more found examples)
 
 
 def one(rng, engine, timeout):
-    n = rng.choice([2, 2, 3, 3, 3, 4, 4, 6])
+    n = rng.choice([2, 3, 3, 3, 4, 4])
     lo, hi = SIZES[n]
-    H = rng.randint(max(n, 3), max(n, 3) + 3)
+    H = rng.randint(max(n, 3) + (n > 2), max(n, 3) + 3)
     W = rng.randint(lo, hi)
     ia, oa = rng.randint(0, H - n), rng.randint(0, H - n)
     win = S.Spec([S.Group('E', n, at=ia)], [S.Group('W', n, at=oa)]).window(W, H)
