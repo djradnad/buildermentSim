@@ -64,6 +64,27 @@ def sweep_jobs(ns, sym_only=False):
     return jobs
 
 
+def frontier(n, H, sym, start_W, engine, timeout, variants, closed, write, log=print):
+    """walk widths down from start_W at height H until no port placement fits (all proven impossible or timed
+    out); every solve is written. Fixes the miss of a fixed width range (3:3 10x4 was never tried)."""
+    W = start_W
+    while W >= 2:
+        if sym:
+            pairs = [((H - n) // 2, (H - n) // 2)] if (H - n) % 2 == 0 else []
+        else:
+            pairs = [(ia, oa) for ia in range(H - n + 1) for oa in range(H - n + 1)]
+        found = False
+        for ia, oa in pairs:
+            for rec in run_job((n, W, H, ia, oa, sym), engine, timeout, variants, closed):
+                write(rec)
+                found |= rec['status'] == 'FEASIBLE'
+        log('n=%d H=%d sym=%s W=%d: %s' % (n, H, sym, W, 'fits' if found else 'nothing fits'))
+        if not found:
+            return W
+        W -= 1
+    return W
+
+
 def run_job(job, engine, timeout, variants=1, closed=False):
     """solve one box; with variants > 1, ban the set of tiles each found layout uses and solve again, so the
     data holds several different layouts of the same box"""
@@ -103,8 +124,21 @@ def main():
     ap.add_argument('--closed', action='store_true', help='no splitter facing a non-port edge')
     ap.add_argument('--only-quasi', action='store_true')
     ap.add_argument('--sym-only', action='store_true', help='symmetric jobs only, heights up to N+9')
+    ap.add_argument('--frontier', default=None, help='n:Hlo-Hhi:startW[:sym], e.g. 3:3-8:14')
     ap.add_argument('--part', default='0/1', help='k/m: this process takes every m-th job from k')
     a = ap.parse_args()
+    if a.frontier:
+        parts = a.frontier.split(':')
+        n = int(parts[0])
+        h0, h1 = map(int, parts[1].split('-'))
+        sym = len(parts) > 3 and parts[3] == 'sym'
+
+        def write(rec):
+            with open(os.path.expanduser(a.out), 'a') as fh:
+                fh.write(json.dumps(rec) + '\n')
+        for H in range(h0, h1 + 1):
+            frontier(n, H, sym, int(parts[2]), os.path.expanduser(a.engine), a.timeout, a.variants, a.closed, write)
+        return
     if a.sweep:
         k, mm = map(int, a.part.split('/'))
         jobs = sweep_jobs([int(x) for x in a.sweep.split(',')], a.sym_only)
