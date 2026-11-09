@@ -14,8 +14,8 @@ from the design itself (its open inputs and outputs).
 
 Every design is turned so items flow east to west (inputs on the east side, outputs on the west side). Rules:
   sym    the design equals its top/bottom mirror image
-  quasi  the same, except for one mirror pair of tiles in the middle row(s) that hold the same piece facing
-         another way (like the wiki splitters with one turned splitter in the middle)
+  quasi  the same, except for one mirror pair of tiles in the middle row(s): the same piece facing another way,
+         or a splitter whose mirror tile is a plain belt (like the wiki 1:even splitters)
   asym   anything else
 "proven_for" (from solver logs): the solver proved no smaller area exists under that rule, so also under any
 stricter rule the design meets.
@@ -229,6 +229,10 @@ def main(paths):
                 print('ports not together (%s):' % ' and '.join(gap), e.get('name'), file=sys.stderr)
                 continue
             n, m = len(ins), len(outs)
+            if m == 1 and n > 1:
+                # belt logistics only (john 2026-11-09): splitters and balancers; belts that fit in one can be joined
+                print('merger left out:', e.get('name'), file=sys.stderr)
+                continue
             W, H = r.size
             kind = 'split' if n == 1 else 'merge' if m == 1 else 'balance'
             key = r.to_text(compact=False)
