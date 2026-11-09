@@ -663,28 +663,39 @@ class Model:
                 m.AddImplication(bs[c], K[src][c]).OnlyEnforceIf(L[src])
             drops.append((i, src, dst, a, bs))
         # an arm drops only into a gap at its drop point (World.armDrop -> canDrop, else it waits a tick), so onto a
-        # belt that carries other items its rate depends on phase. The sim shows it: an arm moving 60/min onto an
-        # evenly fed belt drops all 60 at 180/min, 0 at 300/min, and a 90/min arm gets 77 at 120/min. So a belt
-        # piece an arm drops onto takes nothing else: no belt link in, no input port, no second arm.
+        # belt that carries other items its rate depends on phase. The sim (evenly fed belt, T4 arm): onto a plain
+        # belt a 60/min arm drops all 60 at 180/min, 0 at 300/min, and a 90/min arm gets 77 at 120/min. Onto an
+        # underground entrance or exit an arm of up to 75/min drops everything at any load up to a full belt, a
+        # 90/min arm loses 3-10/min. So: a plain belt piece an arm drops onto takes nothing else (no belt link in,
+        # no input port); an arm dropping onto an underground piece moves at most 75/min; one arm per piece.
         if win.arm_drop_alone:
+            ug_cap = int(75 * win.D // 480)            # flow units in 75 items/min (a belt = D units = 480/min)
             into = {}
             for i, src, dst, a, bs in drops:
-                into.setdefault(dst, []).append(a)
+                into.setdefault(dst, []).append((i, a))
             for q, arms in into.items():
-                belt = [X[q, 'M'].Not()] if (q, 'M') in X else []
+                mach = [X[q, 'M'].Not()] if (q, 'M') in X else []
+                ugs = [X[q, k + str(o)] for k in 'IO' for o in range(4) if (q, k + str(o)) in X]
+                ug = m.NewBoolVar('ug')
+                if ugs:
+                    m.AddMaxEquality(ug, ugs)
+                else:
+                    m.Add(ug == 0)
                 if len(arms) > 1:
-                    m.Add(sum(arms) <= 1).OnlyEnforceIf(belt)
-                for a in arms:
+                    m.Add(sum(a for i, a in arms) <= 1).OnlyEnforceIf(mach)
+                for i, a in arms:
+                    m.Add(sum(F[i, c] for c in range(nc)) <= ug_cap).OnlyEnforceIf([a, ug])
+                    plain = [a, ug.Not()] + mach
                     for j in self.lin[q]:
                         if links[j][3] != 'arm':
                             for c in range(nc):
-                                m.Add(F[j, c] == 0).OnlyEnforceIf([a] + belt)
+                                m.Add(F[j, c] == 0).OnlyEnforceIf(plain)
                     for v in self.inflow[q]:
                         if isinstance(v, int):
                             if v:
-                                m.AddBoolOr([x.Not() for x in belt] + [a.Not()])
+                                m.AddBoolOr([x.Not() for x in plain])
                         else:
-                            m.Add(v == 0).OnlyEnforceIf([a] + belt)
+                            m.Add(v == 0).OnlyEnforceIf(plain)
         # what arms drop from a line onto belts carries that line's name on to wherever it goes (D = carries
         # greedy drops). Every way of one item into one machine, direct drop or belt, comes from one line
         D = {q: m.NewBoolVar('D') for q in self.cells}
