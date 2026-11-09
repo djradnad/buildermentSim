@@ -36,7 +36,9 @@ def show(grid, machines, W, H):
 
 
 CASES = dict(plating8=plating8, plating8_noarms=lambda: plating8(False), heatsink16=heatsink16,
-             plating8_free=lambda: plating8(free=True), heatsink16_free=lambda: heatsink16(free=True))
+             plating8_free=lambda: plating8(free=True), heatsink16_free=lambda: heatsink16(free=True),
+             plating8_each=lambda: plating8(free='each'), plating8_edges=lambda: plating8(free='edges'),
+             heatsink16_each=lambda: heatsink16(free='each'))
 
 if __name__ == '__main__':
     name, sizes, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])

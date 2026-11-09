@@ -33,14 +33,29 @@ class Factory:
 
     def __init__(self, ins, out, machines, items, per_unit, recipes, D=32, extra=(), arm_cap=None, free=False):
         self.arm_cap = arm_cap
-        self.free = free        # True: the input belts enter as one block at any east rows, the output at any west row
+        self.free = free        # True: the input belts enter as one block at any east rows, the output at any west row;
+                                # 'each': each input at any east row; 'edges': each input and the output at any edge tile
         self.ins, self.out, self.machines, self.items = ins, out, machines, items
         self.per_unit, self.recipes, self.D, self.extra = per_unit, recipes, D, extra
 
     def window(self, W, H):
         from .model import Window
         groups = []
-        if self.free:
+        edge = [((W - 1, y), 3) for y in range(H)] + [((0, y), 1) for y in range(H)] + \
+               [((x, 0), 0) for x in range(W)] + [((x, H - 1), 2) for x in range(W)]
+        if self.free == 'edges':        # every input belt and the output at any edge tile, each on its own
+            ports = {}
+            for r, v in self.ins:
+                groups.append([{k: ('in', v)} for k in edge])
+            if self.out:
+                groups.append([{k: ('out', self.out[1])} for k in edge])
+        elif self.free == 'each':       # every input belt at any east row on its own, the output at any west row
+            ports = {}
+            for r, v in self.ins:
+                groups.append([{((W - 1, y), 3): ('in', v)} for y in range(H)])
+            if self.out:
+                groups.append([{((0, y), 1): ('out', self.out[1])} for y in range(H)])
+        elif self.free:
             ports = {}
             n = len(self.ins)
             groups.append([{((W - 1, s + k), 3): ('in', v) for k, (r, v) in enumerate(self.ins)} for s in range(H - n + 1)])
