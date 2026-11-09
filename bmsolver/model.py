@@ -439,8 +439,8 @@ class Model:
                 m.AddBoolOr([X[ring[0], 'B2'].Not(), X[ring[3], 'B3'].Not(), X[ring[2], 'B0'].Not(), X[ring[1], 'B1'].Not()])
         if objective:
             # fewest pieces; a belt is preferred to a splitter or tunnel end when both work
-            tw = weights or {'B': 2, 'S': 5, 'I': 9, 'O': 9}
-            cost = sum(tw[k[0]] * v for (p, k), v in X.items() if k != 'E')
+            tw = weights or {'B': 2, 'S': 5, 'I': 9, 'O': 9, 'A': 9}
+            cost = sum(tw[k[0]] * v for (p, k), v in X.items() if k[0] in tw)     # machines are fixed in number
             if turn_weight:                     # tie-break: straight runs, fewest turns
                 turns = []
                 for p in cells:

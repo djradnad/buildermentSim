@@ -31,22 +31,32 @@ class Factory:
     extra: more ports [(edge 'N'|'E'|'S'|'W', index from the start of that edge (negative = from its end), kind,
     vec)]. machines: model.Window machine dicts. Found layouts are checked in the game-exact sim (gsim)."""
 
-    def __init__(self, ins, out, machines, items, per_unit, recipes, D=32, extra=(), arm_cap=None):
+    def __init__(self, ins, out, machines, items, per_unit, recipes, D=32, extra=(), arm_cap=None, free=False):
         self.arm_cap = arm_cap
+        self.free = free        # True: the input belts enter as one block at any east rows, the output at any west row
         self.ins, self.out, self.machines, self.items = ins, out, machines, items
         self.per_unit, self.recipes, self.D, self.extra = per_unit, recipes, D, extra
 
     def window(self, W, H):
         from .model import Window
-        ports = {((W - 1, r), 3): ('in', v) for r, v in self.ins}
-        if self.out:
-            ports[((0, self.out[0]), 1)] = ('out', self.out[1])
+        groups = []
+        if self.free:
+            ports = {}
+            n = len(self.ins)
+            groups.append([{((W - 1, s + k), 3): ('in', v) for k, (r, v) in enumerate(self.ins)} for s in range(H - n + 1)])
+            if self.out:
+                groups.append([{((0, r), 1): ('out', self.out[1])} for r in range(H)])
+        else:
+            ports = {((W - 1, r), 3): ('in', v) for r, v in self.ins}
+            if self.out:
+                ports[((0, self.out[0]), 1)] = ('out', self.out[1])
         for edge, i, kind, vec in self.extra:
             n = H if edge in 'EW' else W
             i = i % n
             t, d = {'N': ((i, 0), 0), 'E': ((W - 1, i), 3), 'S': ((i, H - 1), 2), 'W': ((0, i), 1)}[edge]
             ports[t, d] = (kind, vec)
         w = Window(W, H, len(self.items), self.D, ports=ports)
+        w.port_options = groups
         w.machines = self.machines
         w.arm_cap = self.arm_cap
         w.factory = self
@@ -187,7 +197,12 @@ def verify_factory(grid, win, machines, options=None, filters=None):
     if set(got) != set(want):
         return False
     outs = sum(sum(v.values()) for v in rep['outputs'].values())
-    planned = sum(sum(spec[1]) for spec in win.ports.values() if isinstance(spec, tuple) and spec[0] == 'out')
+    keys = dict(win.ports)
+    for i, g in enumerate(win.port_options):
+        for j, opt in enumerate(g):
+            if options is None or options[i] == j:
+                keys.update(opt)
+    planned = sum(sum(spec[1]) for spec in keys.values() if isinstance(spec, tuple) and spec[0] == 'out')
     return all(abs(got[k] - w) < 1e-9 for k, w in want.items()) and abs(outs - planned * f.per_unit) < 1e-9
 
 
