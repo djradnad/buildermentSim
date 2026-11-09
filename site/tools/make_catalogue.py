@@ -46,7 +46,7 @@ def load_any(path):
         return [dict(name=os.path.basename(path)[:-4], text=open(path).read(), source='ours')]
     d = json.load(open(path))
     if 'designs' in d:                       # an earlier catalogue.json: re-check its designs and keep their ids
-        return [dict(name=e['name'], source=e['source'], id=e.get('id'), text='\n'.join(e['grid']),
+        return [dict(name=e['name'], source=e['source'], id=e.get('id'), text='\n'.join(e['grid']), n=e['n'], m=e['m'],
                      **({'proven_for': e['proven_for']} if e.get('proven_for') else {})) for e in d['designs']]
     d.setdefault('name', os.path.basename(path)[:-5])
     return [d]
