@@ -3,7 +3,7 @@ on:
   push:
     branches: ['claude/decode-*']
 jobs:
-  decode:
+  upload:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -11,7 +11,14 @@ jobs:
           cd site/tools && python - <<'P'
           import json
           import blueprints as b
-          for code in open('../../decode.txt').read().split():
-              meta, rows = b.decode(b._post('/readBlp', b._post('/downloadBlp', code.encode())))
-              print('JSON', json.dumps({'code': code, 'name': meta.get('name'), 'rows': rows}))
+          key = lambda rs: sorted(tuple(r[:6]) for r in rs)
+          for e in json.load(open('../../modules.json')):
+              rows = e['rows']
+              data = b.build(e['name'], b.game_rows(rows))
+              _, back = b.decode(b._post('/readBlp', data))
+              if key(back) != key(rows):
+                  print('XX', e['name'], 'file decodes differently', key(back)[:4], key(rows)[:4]); continue
+              code = b.upload(data)
+              got = b.download(code)
+              print('CODE', e['name'], code, 'verified' if key(got) == key(rows) else 'REDOWNLOAD DIFFERS')
           P
