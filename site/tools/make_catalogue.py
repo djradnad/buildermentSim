@@ -3,7 +3,11 @@ sorted into symmetric / quasi-symmetric / asymmetric.
 
     python site/tools/make_catalogue.py SOURCE... > site/catalogue.json
 
-A SOURCE is a .txt grid, a blueprint .json ({"rows"} or {"grid"}), or a .jsonl file with one design per line:
+To add designs to the current catalogue, pass it as the first source:
+
+    python site/tools/make_catalogue.py site/catalogue.json site/tools/catalogue_extra.jsonl > new.json
+
+A SOURCE is an earlier catalogue.json, a .txt grid, a blueprint .json ({"rows"} or {"grid"}), or a .jsonl file with one design per line:
 {"name", "source", "id" (blueprint id, optional), "rows" | "grid" | "text" | "b"}. "b" is [[x, y, building id,
 rotation], ...] as in wiki dumps. File names like bal44_9x6.txt or split_1_12_2x12.txt give no ratio: it is read
 from the design itself (its open inputs and outputs).
@@ -25,6 +29,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from bmsolver.design import Design                         # noqa: E402
 from bmsolver.check import check, find_ports                # noqa: E402
 from bmsolver.pieces import KIND_OF_ID, mirror_code         # noqa: E402
+from bmsolver import cleanup                               # noqa: E402
+from bmsolver.improve import Layout                        # noqa: E402
 
 SIDES = 'NWSE'
 
@@ -39,6 +45,9 @@ def load_any(path):
     if path.endswith('.txt'):
         return [dict(name=os.path.basename(path)[:-4], text=open(path).read(), source='ours')]
     d = json.load(open(path))
+    if 'designs' in d:                       # an earlier catalogue.json: re-check its designs and keep their ids
+        return [dict(name=e['name'], source=e['source'], id=e.get('id'), text='\n'.join(e['grid']),
+                     **({'proven_for': e['proven_for']} if e.get('proven_for') else {})) for e in d['designs']]
     d.setdefault('name', os.path.basename(path)[:-5])
     return [d]
 
@@ -148,7 +157,8 @@ def main(paths):
             # stray pieces that carry nothing are removed (they never change any flow)
             for p in rep['idle']:
                 del r.tiles[p]
-            r = r.normalized()
+            lay = Layout(r, ins, outs, mix=rep['mixed']).normalized()      # ports move with the trimmed layout
+            r = lay.design
             n, m = len(ins), len(outs)
             W, H = r.size
             kind = 'split' if n == 1 else 'merge' if m == 1 else 'balance'
@@ -157,20 +167,24 @@ def main(paths):
                        name=e.get('name'), source=e.get('source', 'ours'), id=e.get('id'),
                        trimmed=len(rep['idle']), stray_out=rep.get('stray_out', False), splitters=r.count('S'), ug=r.count('I') + r.count('O'), grid=key.split('\n'))
             LOOSE = {'sym': 0, 'quasi': 1, 'asym': 2}
+            # scores for layouts of the same box (john's order): footprint, pieces, edge splitters, gold
+            ent.update(footprint=cleanup.footprint(r), edge_splitters=cleanup.edge_splitters(lay), gold=cleanup.gold(r))
             if e.get('proven_for'):
                 ent['proven_for'] = e['proven_for']      # smallest area under this rule (and every stricter one)
             if key in seen:
                 old = seen[key]
                 pf = max([x for x in (old.get('proven_for'), ent.get('proven_for')) if x], key=LOOSE.get, default=None)
-                if old['source'] != 'wiki' and ent['source'] == 'wiki':
+                if old['source'] == 'ours' and ent['source'] != 'ours':
                     seen[key] = old = ent        # credit the community design when ours is the same
                 if pf:
                     old['proven_for'] = pf
+                if not old.get('id') and ent.get('id'):
+                    old['id'] = ent['id']
                 continue
             seen[key] = ent
             print('%-8s %-7s %3dx%-3d %4d pcs %-5s %s' % (kind, '%d:%d' % (n, m), W, H, len(r), ent['mode'],
                                                           e.get('name')), file=sys.stderr)
-    ents = sorted(seen.values(), key=lambda e: (e['n'], e['m'], e['W'] * e['H'], e['pieces']))
+    ents = sorted(seen.values(), key=lambda e: (e['n'], e['m'], e['W'] * e['H'], e['footprint'], e['pieces']))
     json.dump({'version': 1, 'designs': ents}, sys.stdout, separators=(',', ':'))
 
 

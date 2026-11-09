@@ -1,31 +1,48 @@
 [
  {
-  "name": "1:5 splitter 3x5",
-  "file": "split_1_5_3x5.txt"
+  "name": "1:5 splitter 3x5 (wiki)",
+  "file": "split_1_5_3x5.txt",
+  "id": "fwgldk"
  },
  {
-  "name": "1:12 splitter 2x12",
-  "file": "split_1_12_2x12.txt"
+  "name": "1:12 splitter 2x12 (wiki)",
+  "file": "split_1_12_2x12.txt",
+  "id": "p5mwzj"
  },
  {
-  "name": "1:24 splitter 3x24",
-  "file": "split_1_24_3x24.txt"
+  "name": "1:24 splitter 3x24 (wiki)",
+  "file": "split_1_24_3x24.txt",
+  "id": "xtjqtg"
  },
  {
   "name": "1:35 splitter 4x35",
-  "file": "split_1_35_4x35.txt"
+  "file": "split_1_35_4x35.txt",
+  "id": "d5sv2k"
  },
  {
-  "name": "2:2 balancer, symmetric 3x8",
-  "file": "bal_2_2_sym_3x8.txt"
+  "name": "2:2 balancer, symmetric 6x5",
+  "file": "bal_2_2_6x5.txt",
+  "id": "qfh8g9"
  },
  {
-  "name": "4:4 balancer 9x6",
-  "file": "bal_4_4_9x6.txt"
+  "name": "3:3 balancer 8x5",
+  "file": "bal_3_3_8x5.txt",
+  "id": "y6rnw7"
+ },
+ {
+  "name": "4:4 balancer 7x7, footprint 48 (john)",
+  "file": "bal_4_4_7x7.txt",
+  "id": "t6t6fg"
+ },
+ {
+  "name": "8:8 balancer 15x12 (wiki)",
+  "file": "bal_8_8_15x12.txt",
+  "id": "rxwds2"
  },
  {
   "name": "27:27 balancer 37x45",
-  "file": "bal_27_27_37x45.txt"
+  "file": "bal_27_27_37x45.txt",
+  "id": "rfmr3d"
  },
  {
   "name": "Arm onto a splitter: input end (splits evenly)",

@@ -1,0 +1,13 @@
+{
+  "_note": "Blueprint codes that earlier uploads probably hold for these catalogue designs (from the project notes). blueprints.py verify --candidates gives a design its code only after the download matches the grid.",
+  "bal44_9x6_a": "2n8fx8",
+  "bal44_8x8_a": "stct1n",
+  "bal44s_9x8_a": "qkqc1d",
+  "bal44s_7x10_a": "k5w5va",
+  "bal44s_5x12_a": "pjshc3",
+  "bal44_7x8_a": "y50dm0",
+  "bp_b5_5_12x10_110": "20rn7v",
+  "bp_b7_7_15x12_169": "0ndvzg",
+  "bal66_13x10_a": "vpr23d",
+  "bp_b27_sym_39x45_1376": "qh32kx"
+}

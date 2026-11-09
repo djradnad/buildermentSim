@@ -3,7 +3,7 @@
 // running solver (python -m bmsolver ... --live).
 
 import { World } from './gamesim.js';
-import { rowsToBuildings, bpLink, bpLinkBits } from './blueprint.js';
+import { rowsToBuildings, bpLink, bpLinkBits, makeBlueprint } from './blueprint.js';
 import { View } from './view.js';
 
 const $ = id => document.getElementById(id);
@@ -35,7 +35,7 @@ export function initDesigner({ openInSim }) {
     return getComputedStyle(p).position === 'absolute' ? p.getBoundingClientRect().height : 0;
   };
   const view = new View($('dview'), { insetBottom: sheet });
-  const st = { kind: 'split', mode: 'quasi', goal: 'area', cat: [], current: null };
+  const st = { kind: 'split', mode: 'quasi', goal: 'square', cat: [], current: null };
   let timer = null, lastVersion = -1;
 
   $('dsheetHandle').addEventListener('click', () => $('dpanel').classList.toggle('collapsed'));
@@ -43,7 +43,9 @@ export function initDesigner({ openInSim }) {
   function show(rows, meta) {
     st.current = { rows, meta };
     view.setWorld(new World(rowsToBuildings(rows)));
-    $('dSim').disabled = $('dCopy').disabled = false;
+    st.bpId = null;                                // set again by pick() for catalogue designs that have one
+    st.bpName = meta.name || 'layout';
+    $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = false;
   }
 
   function seg(id, key, after) {
@@ -71,9 +73,13 @@ export function initDesigner({ openInSim }) {
     update();
   });
 
+  // same box: smaller footprint (tiles inside the outline), fewer pieces, fewer splitters facing out of the edge,
+  // less gold to build; then the stricter rule and community designs first
+  const tail = d => [d.footprint ?? d.W * d.H, d.pieces, d.edge_splitters ?? 0, d.gold ?? 0, LOOSE[d.mode],
+    d.source === 'ours' ? 1 : 0];
   const score = d => st.goal === 'area'
-    ? [d.W * d.H, Math.max(d.W, d.H), d.pieces, LOOSE[d.mode], d.source === 'wiki' ? 0 : 1]
-    : [Math.max(d.W, d.H), d.W * d.H, d.pieces, LOOSE[d.mode], d.source === 'wiki' ? 0 : 1];
+    ? [d.W * d.H, Math.max(d.W, d.H), ...tail(d)]
+    : [Math.max(d.W, d.H), d.W * d.H, ...tail(d)];
   const cmp = (a, b) => { const x = score(a), y = score(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };
 
   function command(n, m) {
@@ -90,9 +96,12 @@ export function initDesigner({ openInSim }) {
   }
 
   function label(d, all) {
-    const src = d.source === 'wiki' ? `community design from the wiki${d.id ? ' (blueprint ' + d.id + ')' : ''}` : 'found by our solver';
+    const src = d.source === 'wiki' ? 'community design from the wiki' : d.source === 'ours' ? 'found by our solver' : 'by ' + d.source;
     const pr = st.goal === 'area' && proven(d, all) ? ' · <span class="good">smallest possible area (proven)</span>' : '';
-    return `${d.W}×${d.H} · ${d.pieces} pieces · ${d.splitters} splitters${d.ug ? ' · ' + d.ug + ' underground' : ''} · ${MODE_NAME[d.mode]} · ${src}${pr}`;
+    const fp = d.footprint != null && d.footprint < d.W * d.H ? ` (footprint ${d.footprint})` : '';
+    const edge = d.edge_splitters ? ` · ${d.edge_splitters} splitter face${d.edge_splitters > 1 ? 's' : ''} out of the edge` : '';
+    return `${d.W}×${d.H}${fp} · ${d.pieces} pieces · ${d.splitters} splitters${d.ug ? ' · ' + d.ug + ' underground' : ''}${edge}` +
+      `${d.gold ? ' · ' + d.gold + ' gold' : ''} · ${MODE_NAME[d.mode]} · ${src}${pr}`;
   }
 
   function pick(d) {
@@ -101,8 +110,10 @@ export function initDesigner({ openInSim }) {
       (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
     $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}`;
     st.bpId = d.id || null;
-    $('dLink').disabled = !st.bpId;
-    $('dLink').title = st.bpId ? 'Copies ' + bpLink(st.bpId) + ' (paste it into the game\'s Import New Blueprint box)' : 'Only community designs have a game blueprint id so far';
+    st.bpName = `${d.n}:${d.m} ${d.kind === 'split' ? 'splitter' : d.kind === 'merge' ? 'merger' : 'balancer'} ${d.W}x${d.H}`;
+    $('dLink').disabled = false;
+    $('dLink').title = st.bpId ? 'Copies ' + bpLink(st.bpId) + ' (paste it into the game\'s Import New Blueprint box)'
+      : 'Makes a game blueprint of this layout, then copies its link';
     if (st.bpId) $('dinfo').append(' ', bpLinkBits(st.bpId));
     document.querySelectorAll('#dAll .gal').forEach(x => x.classList.toggle('on', x.dataset.k === d._k));
   }
@@ -119,8 +130,9 @@ export function initDesigner({ openInSim }) {
       const el = document.createElement('div');
       el.className = 'gal' + (ALLOWED[st.mode].includes(d.mode) ? '' : ' off');
       el.dataset.k = d._k;
-      el.innerHTML = `<span>${d.W}×${d.H} <span class="muted">· ${d.pieces} pcs</span></span>` +
-        `<span class="badge ${d.mode}">${d.mode}</span><span class="muted small">${d.source === 'wiki' ? 'wiki' : 'ours'}</span>`;
+      const fp = d.footprint != null && d.footprint < d.W * d.H ? ' (' + d.footprint + ')' : '';
+      el.innerHTML = `<span>${d.W}×${d.H}${fp} <span class="muted">· ${d.pieces} pcs${d.gold ? ' · ' + d.gold + 'g' : ''}</span></span>` +
+        `<span class="badge ${d.mode}">${d.mode}</span><span class="muted small">${d.source}${d.id ? ' · ' + d.id : ''}</span>`;
       el.addEventListener('click', () => pick(d));
       $('dAll').appendChild(el);
     }
@@ -141,18 +153,44 @@ export function initDesigner({ openInSim }) {
     }
   }
 
-  $('dSim').addEventListener('click', () => st.current && openInSim(st.current.rows, st.current.meta));
+  $('dSim').addEventListener('click', () => st.current && openInSim(st.current.rows, st.current.meta, st.bpId));
   $('dCopy').addEventListener('click', async () => {
     if (!st.current) return;
     const json = JSON.stringify({ meta: { name: st.current.meta.name || 'layout', count: st.current.rows.length }, rows: st.current.rows });
-    try { await navigator.clipboard.writeText(json); $('dinfo').textContent = 'Copied blueprint json.'; }
+    try { await navigator.clipboard.writeText(json); $('dinfo').textContent = 'Copied layout json.'; }
     catch { $('dinfo').textContent = json; }
   });
 
+  // Layouts without a blueprint yet get one made on the spot (uploaded, downloaded again and checked). The
+  // clipboard write starts inside the tap with a pending value, so Safari still allows it after the upload.
+  async function linkFor(rows) {
+    if (st.bpId) return bpLink(st.bpId);
+    const cur = st.current;
+    const code = await makeBlueprint(rows, st.bpName || 'layout');
+    if (st.current === cur) {
+      st.bpId = code;
+      $('dinfo').append(' ', bpLinkBits(code));
+    }
+    return bpLink(code);
+  }
   $('dLink').addEventListener('click', async () => {
-    if (!st.bpId) return;
-    try { await navigator.clipboard.writeText(bpLink(st.bpId)); $('dinfo').textContent = 'Copied ' + bpLink(st.bpId); }
-    catch { $('dinfo').textContent = bpLink(st.bpId); }
+    if (!st.current) return;
+    const btn = $('dLink'), label = btn.textContent;
+    const p = linkFor(st.current.rows);
+    if (!st.bpId) { btn.disabled = true; btn.textContent = 'Making blueprint…'; }
+    try {
+      if (window.ClipboardItem && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'text/plain': p.then(t => new Blob([t], { type: 'text/plain' })) })]);
+      } else {
+        await navigator.clipboard.writeText(await p);
+      }
+      btn.textContent = 'Copied';
+    } catch (e) {
+      try { const t = await p; $('dinfo').textContent = t; btn.textContent = label; }
+      catch (e2) { $('dinfo').textContent = 'Could not make a blueprint: ' + e2.message; btn.textContent = label; }
+    }
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = label; }, 2000);
   });
 
   fetch('catalogue.json').then(r => r.json()).then(c => {

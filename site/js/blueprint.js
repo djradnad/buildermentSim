@@ -260,3 +260,87 @@ export function bpLinkBits(id) {
   span.append(a, ' ', b);
   return span;
 }
+
+// ---- making a game blueprint -----------------------------------------------------------------------------------
+// The game's blueprint file is a flatbuffer: root = (link, name, buildings), building = (id u16, x i32, y i32,
+// rotation u8, tier u8, recipe/filter i16). Written field for field as the game writes it, with recipe -1 on belts,
+// splitters and undergrounds like in-game blueprints. Same bytes as site/tools/blueprints.py build().
+export function gameFile(name, rows) {
+  // decoded rows -> file rows: non-belt buildings are stored with rotation + 2, tier only kept for machines
+  rows = rows.map(r => [r[0], r[1], r[2], r[0] <= 3003 ? r[3] : (r[3] + 2) & 3, r[0] > 3003 ? (r[4] || 0) : 0, r[5] ?? -1]);
+  const enc = new TextEncoder();
+  const strs = [enc.encode(name), enc.encode('')];
+  let size = 4 + 12 + 16 + 16 + 4 + 4 * rows.length + 20 * rows.length + 64 + strs[0].length + strs[1].length;
+  const buf = new ArrayBuffer(size + 16), dv = new DataView(buf), u8 = new Uint8Array(buf);
+  let n = 0;
+  const pad4 = () => { while (n % 4) u8[n++] = 0; };
+  n = 4;
+  const rvt = n; [10, 16, 12, 8, 4].forEach((v, i) => dv.setUint16(rvt + 2 * i, v, true)); n += 10; pad4();
+  const bvt = n; [16, 20, 18, 12, 8, 7, 6, 4].forEach((v, i) => dv.setUint16(bvt + 2 * i, v, true)); n += 16; pad4();
+  const root = n; n += 16;
+  dv.setUint32(0, root, true);
+  dv.setInt32(root, root - rvt, true);
+  const vec = n; dv.setUint32(vec, rows.length, true); n += 4 + 4 * rows.length;
+  dv.setUint32(root + 4, vec - (root + 4), true);
+  rows.forEach(([id, x, y, o, tier, rec], k) => {
+    pad4(); const t = n;
+    dv.setUint32(vec + 4 + 4 * k, t - (vec + 4 + 4 * k), true);
+    dv.setInt32(t, t - bvt, true);
+    dv.setInt16(t + 4, rec, true);
+    dv.setUint8(t + 6, tier);
+    dv.setUint8(t + 7, o);
+    dv.setInt32(t + 8, y, true);
+    dv.setInt32(t + 12, x, true);
+    dv.setUint16(t + 18, id, true);
+    n += 20;
+  });
+  [[8, strs[0]], [12, strs[1]]].forEach(([fo, s]) => {
+    pad4(); const p = n;
+    dv.setUint32(p, s.length, true); u8.set(s, p + 4); n += 4 + s.length; u8[n++] = 0;
+    dv.setUint32(root + fo, p - (root + fo), true);
+  });
+  pad4();
+  return u8.slice(0, n);
+}
+
+const shapeKey = rows => {
+  const x0 = Math.min(...rows.map(r => r[1])), y0 = Math.min(...rows.map(r => r[2]));
+  return rows.map(r => [r[0], r[1] - x0, r[2] - y0, r[0] <= 3003 ? r[3] & 3 : r[3], r[4] || 0, r[5] ?? -1].join(','))
+    .sort().join(';');
+};
+
+// Upload a layout as a game blueprint and return its code. The upload is downloaded again and must decode to the
+// same pieces, or it is not used. Codes are remembered in this browser, so the same layout is uploaded once.
+export async function makeBlueprint(rows, name) {
+  const key = 'bp:' + shapeKey(rows);
+  try { const c = localStorage.getItem(key); if (c) return c; } catch { /* storage off */ }
+  // the file goes up as it is (the service only wants gzip, with its own header, above 1.5 MB)
+  const res = JSON.parse(new TextDecoder().decode(await post('/uploadBlp', gameFile(name, rows))));
+  const code = res.id || res.blpId || res.code;
+  if (!code) throw new Error('the blueprint service gave no code');
+  const back = await fetchBlueprint(code);
+  const strip = rs => rs.map(r => [r[0], r[1], r[2], r[3], r[0] > 3003 ? r[4] || 0 : 0, r[5] ?? -1]);
+  if (shapeKey(strip(back.rows)) !== shapeKey(strip(rows))) throw new Error('blueprint ' + code + ' came back different');
+  try { localStorage.setItem(key, code); } catch { /* storage off */ }
+  return code;
+}
+
+// A button for a layout that has no blueprint code yet: makes one (makeBlueprint), then shows the game link.
+export function makeBlueprintButton(rows, name, onCode) {
+  const b = document.createElement('button');
+  b.className = 'small'; b.textContent = 'Make game blueprint';
+  b.title = 'Uploads this layout as a game blueprint and gives you its link';
+  b.addEventListener('click', async () => {
+    b.disabled = true; b.textContent = 'Making…';
+    try {
+      const code = await makeBlueprint(rows, name);
+      b.replaceWith(bpLinkBits(code));
+      onCode && onCode(code);
+    } catch (e) {
+      b.disabled = false; b.textContent = 'Make game blueprint';
+      b.title = 'Failed: ' + e.message;
+      b.after(' ', Object.assign(document.createElement('span'), { className: 'muted', textContent: 'could not make it: ' + e.message }));
+    }
+  });
+  return b;
+}
