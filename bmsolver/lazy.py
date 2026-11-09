@@ -225,6 +225,100 @@ def add_reach_lemmas(mod, win):
     return K * len(cells)
 
 
+def _maxflow(n, edges, s, t):
+    """Dinic on n nodes; edges [(u, v, cap)]. Returns (value, reachable-from-s set in the residual graph)."""
+    g = [[] for _ in range(n)]
+    to, cap = [], []
+    for u, v, c in edges:
+        g[u].append(len(to)); to.append(v); cap.append(c)
+        g[v].append(len(to)); to.append(u); cap.append(0)
+    flow = 0
+    while True:
+        lvl = [-1] * n
+        lvl[s] = 0
+        q = [s]
+        for u in q:
+            for e in g[u]:
+                if cap[e] > 0 and lvl[to[e]] < 0:
+                    lvl[to[e]] = lvl[u] + 1
+                    q.append(to[e])
+        if lvl[t] < 0:
+            return flow, {u for u in range(n) if lvl[u] >= 0}
+        it = [0] * n
+
+        def dfs(u, f):
+            if u == t:
+                return f
+            while it[u] < len(g[u]):
+                e = g[u][it[u]]
+                v = to[e]
+                if cap[e] > 0 and lvl[v] == lvl[u] + 1:
+                    d = dfs(v, min(f, cap[e]))
+                    if d:
+                        cap[e] -= d
+                        cap[e ^ 1] += d
+                        return d
+                it[u] += 1
+            return 0
+        while True:
+            f = dfs(s, 1 << 60)
+            if not f:
+                break
+            flow += f
+
+
+class CutCheck:
+    """Necessary flow condition, checked fast: with every used link carrying up to D, the inputs must be able to
+    send each commodity (and the total) to the outputs that want it. On failure the clause is: one of the unused
+    links across the min cut gets used, or the port choice changes. Belt-only windows without tunnels."""
+
+    def __init__(self, mod, win, sk):
+        self.ok = not (win.machines or win.arm_cap or win.tun_in or win.tun_out)
+        self.mod, self.win, self.sk = mod, win, sk
+        cells = mod.cells
+        self.idx = {p: i for i, p in enumerate(cells)}
+        self.S, self.T = len(cells), len(cells) + 1
+        self.links = [(self.idx[p], self.idx[q], sk.bool[l.Index()]) for p, q, l, k in mod.links
+                      if p is not None and q is not None]
+        self.fixed = []         # (cell, kind, vec)
+        self.opt = []           # (sat lit, cell, kind, vec)
+        for (t, d), spec in win.ports.items():
+            if isinstance(spec, tuple) and spec[0] in ('in', 'out'):
+                self.fixed.append((self.idx[t], spec[0], spec[1]))
+        for (t, d), lst in mod.optional_ports.items():
+            for l, kind, vec in lst:
+                self.opt.append((sk.bool[l.Index()], self.idx[t], kind, vec))
+        self.calls = self.fails = 0
+
+    def check(self, pos):
+        if not self.ok:
+            return None
+        self.calls += 1
+        D, nc = self.win.D, self.win.ncom
+        ports = list(self.fixed)
+        chosen = []
+        for lit, c, kind, vec in self.opt:
+            if lit in pos:
+                ports.append((c, kind, vec))
+                chosen.append(lit)
+        used = [(u, v) for u, v, l in self.links if l in pos]
+        for c in list(range(nc)) + ([None] if nc > 1 else []):
+            amt = (lambda vec: sum(vec)) if c is None else (lambda vec, c=c: vec[c])
+            edges = [(u, v, D) for u, v in used]
+            need = 0
+            for cell, kind, vec in ports:
+                a = amt(vec)
+                if a:
+                    edges.append((self.S, cell, a) if kind == 'in' else (cell, self.T, a))
+                    need += a if kind == 'out' else 0
+            val, side = _maxflow(len(self.idx) + 2, edges, self.S, self.T)
+            if val < need:
+                self.fails += 1
+                cut = [l for u, v, l in self.links if u in side and v not in side and l not in pos]
+                return cut + [-l for l in chosen]
+        return None
+
+
 class _Mixed:
     """values of a found layout: 0/1 variables from the SAT model, integers from the theory solution"""
 
@@ -240,7 +334,7 @@ class _Mixed:
     BooleanValue = Value
 
 
-def solve(win, timeout=600, log=print, minimize_core=0, lemmas=True, reach=True):
+def solve(win, timeout=600, log=print, minimize_core=0, lemmas=True, reach=True, cuts=True):
     from pysat.solvers import Cadical195
     t0 = time.time()
     mod = model.Model(win)
@@ -251,6 +345,7 @@ def solve(win, timeout=600, log=print, minimize_core=0, lemmas=True, reach=True)
     sk = Skeleton(mod.m)
     th = Theory(mod, sk.shared, sk.theory)
     th.min_budget = minimize_core
+    cut = CutCheck(mod, win, sk) if cuts else None
     tb = time.time() - t0
     if log:
         log('skeleton: %d vars %d clauses, theory: %d constraints, %d shared literals, %d theory-only bools, build %.1fs'
@@ -278,6 +373,13 @@ def solve(win, timeout=600, log=print, minimize_core=0, lemmas=True, reach=True)
             mdl = s.get_model()
             pos = set(l for l in mdl if l > 0)
             values = {i: sk.bool[i] in pos for i in sk.shared}
+            if cut is not None:
+                cl = cut.check(pos)
+                if cl is not None:
+                    s.add_clause(cl)
+                    it += 1
+                    ncore += len(cl)
+                    continue
             core, cps = th.check(values)
             it += 1
             if core is None:
@@ -291,6 +393,8 @@ def solve(win, timeout=600, log=print, minimize_core=0, lemmas=True, reach=True)
     finally:
         timer.cancel()
         s.delete()
+    if cut is not None:
+        res.update(cut_calls=cut.calls, cut_fails=cut.fails)
     res.update(time=time.time() - t0 - tb, build=tb, iters=it, avg_core=ncore / max(1, it), sat_time=tsat,
                theory_time=th.time, vars=sk.f.nv, clauses=len(sk.f.clauses))
     return res
@@ -302,18 +406,20 @@ def main(argv=None):
     ap.add_argument('--timeout', type=float, default=600)
     ap.add_argument('--nolemmas', action='store_true')
     ap.add_argument('--noreach', action='store_true')
+    ap.add_argument('--nocuts', action='store_true')
     ap.add_argument('--min', type=int, default=0, help='core minimization budget (solver calls per core)')
     a = ap.parse_args(argv)
     cases = {c[0]: c for c in bench.CASES}
     for name in a.case.split(','):
         _, mk, W, H, exp, tier = cases[name]
         win = mk().window(W, H)
-        r = solve(win, a.timeout, minimize_core=a.min, lemmas=not a.nolemmas, reach=not a.noreach)
+        r = solve(win, a.timeout, minimize_core=a.min, lemmas=not a.nolemmas, reach=not a.noreach, cuts=not a.nocuts)
         ok = ''
         if r['status'] == 'SAT':
             ok = bench.verify(r['grid'], win, r.get('options')) if not getattr(win, 'factory', None) else '?'
-        print('%-14s lazy  %-8s (expect %s) %8.2fs iters=%d avg_core=%.1f sat=%.1fs theory=%.1fs verified=%s' % (
-            name, r['status'], exp, r['time'], r['iters'], r['avg_core'], r['sat_time'], r['theory_time'], ok), flush=True)
+        print('%-14s lazy  %-8s (expect %s) %8.2fs iters=%d avg_core=%.1f sat=%.1fs theory=%.1fs verified=%s cuts=%s/%s' % (
+            name, r['status'], exp, r['time'], r['iters'], r['avg_core'], r['sat_time'], r['theory_time'], ok,
+            r.get('cut_fails'), r.get('cut_calls')), flush=True)
 
 
 if __name__ == '__main__':

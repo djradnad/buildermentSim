@@ -20,9 +20,15 @@ from . import bench, model, cnf
 _NAME = re.compile(r'^([EBSIOAMY])(\d?)\((-?\d+), (-?\d+)\)$|^(Y)(\d+)$|^(opt)$')
 
 
-def build(win):
-    """CNF + map of layout variables: list of (sat var, kind, rot, x, y) for named piece variables."""
+def build(win, lemmas=''):
+    """CNF + map of layout variables: list of (sat var, kind, rot, x, y) for named piece variables.
+    lemmas: 'local' and/or 'reach' (lazy.add_flow_lemmas / add_reach_lemmas, implied by the flow rules)."""
     mod = model.Model(win)
+    from . import lazy
+    if 'local' in lemmas:
+        lazy.add_flow_lemmas(mod, win)
+    if 'reach' in lemmas:
+        lazy.add_reach_lemmas(mod, win)
     tr = cnf.BinTranslation(mod.m)
     layout = []
     for i, v in enumerate(tr.proto.variables):
@@ -131,10 +137,10 @@ def order_rowmajor(layout, win, phase=phase_empty):
 
 
 # ---------------------------------------------------------------- run
-def run(win, mode='base', timeout=600, config=None, phases=None):
+def run(win, mode='base', timeout=600, config=None, phases=None, lemmas=''):
     from pysat.solvers import Cadical195
     t0 = time.time()
-    mod, tr, layout = build(win)
+    mod, tr, layout = build(win, lemmas)
     tb = time.time() - t0
     s = Cadical195(bootstrap_with=tr.f.clauses)
     if config:
@@ -180,17 +186,18 @@ def main(argv=None):
     ap.add_argument('--mode', default='base')
     ap.add_argument('--config', default='default')
     ap.add_argument('--timeout', type=float, default=600)
+    ap.add_argument('--lemmas', default='', help="'local', 'reach' or 'local+reach'")
     a = ap.parse_args(argv)
     cases = {c[0]: c for c in bench.CASES}
     name, mk, W, H, exp, tier = cases[a.case]
     for mode in a.mode.split(','):
         for cfg in a.config.split(','):
             win = mk().window(W, H)
-            r = run(win, mode, a.timeout, CONFIGS[cfg])
+            r = run(win, mode, a.timeout, CONFIGS[cfg], lemmas=a.lemmas)
             ok = ''
             if r['status'] == 'SAT':
                 ok = bench.verify(r['grid'], win, r.get('options')) if not getattr(win, 'factory', None) else '?'
-            print('%-14s %-12s %-9s %-8s %8.2fs build %.1fs verified=%s layoutvars=%d vars=%d' % (
+            print(a.lemmas or '-', '%-14s %-12s %-9s %-8s %8.2fs build %.1fs verified=%s layoutvars=%d vars=%d' % (
                 name, mode, cfg, r['status'], r['time'], r['build'], ok, r['nlayout'], r['vars']), flush=True)
 
 
