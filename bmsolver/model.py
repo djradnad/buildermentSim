@@ -55,6 +55,7 @@ class Window:
         self.arm_cap = None         # robotic arms allowed when set: most flow units one arm moves (game: 15/30/60/90
                                     # items/min at tier 1-4); an arm takes from the tile behind it and puts in front
         self.arm_tier = 4
+        self.arm_drop_alone = True  # a belt piece an arm drops onto takes no other flow (see _arm_flows)
         self.line_ports = set()     # (tile, d) out ports where an arm line may go on (into the next copy of a
                                     # tiled module, where more arms take the rest)
         self.cuts = None            # experiment: None, 'card' (enough links cross every row/column line for the
@@ -661,6 +662,29 @@ class Model:
             for c in range(nc):
                 m.AddImplication(bs[c], K[src][c]).OnlyEnforceIf(L[src])
             drops.append((i, src, dst, a, bs))
+        # an arm drops only into a gap at its drop point (World.armDrop -> canDrop, else it waits a tick), so onto a
+        # belt that carries other items its rate depends on phase. The sim shows it: an arm moving 60/min onto an
+        # evenly fed belt drops all 60 at 180/min, 0 at 300/min, and a 90/min arm gets 77 at 120/min. So a belt
+        # piece an arm drops onto takes nothing else: no belt link in, no input port, no second arm.
+        if win.arm_drop_alone:
+            into = {}
+            for i, src, dst, a, bs in drops:
+                into.setdefault(dst, []).append(a)
+            for q, arms in into.items():
+                belt = [X[q, 'M'].Not()] if (q, 'M') in X else []
+                if len(arms) > 1:
+                    m.Add(sum(arms) <= 1).OnlyEnforceIf(belt)
+                for a in arms:
+                    for j in self.lin[q]:
+                        if links[j][3] != 'arm':
+                            for c in range(nc):
+                                m.Add(F[j, c] == 0).OnlyEnforceIf([a] + belt)
+                    for v in self.inflow[q]:
+                        if isinstance(v, int):
+                            if v:
+                                m.AddBoolOr([x.Not() for x in belt] + [a.Not()])
+                        else:
+                            m.Add(v == 0).OnlyEnforceIf([a] + belt)
         # what arms drop from a line onto belts carries that line's name on to wherever it goes (D = carries
         # greedy drops). Every way of one item into one machine, direct drop or belt, comes from one line
         D = {q: m.NewBoolVar('D') for q in self.cells}
