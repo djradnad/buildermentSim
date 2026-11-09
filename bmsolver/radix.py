@@ -43,7 +43,7 @@ def factorisations(n, parts=None):
     return out
 
 
-def build(win, arity):
+def build(win, arity, pass_splitters=True):
     """Model(win, flows=False) plus a level and a set on every link and port term."""
     mod = Model(win, flows=False)
     m, X = mod.m, mod.X
@@ -166,6 +166,8 @@ def build(win, arity):
         m.AddImplication(split, TL[NL - 1].Not())
         copy = m.NewBoolVar('')
         m.Add(copy + split + merge + empty == 1)
+        if not pass_splitters:          # tidier layouts (data): no splitter used as a plain belt. Not for proofs:
+            m.AddImplication(is_sp, split)  # a one-output splitter can be a needed blocker
         for j, a in enumerate(arity):
             m.Add(nout == a).OnlyEnforceIf([split, TL[2 * j]])
             m.AddImplication(split, TL[2 * j + 1].Not())

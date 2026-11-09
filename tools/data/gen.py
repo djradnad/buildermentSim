@@ -61,19 +61,30 @@ def sweep_jobs(ns):
     return jobs
 
 
-def run_job(job, engine, timeout):
+def run_job(job, engine, timeout, variants=1):
+    """solve one box; with variants > 1, ban the set of tiles each found layout uses and solve again, so the
+    data holds several different layouts of the same box"""
+    from bmsolver import cnf
     n, W, H, ia, oa, sym = job
     win = S.Spec([S.Group('E', n, at=ia)], [S.Group('W', n, at=oa)]).window(W, H, symmetry='y' if sym else None)
     if win is None:
-        return None
+        return []
     ar = radix.factorisations(n)[0]
-    r = radix.solve(win, ar, engine, timeout)
-    rec = dict(n=n, W=W, H=H, at=[ia, oa], sym=sym, blocked=[], arity=ar, status=r['status'], time=round(r['time'], 2))
-    if 'grid' in r:
+    mod = radix.build(win, ar, pass_splitters=False)
+    out = []
+    for v in range(variants):
+        r = cnf.solve(mod, engine=engine, timeout=timeout)
+        rec = dict(n=n, W=W, H=H, at=[ia, oa], sym=sym, blocked=[], arity=ar, variant=v, status=r['status'],
+                   time=round(r['time'], 2))
+        out.append(rec)
+        if 'grid' not in r:
+            break
         g = r['grid']
         rec['ok'] = bool(bench.verify(g, win, r.get('options')))
         rec['grid'] = [''.join((g.get((x, y)) or '..') for x in range(W)) for y in range(H)]
-    return rec
+        # the next layout must use a different set of tiles (not just swap a belt for another piece)
+        mod.m.AddBoolOr([mod.X[p, 'E'] if c else mod.X[p, 'E'].Not() for p, c in g.items() if (p, 'E') in mod.X])
+    return out
 
 
 def main():
@@ -84,6 +95,7 @@ def main():
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--engine', default='~/solvers/cadical')
     ap.add_argument('--sweep', default=None, help='e.g. 2,3,4: systematic sizes instead of random')
+    ap.add_argument('--variants', type=int, default=1, help='different layouts per box (sweep mode)')
     ap.add_argument('--part', default='0/1', help='k/m: this process takes every m-th job from k')
     a = ap.parse_args()
     if a.sweep:
@@ -91,12 +103,10 @@ def main():
         jobs = sweep_jobs([int(x) for x in a.sweep.split(',')])[k::mm]
         print(len(jobs), 'jobs', flush=True)
         for job in jobs:
-            rec = run_job(job, os.path.expanduser(a.engine), a.timeout)
-            if rec is None:
-                continue
-            with open(os.path.expanduser(a.out), 'a') as fh:
-                fh.write(json.dumps(rec) + '\n')
-            print(job, rec['status'], rec['time'], rec.get('ok', ''), flush=True)
+            for rec in run_job(job, os.path.expanduser(a.engine), a.timeout, a.variants):
+                with open(os.path.expanduser(a.out), 'a') as fh:
+                    fh.write(json.dumps(rec) + '\n')
+                print(job, rec['variant'], rec['status'], rec['time'], rec.get('ok', ''), flush=True)
         return
     rng = random.Random(a.seed)
     for _ in range(a.count):
