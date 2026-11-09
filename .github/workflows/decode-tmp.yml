@@ -1,0 +1,21 @@
+name: decode-tmp
+on:
+  push:
+    branches: ['claude/decode-*']
+jobs:
+  decode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cd site/tools && python - <<'P'
+          import blueprints as b
+          rows = b.download('9bfnha')
+          print('ROWS', rows)
+          ID = {v: k for k, v in b.CODE_ID.items()}
+          xs=[r[1] for r in rows]; ys=[r[2] for r in rows]
+          x0,y0=min(xs),min(ys); W=max(xs)-x0+1; H=max(ys)-y0+1
+          g=[['..']*W for _ in range(H)]
+          for r in rows: g[r[2]-y0][r[1]-x0]=ID.get(r[0],'?')+str(r[3])
+          print('GRID'); print('\n'.join(''.join(l) for l in g))
+          P
