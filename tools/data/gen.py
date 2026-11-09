@@ -64,7 +64,7 @@ def sweep_jobs(ns, sym_only=False):
     return jobs
 
 
-def run_job(job, engine, timeout, variants=1):
+def run_job(job, engine, timeout, variants=1, closed=False):
     """solve one box; with variants > 1, ban the set of tiles each found layout uses and solve again, so the
     data holds several different layouts of the same box"""
     from bmsolver import cnf
@@ -72,12 +72,13 @@ def run_job(job, engine, timeout, variants=1):
     win = S.Spec([S.Group('E', n, at=ia)], [S.Group('W', n, at=oa)]).window(W, H, symmetry='y' if sym else None, quasi=1 if sym == 'quasi' else 0)
     if win is None:
         return []
+    win.closed_edges = closed          # no splitter face out of a non-port edge (john's clean class)
     ar = radix.factorisations(n)[0]
     mod = radix.build(win, ar, pass_splitters=False)
     out = []
     for v in range(variants):
         r = cnf.solve(mod, engine=engine, timeout=timeout)
-        rec = dict(n=n, W=W, H=H, at=[ia, oa], sym=sym, blocked=[], arity=ar, variant=v, status=r['status'],
+        rec = dict(n=n, W=W, H=H, at=[ia, oa], sym=sym, closed=closed, blocked=[], arity=ar, variant=v, status=r['status'],
                    time=round(r['time'], 2))
         out.append(rec)
         if 'grid' not in r:
@@ -99,6 +100,7 @@ def main():
     ap.add_argument('--engine', default='~/solvers/cadical')
     ap.add_argument('--sweep', default=None, help='e.g. 2,3,4: systematic sizes instead of random')
     ap.add_argument('--variants', type=int, default=1, help='different layouts per box (sweep mode)')
+    ap.add_argument('--closed', action='store_true', help='no splitter facing a non-port edge')
     ap.add_argument('--only-quasi', action='store_true')
     ap.add_argument('--sym-only', action='store_true', help='symmetric jobs only, heights up to N+9')
     ap.add_argument('--part', default='0/1', help='k/m: this process takes every m-th job from k')
@@ -111,7 +113,7 @@ def main():
         jobs = jobs[k::mm]
         print(len(jobs), 'jobs', flush=True)
         for job in jobs:
-            for rec in run_job(job, os.path.expanduser(a.engine), a.timeout, a.variants):
+            for rec in run_job(job, os.path.expanduser(a.engine), a.timeout, a.variants, a.closed):
                 with open(os.path.expanduser(a.out), 'a') as fh:
                     fh.write(json.dumps(rec) + '\n')
                 print(job, rec['variant'], rec['status'], rec['time'], rec.get('ok', ''), flush=True)
