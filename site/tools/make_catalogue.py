@@ -140,6 +140,12 @@ def symmetry(d):
     return 'asym'
 
 
+def contiguous(ports):
+    """The ports (all on one side) sit next to each other with no tile between them."""
+    ys = sorted(p[1] for p, d in ports)
+    return ys == list(range(ys[0], ys[0] + len(ys))) if ys else True
+
+
 def main(paths):
     seen = {}
     for path in paths:
@@ -159,6 +165,11 @@ def main(paths):
                 del r.tiles[p]
             lay = Layout(r, ins, outs, mix=rep['mixed']).normalized()      # ports move with the trimmed layout
             r = lay.design
+            gap = [side for side, ps in (('inputs', lay.inputs), ('outputs', lay.outputs)) if not contiguous(ps)]
+            if gap:
+                # players put balancers on a bus: the ports must sit side by side, so the box shows the real space
+                print('ports not together (%s):' % ' and '.join(gap), e.get('name'), file=sys.stderr)
+                continue
             n, m = len(ins), len(outs)
             W, H = r.size
             kind = 'split' if n == 1 else 'merge' if m == 1 else 'balance'
