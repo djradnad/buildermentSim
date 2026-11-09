@@ -105,6 +105,35 @@ def build(win, arity):
             else:
                 m.Add(mem[t][i] == 0)
 
+    if win.symmetry == 'y':
+        # mirrored links carry mirrored labels: lane i <-> lane N-1-i (lanes run top to bottom). Quasi: links that
+        # touch the middle row(s) are left free (a turned tile there changes who feeds whom)
+        mid = {(win.H - 1) // 2, win.H // 2} if win.quasi else set()
+        fr = win.sym_free | {win.mirror(p) for p in win.sym_free}
+        touches = lambda p, q: any(r is not None and (r[1] in mid or r in fr) for r in (p, q))
+        assert not win.port_options, 'symmetric staged search needs fixed ports (--at)'
+        idx = {(p, q, kind): i for i, (p, q, l, kind) in enumerate(mod.links)}
+        pidx = {(p, kind): j for j, (p, kind, l) in enumerate(terms)}
+        pairs = []
+        for i, (p, q, l, kind) in enumerate(mod.links):
+            mp = win.mirror(p) if p is not None else None
+            mq = win.mirror(q) if q is not None else None
+            j = idx.get((mp, mq, kind))
+            if j is not None and j >= i and not touches(p, q):
+                pairs.append((('L', i), ('L', j)))
+        for j, (p, kind, l) in enumerate(terms):
+            k = pidx.get((win.mirror(p), kind))
+            if k is not None and k >= j and not touches(p, None):
+                pairs.append((('P', j), ('P', k)))
+        for t, u in pairs:
+            for x in range(NL):
+                m.Add(lev[t][x] == lev[u][x])
+            for i in range(N):
+                m.Add(mem[t][i] == mem[u][N - 1 - i])
+            for jj in cnt[t]:
+                for k in cnt[t][jj]:
+                    m.Add(cnt[t][jj][k] == cnt[u][jj][k])
+
     nact = lambda ts: sum(1 if act[t] is True else act[t] for t in ts)
     neg = lambda a: [] if a is True else [a.Not()]
     mod.lev, mod.mem, mod.act = lev, mem, act
@@ -216,6 +245,10 @@ def main(argv=None):
     ap.add_argument('--arity', default=None, help='e.g. 3,3 (default: every factorisation into 2s and 3s)')
     ap.add_argument('--engine', default='cadical195')
     ap.add_argument('--timeout', type=float, default=None)
+    ap.add_argument('--at', default=None, help='fixed first lane offsets "in,out" (default: free)')
+    ap.add_argument('--sym', action='store_true', help='top/bottom mirror symmetric (needs --at)')
+    ap.add_argument('--free-cols', type=int, default=0, help='with --sym: the first k columns (output end) may differ')
+    ap.add_argument('--quasi', type=int, default=0, help='with --sym: tiles in the middle row(s) allowed to turn')
     ap.add_argument('--out', default=None, help='write found layouts here (one file per size)')
     a = ap.parse_args(argv)
     ars = [tuple(int(x) for x in a.arity.split(','))] if a.arity else factorisations(a.n)
@@ -223,7 +256,12 @@ def main(argv=None):
     for size in a.size.split(','):
         W, H = map(int, size.split('x'))
         for ar in ars:
-            win = S.balancer(a.n).window(W, H)
+            if a.at:
+                ia, oa = map(int, a.at.split(','))
+                win = S.Spec([S.Group('E', a.n, at=ia)], [S.Group('W', a.n, at=oa)]).window(W, H, symmetry='y' if a.sym else None, quasi=a.quasi)
+                win.sym_free = {(x, y) for x in range(a.free_cols) for y in range(H)}
+            else:
+                win = S.balancer(a.n).window(W, H)
             r = solve(win, ar, eng, a.timeout)
             ok = ''
             if 'grid' in r:

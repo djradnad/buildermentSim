@@ -44,6 +44,7 @@ class Window:
         self.hint = {}              # tile -> code, a starting point for the search
         self.tun_in, self.tun_out, self.no_ug = {}, {}, set()
         self.symmetry = None        # None, 'y' (top/bottom mirror) or 'x' (left/right mirror)
+        self.sym_free = set()       # with symmetry: tiles left out of it (e.g. an output corner that may differ)
         self.quasi = 0              # with symmetry: up to this many tiles in the middle row(s) may face another
                                     # way than their mirror image (1 = one turned splitter, the usual quasi)
         self.closed_edges = False   # splitters may not face a window edge that has no port
@@ -395,7 +396,7 @@ class Model:
             turned = []                         # quasi: mirror pairs in the middle allowed to differ in direction
             for p in cells:
                 q = win.mirror(p)
-                if q < p:
+                if q < p or p in win.sym_free or q in win.sym_free:
                     continue
                 if q not in cellset:
                     m.Add(X[p, 'E'] == 1)
@@ -418,6 +419,8 @@ class Model:
             for (p, d), a in self.port_active.items():     # ports are used in mirror pairs
                 if (p[1] if ax == 'y' else p[0]) in middle and d in ((1, 3) if ax == 'y' else (0, 2)):
                     continue                                # quasi: a port on the middle row may be alone
+                if p in win.sym_free or win.mirror(p) in win.sym_free:
+                    continue
                 b = self.port_active.get(win.mirror(p, d))
                 if a is True and b is True:
                     continue
