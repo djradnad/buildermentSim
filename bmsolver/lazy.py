@@ -16,6 +16,7 @@ UNSAT -> a proof for that window.
     python -m bmsolver.lazy --case bal3_8x5 --timeout 600
 """
 import argparse
+import os
 import threading
 import time
 
@@ -400,6 +401,91 @@ def solve(win, timeout=600, log=print, minimize_core=0, lemmas=True, reach=True,
     return res
 
 
+FLOWPROP = os.path.expanduser(os.environ.get('BM_FLOWPROP', '~/solvers/flowprop'))
+
+
+def solve_native(win, timeout=600, log=print, lemmas=True, reach=False, prop=True):
+    """Lazy flows with the native solver (tools/flowprop: CaDiCaL + a C++ max-flow propagator on partial layouts).
+    Exact flows are still checked here by CP-SAT on each finished layout; cores go back over the pipe."""
+    import subprocess
+    import tempfile
+    t0 = time.time()
+    mod = model.Model(win)
+    if lemmas:
+        add_flow_lemmas(mod, win)
+    if reach:
+        add_reach_lemmas(mod, win)
+    sk = Skeleton(mod.m)
+    th = Theory(mod, sk.shared, sk.theory)
+    cut = CutCheck(mod, win, sk)
+    prop = prop and cut.ok
+    d = tempfile.mkdtemp()
+    cnf.write_dimacs(sk.f, os.path.join(d, 'sk.cnf'))
+    nc = win.ncom
+    need = [0] * nc
+    for (t, dd), spec in win.ports.items():
+        if isinstance(spec, tuple) and spec[0] == 'out':
+            need = [a + b for a, b in zip(need, spec[1])]
+    for group in win.port_options:
+        for key, (kind, vec) in group[0].items():
+            if kind == 'out':
+                need = [a + b for a, b in zip(need, vec)]
+    with open(os.path.join(d, 'g.txt'), 'w') as fh:
+        fh.write('D %d %d %d\n' % (win.D, nc, len(mod.cells)))
+        fh.write('N %s\n' % ' '.join(map(str, need)))
+        for u, v, l in cut.links:
+            fh.write('L %d %d %d\n' % (u, v, l))
+        for cell, kind, vec in cut.fixed:
+            fh.write('F %d %d %s\n' % (cell, 0 if kind == 'in' else 1, ' '.join(map(str, vec))))
+        for l, cell, kind, vec in cut.opt:
+            fh.write('O %d %d %d %s\n' % (l, cell, 0 if kind == 'in' else 1, ' '.join(map(str, vec))))
+    tb = time.time() - t0
+    args = [FLOWPROP, os.path.join(d, 'sk.cnf'), os.path.join(d, 'g.txt')] + ([] if prop else ['--noprop'])
+    p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    import threading
+    timer = threading.Timer(timeout, p.kill)
+    timer.start()
+    res = dict(status='UNKNOWN')
+    it = 0
+    try:
+        while True:
+            line = p.stdout.readline()
+            if not line:
+                break
+            if line.startswith('c'):
+                continue
+            if line.startswith('UNSAT'):
+                res = dict(status='UNSAT')
+                break
+            if not line.startswith('SAT'):
+                res['line'] = line.strip()
+                break
+            pos = set(int(x) for x in line.split()[1:-1])
+            values = {i: sk.bool[i] in pos for i in sk.shared}
+            core, cps = th.check(values)
+            it += 1
+            if core is None:
+                vals = _Mixed(sk, pos, cps)
+                res = dict(status='SAT', grid=mod.grid(vals), options=mod.chosen_options(vals))
+                p.stdin.write('OK\n')
+                p.stdin.flush()
+                break
+            p.stdin.write('C %s 0\n' % ' '.join(str(-sk.bool[i] if v else sk.bool[i]) for i, v in core))
+            p.stdin.flush()
+    finally:
+        timer.cancel()
+        try:
+            p.stdin.close()
+        except Exception:
+            pass
+        err = p.stderr.read()
+        p.wait()
+    res['dir'] = d
+    res.update(time=time.time() - t0 - tb, build=tb, iters=it, theory_time=th.time, prop=prop,
+               stats=err.strip().splitlines()[-1] if err.strip() else '')
+    return res
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--case', required=True)
@@ -407,12 +493,20 @@ def main(argv=None):
     ap.add_argument('--nolemmas', action='store_true')
     ap.add_argument('--noreach', action='store_true')
     ap.add_argument('--nocuts', action='store_true')
+    ap.add_argument('--native', action='store_true', help='tools/flowprop (CaDiCaL + C++ flow propagator)')
+    ap.add_argument('--noprop', action='store_true', help='with --native: no propagator (pure lazy loop)')
     ap.add_argument('--min', type=int, default=0, help='core minimization budget (solver calls per core)')
     a = ap.parse_args(argv)
     cases = {c[0]: c for c in bench.CASES}
     for name in a.case.split(','):
         _, mk, W, H, exp, tier = cases[name]
         win = mk().window(W, H)
+        if a.native:
+            r = solve_native(win, a.timeout, lemmas=not a.nolemmas, reach=not a.noreach, prop=not a.noprop)
+            ok = bench.verify(r['grid'], win, r.get('options')) if r['status'] == 'SAT' else ''
+            print('%-14s native %-8s (expect %s) %8.2fs iters=%d theory=%.1fs verified=%s %s' % (
+                name, r['status'], exp, r['time'], r['iters'], r['theory_time'], ok, r['stats']), flush=True)
+            continue
         r = solve(win, a.timeout, minimize_core=a.min, lemmas=not a.nolemmas, reach=not a.noreach, cuts=not a.nocuts)
         ok = ''
         if r['status'] == 'SAT':

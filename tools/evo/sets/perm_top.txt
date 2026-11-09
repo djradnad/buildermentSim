@@ -1,0 +1,10 @@
+~/cnfs/perm/bal3_7x5_c0_top.cnf UNSAT
+~/cnfs/perm/bal3_7x5_c1_top.cnf UNSAT
+~/cnfs/perm/bal3_7x5_c2_top.cnf UNSAT
+~/cnfs/perm/bal3_7x5_c3_top.cnf UNSAT
+~/cnfs/perm/bal3_7x5_c4_top.cnf UNSAT
+~/cnfs/perm/bal3_8x5_c0_top.cnf UNSAT
+~/cnfs/perm/bal3_8x5_c1_top.cnf SAT
+~/cnfs/perm/bal3_8x5_c2_top.cnf SAT
+~/cnfs/perm/bal3_8x5_c3_top.cnf SAT
+~/cnfs/perm/bal3_8x5_c4_top.cnf SAT

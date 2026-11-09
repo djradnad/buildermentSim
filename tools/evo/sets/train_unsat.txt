@@ -1,0 +1,15 @@
+~/cnfs/pool/bal3_6x5_c1.cnf UNSAT
+~/cnfs/pool/bal3_6x5_c2.cnf UNSAT
+~/cnfs/pool/bal3_6x5_c3.cnf UNSAT
+~/cnfs/pool/bal3_6x5_c4.cnf UNSAT
+~/cnfs/pool/bal3_6x6_c2.cnf UNSAT
+~/cnfs/pool/bal3_6x6_c4.cnf UNSAT
+~/cnfs/pool/bal3_6x6_c5.cnf UNSAT
+~/cnfs/pool/bal3_6x6_c6.cnf UNSAT
+~/cnfs/pool/bal3_6x6_c7.cnf UNSAT
+~/cnfs/pool/bal3_7x6_c0.cnf UNSAT
+~/cnfs/pool/bal3_9x4_c0.cnf UNSAT
+~/cnfs/pool/bal4_7x7_c0.cnf UNSAT
+~/cnfs/pool/bal4_7x7_c1.cnf UNSAT
+~/cnfs/pool/bal4_7x7_c4.cnf UNSAT
+~/cnfs/pool/bal4_8x6_c0.cnf UNSAT

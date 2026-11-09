@@ -1,0 +1,10 @@
+~/cnfs/bal3_7x5_c0_L.cnf UNSAT
+~/cnfs/bal3_7x5_c1_L.cnf UNSAT
+~/cnfs/bal3_7x5_c2_L.cnf UNSAT
+~/cnfs/bal3_7x5_c3_L.cnf UNSAT
+~/cnfs/bal3_7x5_c4_L.cnf UNSAT
+~/cnfs/bal3_8x5_c0_L.cnf UNSAT
+~/cnfs/bal3_8x5_c1_L.cnf SAT
+~/cnfs/bal3_8x5_c2_L.cnf SAT
+~/cnfs/bal3_8x5_c3_L.cnf SAT
+~/cnfs/bal3_8x5_c4_L.cnf SAT
