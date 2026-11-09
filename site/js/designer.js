@@ -1,4 +1,4 @@
-// Designer tab: pick a splitter, merger or balancer and a symmetry rule, and see the best known layout for it
+// Designer tab: pick a splitter or balancer and a symmetry rule, and see the best known layout for it
 // (from catalogue.json: community wiki designs and our solver results, all checked with exact flows), or watch a
 // running solver (python -m bmsolver ... --live).
 
@@ -58,14 +58,13 @@ export function initDesigner({ openInSim }) {
   }
   seg('dKind', 'kind', () => {
     if (st.kind === 'split') { $('dN').value = 1; if (+$('dM').value < 2) $('dM').value = 8; }
-    if (st.kind === 'merge') { $('dM').value = 1; if (+$('dN').value < 2) $('dN').value = 4; }
     if (st.kind === 'balance') { if (+$('dN').value < 2) $('dN').value = 4; if (+$('dM').value < 2) $('dM').value = 4; }
   });
   seg('dMode', 'mode');
   seg('dGoal', 'goal');
   for (const id of ['dN', 'dM']) $(id).addEventListener('input', () => {
     const n = +$('dN').value, m = +$('dM').value;
-    const kind = n === 1 ? 'split' : m === 1 ? 'merge' : 'balance';
+    const kind = n === 1 ? 'split' : 'balance';
     if (kind !== st.kind) {
       st.kind = kind;
       $('dKind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === kind));
@@ -151,6 +150,7 @@ export function initDesigner({ openInSim }) {
         ? `A mirror-symmetric ${n}:${m} can't exist with the inputs side by side and the outputs side by side: ${n} lanes and ${m} lanes can't both be centred on the same middle line.${single ? ' Quasi is the closest form.' : ''}`
         : st.mode === 'quasi' && (n - m) % 2 && !single
         ? `A quasi-symmetric ${n}:${m} can't exist with the ports side by side (${n} and ${m} lanes can't both be centred). The asymmetric layouts are listed below.`
+        : m === 1 && n > 1 ? `The catalogue has no ${n}:1 mergers: belts that are known not to go over a full belt together can simply be joined.`
         : `No ${MODE_NAME[st.mode]} ${n}:${m} layout known yet${all.length ? ' (other rules have some, listed below)' : ''}. Run the command below to search for one.`;
       $('dBest').innerHTML = `<div class="muted small">${why}</div>`;
       st.current = null;
@@ -161,6 +161,17 @@ export function initDesigner({ openInSim }) {
     }
   }
 
+  // submissions: a GitHub issue the submit workflow checks (exact flows, scores) and commits when it is a new best
+  $('dSubmit').addEventListener('click', () => {
+    const raw = $('dSubmitCode').value.trim();
+    const code = (raw.match(/[?&]id=([0-9A-Za-z]+)/) || raw.match(/^([0-9A-Za-z]{4,12})$/) || [])[1];
+    if (!code) { $('dSubmitCode').focus(); return; }
+    const title = 'Layout submission: ' + code.toLowerCase();
+    const body = 'Blueprint: https://builderment.com/blueprints?id=' + code.toLowerCase() +
+      '\n\nKeep the title as it is: a check runs on it and answers here.';
+    window.open('https://github.com/djradnad/buildermentSim/issues/new?title=' + encodeURIComponent(title) +
+      '&body=' + encodeURIComponent(body), '_blank', 'noopener');
+  });
   $('dSim').addEventListener('click', () => st.current && openInSim(st.current.rows, st.current.meta, st.bpId));
   $('dCopy').addEventListener('click', async () => {
     if (!st.current) return;

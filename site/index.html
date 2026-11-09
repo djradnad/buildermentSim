@@ -134,7 +134,7 @@
     <button class="sheet-handle" id="dsheetHandle" aria-label="show or hide the panel"></button>
     <div class="card">
       <h2>Find a layout</h2>
-      <div class="seg" id="dKind"><button data-v="split" class="on">Splitter</button><button data-v="merge">Merger</button><button data-v="balance">Balancer</button></div>
+      <div class="seg" id="dKind"><button data-v="split" class="on">Splitter</button><button data-v="balance">Balancer</button></div>
       <div class="row ratio">
         <label>In <input id="dN" type="number" min="1" max="64" value="1" inputmode="numeric"></label>
         <span class="muted">:</span>
@@ -155,6 +155,9 @@
       <code class="cmd" id="dCmd"></code>
       <h3>All known layouts for this ratio</h3>
       <div id="dAll" class="list"></div>
+      <h3>Submit a layout</h3>
+      <p class="muted small">Found a better one? Paste its game blueprint code. It is checked automatically (exact flows, inputs and outputs side by side, the scores above) and added with your name if it is new and beats every listed layout on at least one score. Opens a GitHub issue, so it needs a GitHub account.</p>
+      <div class="row"><input id="dSubmitCode" placeholder="blueprint code, e.g. t6t6fg" autocomplete="off" spellcheck="false"><button id="dSubmit">Submit</button></div>
     </div>
     <div class="card">
       <h2>Live solver</h2>
