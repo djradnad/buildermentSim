@@ -11,7 +11,7 @@ const CODE_ID = { B: 3000, S: 3001, I: 3002, O: 3003 };
 const MODE_NAME = { sym: 'symmetric', quasi: 'quasi-symmetric', asym: 'asymmetric' };
 const MODE_HELP = {
   sym: 'Mirror symmetric top to bottom.',
-  quasi: 'Mirror symmetric except one tile pair in the middle that faces another way, like the wiki splitters with one turned splitter in the centre. Symmetric layouts count too.',
+  quasi: 'Mirror symmetric except one tile pair in the middle: turned another way, or a splitter whose mirror tile is a plain belt (like the wiki splitters, where the input splitter in the centre has a belt opposite it). Symmetric layouts count too.',
   asym: 'Any layout.',
 };
 // which layouts each rule accepts
@@ -105,7 +105,7 @@ export function initDesigner({ openInSim }) {
   }
 
   function pick(d) {
-    show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}`, outputs: d.outs });
+    show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}`, outputs: d.outs, inputs: d.ins });
     $('dinfo').textContent = (d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '') +
       (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
     $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}`;
@@ -141,8 +141,13 @@ export function initDesigner({ openInSim }) {
       $('dBest').innerHTML = `<div class="best"><b>${n}:${m}</b> ${label(best, all)}</div>`;
       pick(best);
     } else {
-      const why = st.mode === 'sym' && ((n === 1 && m % 2 === 0) || (m === 1 && n % 2 === 0))
-        ? `A mirror-symmetric ${n}:${m} can't exist with the ${n === 1 ? 'outputs' : 'inputs'} side by side: an even number of lanes has no middle lane for the single ${n === 1 ? 'input' : 'output'}. Quasi is the closest form.`
+      // mirror image of side-by-side ports: n inputs and m outputs both centred on the axis, so n and m need the
+      // same parity (quasi only lets a single port sit on one of the two middle rows)
+      const single = n === 1 || m === 1;
+      const why = st.mode === 'sym' && (n - m) % 2
+        ? `A mirror-symmetric ${n}:${m} can't exist with the inputs side by side and the outputs side by side: ${n} lanes and ${m} lanes can't both be centred on the same middle line.${single ? ' Quasi is the closest form.' : ''}`
+        : st.mode === 'quasi' && (n - m) % 2 && !single
+        ? `A quasi-symmetric ${n}:${m} can't exist with the ports side by side (${n} and ${m} lanes can't both be centred). The asymmetric layouts are listed below.`
         : `No ${MODE_NAME[st.mode]} ${n}:${m} layout known yet${all.length ? ' (other rules have some, listed below)' : ''}. Run the command below to search for one.`;
       $('dBest').innerHTML = `<div class="muted small">${why}</div>`;
       st.current = null;

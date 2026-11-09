@@ -62,7 +62,19 @@ function loadBlueprint(rows, meta = {}, id = null, { hash = true } = {}) {
     code => history.replaceState(null, '', '#bp=' + code)));
   // inputs: open belt starts; their item guessed from the machines downstream
   const bs = rowsToBuildings(rows);
-  const added = addFeeders(bs);
+  let added;
+  if (meta.inputs) {
+    // layouts that know their real inputs (designer catalogue): one feeder tile behind each, pointing in, also
+    // where the lane joins a belt from the side
+    const taken = new Set(bs.map(b => b.x + ',' + b.y));
+    added = [];
+    for (const [x, y, d] of meta.inputs) {
+      const q = [x - [0, -1, 0, 1][d], y - [-1, 0, 1, 0][d]];
+      if (taken.has(q[0] + ',' + q[1])) continue;
+      bs.push({ id: 3000, x: q[0], y: q[1], o: d, tier: 1, recipe: 0, filter: 0, added: 'in' });
+      added.push({ at: q, into: [x, y] });
+    }
+  } else added = addFeeders(bs);
   // layouts that know their real outputs (designer catalogue) get drains there only, not on every splitter
   // face that happens to point out of the edge; others: open ends facing out of the build
   if (meta.outputs) {
