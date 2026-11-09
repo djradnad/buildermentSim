@@ -170,13 +170,24 @@ def contiguous(ports):
 LOOSE = {'sym': 0, 'quasi': 1, 'asym': 2}
 
 
+class Tail(tuple):
+    """The clean-up scores of one box: footprint, then pieces; then splitter faces out of the edge and gold, where a
+    layout must be at least as good on BOTH to beat another (john 2026-11-09: edge splitters matter more to him, but
+    when the two trade off, keep both); then a clean edge."""
+    def __le__(self, o):
+        if self[:2] != o[:2]:
+            return self[:2] < o[:2]
+        if self[2:4] != o[2:4]:
+            return self[2] <= o[2] and self[3] <= o[3]
+        return self[4:] <= o[4:]
+
+
 def scores(e):
     """The independent ways one layout can beat another of the same ratio (smaller is better): width, height (so the
     best layout of every width and every height smaller than the most square one stays), the symmetry rule it meets,
-    full mixing, and the clean-up scores taken in john's order (footprint, pieces, splitter faces out of the edge,
-    gold, clean edge)."""
+    full mixing, and the clean-up scores in john's order (see Tail)."""
     return (e['W'], e['H'], LOOSE[e['mode']], 0 if e['mixed'] else 1,
-            (e['footprint'], e['pieces'], e['edge_splitters'], e['gold'], 1 if e['stray_out'] else 0))
+            Tail((e['footprint'], e['pieces'], e['edge_splitters'], e['gold'], 1 if e['stray_out'] else 0)))
 
 
 def mirror_grid(grid):
