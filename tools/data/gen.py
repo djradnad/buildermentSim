@@ -47,18 +47,19 @@ def one(rng, engine, timeout):
 BOUNDS = {2: [(3, 3), (2, 4)], 3: [(8, 5), (5, 9)], 4: [(7, 7), (9, 6), (6, 9), (11, 5)]}
 
 
-def sweep_jobs(ns):
+def sweep_jobs(ns, sym_only=False):
     jobs = []
     for n in ns:
-        for H in range(max(n, 3), max(n, 3) + 6):
+        for H in range(max(n, 3), max(n, 3) + 6 + (4 if sym_only else 0)):
             wmin = min([w for w, h in BOUNDS[n] if h <= H] or [12])
-            for W in range(max(2, wmin - 1), wmin + 3):
+            for W in range(max(2, wmin - 1), wmin + (5 if sym_only else 3)):
                 for ia in range(H - n + 1):
                     for oa in range(H - n + 1):
-                        jobs.append((n, W, H, ia, oa, False))
+                        if not sym_only:
+                            jobs.append((n, W, H, ia, oa, False))
                 if (H - n) % 2 == 0:
                     jobs.append((n, W, H, (H - n) // 2, (H - n) // 2, True))
-                    if n % 2:
+                    if n % 2 and not sym_only:
                         jobs.append((n, W, H, (H - n) // 2, (H - n) // 2, 'quasi'))
     return jobs
 
@@ -99,11 +100,12 @@ def main():
     ap.add_argument('--sweep', default=None, help='e.g. 2,3,4: systematic sizes instead of random')
     ap.add_argument('--variants', type=int, default=1, help='different layouts per box (sweep mode)')
     ap.add_argument('--only-quasi', action='store_true')
+    ap.add_argument('--sym-only', action='store_true', help='symmetric jobs only, heights up to N+9')
     ap.add_argument('--part', default='0/1', help='k/m: this process takes every m-th job from k')
     a = ap.parse_args()
     if a.sweep:
         k, mm = map(int, a.part.split('/'))
-        jobs = sweep_jobs([int(x) for x in a.sweep.split(',')])
+        jobs = sweep_jobs([int(x) for x in a.sweep.split(',')], a.sym_only)
         if a.only_quasi:
             jobs = [j for j in jobs if j[5] == 'quasi']
         jobs = jobs[k::mm]
