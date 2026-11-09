@@ -41,6 +41,41 @@ def one(rng, engine, timeout):
     return rec
 
 
+# smallest known asym boxes (W, H) per N: a sweep solves every height in range at widths from just below the
+# boundary to a little above it, every port placement (sym too when it fits), which gives both found and
+# ruled-out examples right at the edge of what fits
+BOUNDS = {2: [(3, 3), (2, 4)], 3: [(8, 5), (5, 9)], 4: [(7, 7), (9, 6), (6, 9), (11, 5)]}
+
+
+def sweep_jobs(ns):
+    jobs = []
+    for n in ns:
+        for H in range(max(n, 3), max(n, 3) + 6):
+            wmin = min([w for w, h in BOUNDS[n] if h <= H] or [12])
+            for W in range(max(2, wmin - 1), wmin + 3):
+                for ia in range(H - n + 1):
+                    for oa in range(H - n + 1):
+                        jobs.append((n, W, H, ia, oa, False))
+                if (H - n) % 2 == 0:
+                    jobs.append((n, W, H, (H - n) // 2, (H - n) // 2, True))
+    return jobs
+
+
+def run_job(job, engine, timeout):
+    n, W, H, ia, oa, sym = job
+    win = S.Spec([S.Group('E', n, at=ia)], [S.Group('W', n, at=oa)]).window(W, H, symmetry='y' if sym else None)
+    if win is None:
+        return None
+    ar = radix.factorisations(n)[0]
+    r = radix.solve(win, ar, engine, timeout)
+    rec = dict(n=n, W=W, H=H, at=[ia, oa], sym=sym, blocked=[], arity=ar, status=r['status'], time=round(r['time'], 2))
+    if 'grid' in r:
+        g = r['grid']
+        rec['ok'] = bool(bench.verify(g, win, r.get('options')))
+        rec['grid'] = [''.join((g.get((x, y)) or '..') for x in range(W)) for y in range(H)]
+    return rec
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--out', required=True)
@@ -48,7 +83,21 @@ def main():
     ap.add_argument('--timeout', type=float, default=120)
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--engine', default='~/solvers/cadical')
+    ap.add_argument('--sweep', default=None, help='e.g. 2,3,4: systematic sizes instead of random')
+    ap.add_argument('--part', default='0/1', help='k/m: this process takes every m-th job from k')
     a = ap.parse_args()
+    if a.sweep:
+        k, mm = map(int, a.part.split('/'))
+        jobs = sweep_jobs([int(x) for x in a.sweep.split(',')])[k::mm]
+        print(len(jobs), 'jobs', flush=True)
+        for job in jobs:
+            rec = run_job(job, os.path.expanduser(a.engine), a.timeout)
+            if rec is None:
+                continue
+            with open(os.path.expanduser(a.out), 'a') as fh:
+                fh.write(json.dumps(rec) + '\n')
+            print(job, rec['status'], rec['time'], rec.get('ok', ''), flush=True)
+        return
     rng = random.Random(a.seed)
     for _ in range(a.count):
         rec = one(rng, os.path.expanduser(a.engine), a.timeout)
