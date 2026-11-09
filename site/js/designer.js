@@ -73,8 +73,10 @@ export function initDesigner({ openInSim }) {
     update();
   });
 
-  // ties: fewer pieces, stricter rule, no splitter facing out of a non-output edge, a ready blueprint, wiki first
-  const tail = d => [d.pieces, LOOSE[d.mode], d.stray_out ? 1 : 0, d.id ? 0 : 1, d.source === 'wiki' ? 0 : 1];
+  // same box: smaller footprint (tiles inside the outline), fewer pieces, fewer splitters facing out of the edge,
+  // less gold to build; then the stricter rule and community designs first
+  const tail = d => [d.footprint ?? d.W * d.H, d.pieces, d.edge_splitters ?? 0, d.gold ?? 0, LOOSE[d.mode],
+    d.source === 'ours' ? 1 : 0];
   const score = d => st.goal === 'area'
     ? [d.W * d.H, Math.max(d.W, d.H), ...tail(d)]
     : [Math.max(d.W, d.H), d.W * d.H, ...tail(d)];
@@ -94,9 +96,12 @@ export function initDesigner({ openInSim }) {
   }
 
   function label(d, all) {
-    const src = d.source === 'wiki' ? `community design from the wiki${d.id ? ' (blueprint ' + d.id + ')' : ''}` : 'found by our solver';
+    const src = d.source === 'wiki' ? 'community design from the wiki' : d.source === 'ours' ? 'found by our solver' : 'by ' + d.source;
     const pr = st.goal === 'area' && proven(d, all) ? ' · <span class="good">smallest possible area (proven)</span>' : '';
-    return `${d.W}×${d.H} · ${d.pieces} pieces · ${d.splitters} splitters${d.ug ? ' · ' + d.ug + ' underground' : ''} · ${MODE_NAME[d.mode]} · ${src}${pr}`;
+    const fp = d.footprint != null && d.footprint < d.W * d.H ? ` (footprint ${d.footprint})` : '';
+    const edge = d.edge_splitters ? ` · ${d.edge_splitters} splitter face${d.edge_splitters > 1 ? 's' : ''} out of the edge` : '';
+    return `${d.W}×${d.H}${fp} · ${d.pieces} pieces · ${d.splitters} splitters${d.ug ? ' · ' + d.ug + ' underground' : ''}${edge}` +
+      `${d.gold ? ' · ' + d.gold + ' gold' : ''} · ${MODE_NAME[d.mode]} · ${src}${pr}`;
   }
 
   function pick(d) {
@@ -125,8 +130,9 @@ export function initDesigner({ openInSim }) {
       const el = document.createElement('div');
       el.className = 'gal' + (ALLOWED[st.mode].includes(d.mode) ? '' : ' off');
       el.dataset.k = d._k;
-      el.innerHTML = `<span>${d.W}×${d.H} <span class="muted">· ${d.pieces} pcs</span></span>` +
-        `<span class="badge ${d.mode}">${d.mode}</span><span class="muted small">${d.source === 'wiki' ? 'wiki' : 'ours'}${d.id ? ' · ' + d.id : ''}</span>`;
+      const fp = d.footprint != null && d.footprint < d.W * d.H ? ' (' + d.footprint + ')' : '';
+      el.innerHTML = `<span>${d.W}×${d.H}${fp} <span class="muted">· ${d.pieces} pcs${d.gold ? ' · ' + d.gold + 'g' : ''}</span></span>` +
+        `<span class="badge ${d.mode}">${d.mode}</span><span class="muted small">${d.source}${d.id ? ' · ' + d.id : ''}</span>`;
       el.addEventListener('click', () => pick(d));
       $('dAll').appendChild(el);
     }
