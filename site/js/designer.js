@@ -35,7 +35,7 @@ export function initDesigner({ openInSim }) {
     return getComputedStyle(p).position === 'absolute' ? p.getBoundingClientRect().height : 0;
   };
   const view = new View($('dview'), { insetBottom: sheet });
-  const st = { kind: 'split', mode: 'quasi', goal: 'square', cat: [], current: null };
+  const st = { kind: 'split', mode: 'quasi', goal: 'area', cat: [], current: null };
   let timer = null, lastVersion = -1;
 
   $('dsheetHandle').addEventListener('click', () => $('dpanel').classList.toggle('collapsed'));
@@ -56,7 +56,13 @@ export function initDesigner({ openInSim }) {
       update();
     }));
   }
+  // splitters rank by smallest area, balancers by most square (the other goal stays one tap away)
+  function setGoal() {
+    st.goal = st.kind === 'split' ? 'area' : 'square';
+    $('dGoal').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === st.goal));
+  }
   seg('dKind', 'kind', () => {
+    setGoal();
     if (st.kind === 'split') { $('dN').value = 1; if (+$('dM').value < 2) $('dM').value = 8; }
     if (st.kind === 'balance') { if (+$('dN').value < 2) $('dN').value = 4; if (+$('dM').value < 2) $('dM').value = 4; }
   });
@@ -68,6 +74,7 @@ export function initDesigner({ openInSim }) {
     if (kind !== st.kind) {
       st.kind = kind;
       $('dKind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === kind));
+      setGoal();
     }
     update();
   });
