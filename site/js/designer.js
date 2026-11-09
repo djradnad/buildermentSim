@@ -45,7 +45,7 @@ export function initDesigner({ openInSim }) {
     view.setWorld(new World(rowsToBuildings(rows)));
     st.bpId = null;                                // set again by pick() for catalogue designs that have one
     st.bpName = meta.name || 'layout';
-    $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = false;
+    $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = $('dMirror').disabled = false;
   }
 
   function seg(id, key, after) {
@@ -103,16 +103,25 @@ export function initDesigner({ openInSim }) {
       `${d.gold ? ' · ' + d.gold + ' gold' : ''} · ${MODE_NAME[d.mode]} · ${src}${pr}`;
   }
 
-  function pick(d) {
-    show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}`, outputs: d.outs, inputs: d.ins,
+  // top <-> bottom mirror image of a catalogue layout (north and south swap; east and west stay)
+  const FLIP = { 0: 2, 2: 0 };
+  const mirrorGrid = g => [...g].reverse().map(r => r.replace(/([A-Z])([0-3])/g, (_, k, o) => k + (FLIP[o] ?? o)));
+  const mirrorPorts = (ps, H) => ps && ps.map(([x, y, o]) => [x, H - 1 - y, FLIP[o] ?? o]);
+
+  function pick(d, mirrored = false) {
+    st.picked = d; st.mirrored = mirrored;
+    $('dMirror').classList.toggle('on', mirrored);
+    const grid = mirrored ? mirrorGrid(d.grid) : d.grid;
+    show(gridRows(grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}${mirrored ? ' mirrored' : ''}`,
+      outputs: mirrored ? mirrorPorts(d.outs, d.H) : d.outs, inputs: mirrored ? mirrorPorts(d.ins, d.H) : d.ins,
       // different amounts on every input, all below the belts' limit: a working balancer shows the same total on
       // every output (equal steady inputs can stay in step through the splitters and look unmixed)
       feedRates: d.ins && d.ins.map((_, i) => Math.round(480 * Math.min(1, d.m / d.n) * (i + 1) / d.n)) });
     $('dinfo').textContent = (d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '') +
       (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
-    $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}`;
-    st.bpId = d.id || null;
-    st.bpName = `${d.n}:${d.m} ${d.kind === 'split' ? 'splitter' : d.kind === 'merge' ? 'merger' : 'balancer'} ${d.W}x${d.H}`;
+    $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}${mirrored ? ', mirrored' : ''}`;
+    st.bpId = mirrored ? null : d.id || null;     // a mirror image gets its own blueprint, made when copied
+    st.bpName = `${d.n}:${d.m} ${d.kind === 'split' ? 'splitter' : 'balancer'} ${d.W}x${d.H}${mirrored ? ' mirrored' : ''}`;
     $('dLink').disabled = false;
     $('dLink').title = st.bpId ? 'Copies ' + bpLink(st.bpId) + ' (paste it into the game\'s Import New Blueprint box)'
       : 'Makes a game blueprint of this layout, then copies its link';
@@ -133,7 +142,8 @@ export function initDesigner({ openInSim }) {
       el.className = 'gal' + (ALLOWED[st.mode].includes(d.mode) ? '' : ' off');
       el.dataset.k = d._k;
       const fp = d.footprint != null && d.footprint < d.W * d.H ? ' (' + d.footprint + ')' : '';
-      el.innerHTML = `<span>${d.W}×${d.H}${fp} <span class="muted">· ${d.pieces} pcs${d.gold ? ' · ' + d.gold + 'g' : ''}</span></span>` +
+      const edge = d.edge_splitters ? ` · ${d.edge_splitters} edge` : '';
+      el.innerHTML = `<span>${d.W}×${d.H}${fp} <span class="muted">· ${d.pieces} pcs${d.gold ? ' · ' + d.gold + 'g' : ''}${edge}</span></span>` +
         `<span class="badge ${d.mode}">${d.mode}</span><span class="muted small">${d.source}${d.id ? ' · ' + d.id : ''}</span>`;
       el.addEventListener('click', () => pick(d));
       $('dAll').appendChild(el);
@@ -154,7 +164,7 @@ export function initDesigner({ openInSim }) {
         : `No ${MODE_NAME[st.mode]} ${n}:${m} layout known yet${all.length ? ' (other rules have some, listed below)' : ''}. Run the command below to search for one.`;
       $('dBest').innerHTML = `<div class="muted small">${why}</div>`;
       st.current = null;
-      $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = true;
+      $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = $('dMirror').disabled = true;
       $('dinfo').innerHTML = '&nbsp;';
       view.setWorld(null);
       $('dstatus').textContent = 'Nothing known for this choice yet';
@@ -172,6 +182,7 @@ export function initDesigner({ openInSim }) {
     window.open('https://github.com/djradnad/buildermentSim/issues/new?title=' + encodeURIComponent(title) +
       '&body=' + encodeURIComponent(body), '_blank', 'noopener');
   });
+  $('dMirror').addEventListener('click', () => st.picked && pick(st.picked, !st.mirrored));
   $('dSim').addEventListener('click', () => st.current && openInSim(st.current.rows, st.current.meta, st.bpId));
   $('dCopy').addEventListener('click', async () => {
     if (!st.current) return;

@@ -178,9 +178,17 @@ def scores(e):
             (e['footprint'], e['pieces'], e['edge_splitters'], e['gold'], 1 if e['stray_out'] else 0))
 
 
+def mirror_grid(grid):
+    """The text grid flipped top <-> bottom (a piece facing north then faces south)."""
+    flip = {'0': '2', '2': '0'}
+    return [''.join(r[i] + flip.get(r[i + 1], r[i + 1]) if r[i] != '.' else '..' for i in range(0, len(r), 2))
+            for r in reversed(grid)]
+
+
 def drop_obsolete(ents):
     """Leave out layouts that another layout of the same ratio matches or beats on every score (john 2026-11-09).
-    Of layouts that tie on everything, the community one (or one with a blueprint code) stays."""
+    Layouts that tie on everything all stay, except a mirror image of another (then the community one, or one
+    with a blueprint code, stays)."""
     pref = lambda e: (e['source'] == 'ours', not e.get('id'))
     keep = []
     for e in ents:
@@ -190,8 +198,11 @@ def drop_obsolete(ents):
             if f is e or (f['n'], f['m']) != (e['n'], e['m']):
                 continue
             sf = scores(f)
-            if all(a <= b for a, b in zip(sf, se)) and (sf != se or pref(f) < pref(e) or
-                                                        (pref(f) == pref(e) and ents.index(f) < ents.index(e))):
+            # an exact tie stays listed (john 2026-11-09), unless it is just the other one's mirror image
+            # (the designer has a Mirror button for that)
+            tie_ok = sf == se and mirror_grid(f['grid']) == e['grid'] and (
+                pref(f) < pref(e) or (pref(f) == pref(e) and ents.index(f) < ents.index(e)))
+            if all(a <= b for a, b in zip(sf, se)) and (sf != se or tie_ok):
                 by = f
                 break
         if by is None:
