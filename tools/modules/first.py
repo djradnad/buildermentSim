@@ -53,7 +53,16 @@ def show(grid, machines, W, H):
     return '\n'.join(''.join(cells.get((x, y)) or grid.get((x, y)) or '..' for x in range(W)) for y in range(H))
 
 
-CASES = dict(plating8=plating8, plating8_noarms=lambda: plating8(False), heatsink16=heatsink16,
+def ore_plating2(free='each'):
+    """2 ore belts -> 1 plating belt, T4: 960 ore/min needs 10 2/3 furnaces, so 11 furnaces that may run underfilled
+    (one at 2/3) and 8 workshops."""
+    return Factory([(0, [16, 0, 0]), (1, [16, 0, 0])], [(0, [0, 0, 16])],
+                   [dict(bid=3006, count=11, need=[3, 0, 0], make=[0, 3, 0], tier=4, partial=True),
+                    dict(bid=3005, count=8, need=[0, 4, 0], make=[0, 0, 2], tier=4)],
+                   ['Iron Ore', 'Iron Ingot', 'Iron Plating'], 30, [2004, 2014], D=16, arm_cap=3, free=free)
+
+
+CASES = dict(ore_plating2=ore_plating2, plating8=plating8, plating8_noarms=lambda: plating8(False), heatsink16=heatsink16,
              plating8_free=lambda: plating8(free=True), heatsink16_free=lambda: heatsink16(free=True),
              plating8_each=lambda: plating8(free='each'), plating8_edges=lambda: plating8(free='edges'),
              heatsink16_each=lambda: heatsink16(free='each'), ingot16=ingot16,
@@ -75,13 +84,14 @@ if __name__ == '__main__':
                 r = r2
         ok = ''
         if 'grid' in r:
-            ok = bench.verify_factory(r['grid'], win, r.get('machines'), r.get('options'), r.get('filters'))
+            ok = bench.verify_factory(r['grid'], win, r.get('machines'), r.get('options'), r.get('filters'), r.get('fill'))
         print('%s %dx%d %s %.1fs verified=%s pieces=%s options=%s' % (name, W, H, r['status'], time.time() - t0, ok,
               r.get('pieces'), r.get('options')), flush=True)
         if 'grid' in r:
             import json
             os.makedirs(os.path.expanduser('~/data/modules'), exist_ok=True)
             rec = dict(case=name, W=W, H=H, verified=bool(ok), time=round(time.time() - t0, 1), options=r.get('options'),
+                       fill={'%d,%d' % tuple(k): v for k, v in (r.get('fill') or {}).items()},
                        grid={'%d,%d' % p: c for p, c in r['grid'].items() if c},
                        machines=[[ti, list(a), o] for ti, a, o in r['machines']],
                        filters={'%d,%d' % k if isinstance(k, tuple) else str(k): v for k, v in (r.get('filters') or {}).items()})

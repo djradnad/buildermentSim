@@ -203,12 +203,12 @@ CONFIGS = {
 }
 
 
-def verify_factory(grid, win, machines, options=None, filters=None):
+def verify_factory(grid, win, machines, options=None, filters=None, fill=None):
     """Game-exact sim of a factory layout: every machine and the output must run at exactly the planned rate."""
     from . import gsim
     f = win.factory
     rep = gsim.run(win, grid, machines, f.items, f.per_unit, f.recipes, options=options, warmup=30, minutes=120, filters=filters)
-    want = {tuple(a): sum(win.machines[ti]['make']) * f.per_unit for ti, a, o in machines}
+    want = {tuple(a): sum(win.machines[ti]['make']) * f.per_unit * (fill or {}).get(tuple(a), 1) for ti, a, o in machines}
     got = {(m['x'], m['y']): m['perMin'] for m in rep['machines']}
     if set(got) != set(want):
         return False

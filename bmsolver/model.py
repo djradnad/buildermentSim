@@ -568,14 +568,28 @@ class Model:
             for lp in pushes:
                 for la in arms:
                     m.AddBoolOr([lp.Not(), la.Not(), y.Not()])
-        for ti, a, o, y, tiles, ins, outs in self.placements:
+        # a machine marked partial may run underfilled: it takes fill/G of its need and makes fill/G of its make
+        # (G = gcd of its rates, so every share stays a whole number of flow units); its output is never blocked,
+        # so it settles at its input rate
+        from math import gcd
+        self.fill = {}
+        for k, (ti, a, o, y, tiles, ins, outs) in enumerate(self.placements):
             mt = win.machines[ti]
+            need, make = list(mt['need']), list(mt['make'])
+            if mt.get('partial'):
+                G = 0
+                for v in need + make:
+                    G = gcd(G, v)
+                f = m.NewIntVar(1, G, 'fill')
+                self.fill[k] = (f, G)
+                need = [v // G * f for v in need]
+                make = [v // G * f for v in make]
             in_tiles = out_tiles = tiles          # ports plus arms, which reach any tile of a machine
             for c in range(nc):
                 m.Add(sum(inflow[t][c] for t in in_tiles) + sum(F[i, c] for t in in_tiles for i in lin[t])
-                      == mt['need'][c]).OnlyEnforceIf(y)
+                      == need[c]).OnlyEnforceIf(y)
                 m.Add(sum(outflow[t][c] for t in out_tiles) + sum(F[i, c] for t in out_tiles for i in lout[t])
-                      == mt['make'][c]).OnlyEnforceIf(y)
+                      == make[c]).OnlyEnforceIf(y)
 
     def _arm_flows(self, win):
         """Arm flow limits, and arm lines: an arm takes items from a belt only as they pass while it is idle, so
@@ -767,6 +781,15 @@ class Model:
         """[(type index, anchor, rotation)] of the placed machines."""
         return [(ti, a, o) for ti, a, o, y, *_ in self.placements if solver.Value(y)]
 
+    def machine_fill(self, solver):
+        """{anchor: share of full rate} for placed partial machines that run underfilled."""
+        out = {}
+        for k, (f, G) in getattr(self, 'fill', {}).items():
+            ti, a, o, y = self.placements[k][:4]
+            if solver.Value(y) and solver.Value(f) < G:
+                out[a] = solver.Value(f) / G
+        return out
+
     def grid(self, solver):
         return {p: k for (p, k), v in self.X.items() if k not in ('E', 'M') and solver.Value(v)}
 
@@ -806,4 +829,5 @@ def solve(win, timeout=60.0, workers=4, objective=False, on_solution=None, log=F
         res['options'] = mod.chosen_options(sv)
         res['machines'] = mod.machines_chosen(sv)
         res['filters'] = mod.arm_filters(sv) if mod.arm_links else {}
+        res['fill'] = mod.machine_fill(sv)
     return res
