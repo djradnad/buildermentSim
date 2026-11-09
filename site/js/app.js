@@ -63,7 +63,15 @@ function loadBlueprint(rows, meta = {}, id = null, { hash = true } = {}) {
   // inputs: open belt starts; their item guessed from the machines downstream
   const bs = rowsToBuildings(rows);
   const added = addFeeders(bs);
-  addDrains(bs);
+  // layouts that know their real outputs (designer catalogue) get drains there only, not on every splitter
+  // face that happens to point out of the edge; others: open ends facing out of the build
+  if (meta.outputs) {
+    const taken = new Set(bs.map(b => b.x + ',' + b.y));
+    for (const [x, y, d] of meta.outputs) {
+      const q = [x + [0, -1, 0, 1][d], y + [-1, 0, 1, 0][d]];
+      if (!taken.has(q[0] + ',' + q[1])) bs.push({ id: 3000, x: q[0], y: q[1], o: d, tier: 1, recipe: 0, filter: 0, added: 'out' });
+    }
+  } else addDrains(bs);
   const probe = new Factory(bs, { extractors: {}, ugRange: +$('ugRange').value });
   const feedSegs = added.map(a => probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]));
   const found = feedSegs.filter(g => g);
@@ -644,6 +652,14 @@ function inputActions(x, y) {
         const g = probe.segs.find(s => s.nodes[0].x === x && s.nodes[0].y === y);
         state.feeds.push({ at: [x, y], kind: g ? guessFeedItem(probe, g, 'In' + (state.feeds.length + 1)) : 'In' + (state.feeds.length + 1), perMin: 480 });
       }]);
+    }
+    // an output: a belt here facing away from a neighbour that pushes into this tile; it takes items away
+    for (let d = 0; d < 4; d++) {
+      const nb = { id: 3000, x, y, o: d, tier: 1, recipe: 0, filter: 0, added: 'out' };
+      const t = new World([...state.buildings, nb], { ugRange: +$('ugRange').value });
+      const n = t.belt.get(k);
+      if (!n || !n.inputs.length || n.outputs.length) continue;
+      acts.push([`Place an output belt facing ${names[d]}`, () => { state.buildings.push(nb); }]);
     }
     return acts;
   }

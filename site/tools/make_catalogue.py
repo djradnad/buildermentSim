@@ -168,6 +168,7 @@ def main(paths):
                        trimmed=len(rep['idle']), stray_out=rep.get('stray_out', False), splitters=r.count('S'), ug=r.count('I') + r.count('O'), grid=key.split('\n'))
             LOOSE = {'sym': 0, 'quasi': 1, 'asym': 2}
             # scores for layouts of the same box (john's order): footprint, pieces, edge splitters, gold
+            ent['outs'] = [[q[0], q[1], dd] for q, dd in lay.outputs]     # the real outputs (tile, direction)
             ent.update(footprint=cleanup.footprint(r), edge_splitters=cleanup.edge_splitters(lay), gold=cleanup.gold(r))
             if e.get('proven_for'):
                 ent['proven_for'] = e['proven_for']      # smallest area under this rule (and every stricter one)

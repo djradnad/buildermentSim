@@ -105,7 +105,7 @@ export function initDesigner({ openInSim }) {
   }
 
   function pick(d) {
-    show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}` });
+    show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}`, outputs: d.outs });
     $('dinfo').textContent = (d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '') +
       (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
     $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}`;
