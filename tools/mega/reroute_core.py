@@ -40,7 +40,7 @@ def load(path):
     return rows, belts, solid, arms
 
 
-def runs(belts, solid, arms):
+def runs(belts, solid, arms, min_len=3):
     """-> (nets [(tiles, source (tile, d), sink (tile, d))], anchored tiles)"""
     des = Design(belts)
     links = des.links()
@@ -75,7 +75,7 @@ def runs(belts, solid, arms):
                 tiles.append(cur)
                 cur = outs[cur][0][0]
             last = tiles[-1]
-            if len(tiles) < 3 or outs[last][0][1] != 'push':
+            if len(tiles) < min_len or outs[last][0][1] != 'push':
                 anchored.update(tiles)
                 continue
             nets.append((tiles, (q, d), (last, int(belts[last][1]))))

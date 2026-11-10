@@ -32,23 +32,48 @@ def module(code, rows, recipes):
             solid.update(rc.footprint(r))
     des = Design(belts)
     fed = {q for p, q, k in des.links()}
-    drop, pick = set(), set()
+    drop, pick, prod = set(), set(), set()
+    machine_cells = set()
     for r in rows:
-        if r[0] == 3012:                                    # arm: stored turned 180; takes behind, drops ahead
-            d = (r[3] + 2) % 4
+        if r[0] not in KIND_OF_ID and r[0] != 3012:
+            machine_cells.update(rc.footprint(r))
+    for r in rows:
+        if r[0] == 3012:                                    # arm: takes behind, drops ahead
+            d = r[3]                                        # checked on qsq1kb: lane exit -> arm -> machine
+            src = step((r[1], r[2]), opposite(d))
+            if src in machine_cells:
+                prod.add(step((r[1], r[2]), d))             # an arm lays a machine's product here
             drop.add(step((r[1], r[2]), d))
-            pick.add(step((r[1], r[2]), opposite(d)))
+            pick.add(src)
+    nxt = {}
+    for p, q, k in des.links():
+        nxt.setdefault(p, q)
+
+    def is_input(p):
+        """walking down the belt from p: something takes from it (arm, machine) before any product lands on it"""
+        for _ in range(200):
+            if p in prod:
+                return False
+            if p in pick:
+                return True
+            q = nxt.get(p)
+            if q is None:
+                c = belts[p]
+                return c[0] in 'BO' and step(p, int(c[1])) in machine_cells
+            p = q
+        return False
+    paired = {q for p, q, k in des.links() if k == 'ug'}
     ins = []
     for p, c in belts.items():
-        if p in fed or c[0] == 'O' or p in drop:            # arm-fed belts are inside the module
-            continue
         d = int(c[1])
-        back = step(p, opposite(d))
-        if back in solid or back in belts:
-            # fed from the side or not at all: an arm drop lane (side loading) or a lane whose first entrance
-            # john left out; both start here
-            pass
-        ins.append((p, d, c[0]))
+        if c[0] == 'O':
+            if p not in paired and is_input(p):             # john leaves out the first entrance of a hop lane
+                ins.append((p, d, 'O'))
+            continue
+        if p in fed or p in drop or step(p, opposite(d)) in solid:
+            continue                                        # fed by a belt, an arm, or the machine behind it
+        if is_input(p):
+            ins.append((p, d, c[0]))
     outs = [(p, d) for p, d in des.open_outputs() if step(p, d) not in solid]
     cells = set(belts) | solid
     xs = [p[0] for p in cells]

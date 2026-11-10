@@ -36,12 +36,64 @@ def clusters(cells):
     return group, n
 
 
+def modules(rows, belts, solid, anch, arms):
+    """Finer groups than `clusters`: buildings that touch, an arm with the belts it touches, fixed belts that feed
+    each other directly, and both ends of a fixed hop. Two modules that only sit side by side stay separate."""
+    from bmsolver.design import Design
+    parent = {c: c for c in set(solid) | set(anch)}
+
+    def find(c):
+        while parent[c] != c:
+            parent[c] = parent[parent[c]]
+            c = parent[c]
+        return c
+
+    def join(a, b):
+        if a in parent and b in parent:
+            parent[find(a)] = find(b)
+    for r in rows:
+        if r[0] in KIND_OF_ID:
+            continue
+        fp = rc.footprint(r)
+        for c in fp[1:]:
+            join(fp[0], c)
+    for c in solid:
+        for d in range(4):
+            q = step(c, d)
+            if q in solid:
+                join(c, q)
+    for p, o in arms:
+        for d in range(4):
+            q = step(p, d)
+            if q in anch:
+                join(p, q)
+    for p, q, kind in Design(belts).links():
+        if p in anch and q in anch:
+            join(p, q)
+    for p, c in belts.items():                              # a belt pushing straight into a machine belongs to it
+        if p in anch and c[0] in 'BO':
+            q = step(p, int(c[1]))
+            if q in solid:
+                join(p, q)
+        if p in anch:                                       # ... and any fixed belt right beside a building
+            for d in range(4):
+                q = step(p, d)
+                if q in solid:
+                    join(p, q)
+                    break
+    roots = {}
+    group = {}
+    for c in parent:
+        group[c] = roots.setdefault(find(c), len(roots))
+    return group, len(roots)
+
+
 class State:
     def __init__(self, path):
         self.rows, self.belts, self.solid, arms = rc.load(path)
-        nets, self.anch = rc.runs(self.belts, self.solid, arms)
+        nets, self.anch = rc.runs(self.belts, self.solid, arms, min_len=1)
         fixed = set(self.solid) | set(self.anch)
-        self.group, self.n = clusters(fixed)
+        self.group, self.n = modules(self.rows, self.belts, self.solid, self.anch, arms)
         self.cells = [[] for _ in range(self.n)]
         for c, g in self.group.items():
             self.cells[g].append(c)
@@ -98,8 +150,10 @@ class State:
                 return None
             sources.append((a, d, i))
             sinks.append((b, de, i))
-        if len({a for a, d, i in sources} | {b for b, d, i in sinks}) != 2 * len(self.nets):
-            return None
+        owner = {}
+        for t, d, i in sources + sinks:
+            if owner.setdefault(t, i) != i:
+                return None
         ok, res, secs = negotiate.route(W, H, len(self.nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug,
                                         open_cost=0.2, timeout=timeout, rounds=40)
         if not ok:
@@ -113,9 +167,18 @@ class State:
 
     def sweep(self, axis, toward, frac, rnd):
         """every cluster (a random share of them) moves one tile toward `toward` along axis where nothing is in
-        the way; far clusters first so a whole row can close up"""
+        the way; port tiles (where a run starts or ends) travel with their cluster and stay free"""
         off = list(self.off)
         occ = self.occupied(off)
+        ports = [[] for _ in range(self.n)]                 # per cluster: (tile, net)
+        for i, (s, d, gs, e, de, ge) in enumerate(self.nets):
+            ports[gs].append((s, i))
+            ports[ge].append((e, i))
+        halo = {}                                           # tile -> {net: how many ends}
+        for g in range(self.n):
+            for c, i in ports[g]:
+                halo.setdefault(self.pos(c, g, off), {}).setdefault(i, 0)
+                halo[self.pos(c, g, off)][i] += 1
         centre = []
         for g in range(self.n):
             v = [self.pos(c, g, off)[axis] for c in self.cells[g]]
@@ -127,14 +190,27 @@ class State:
                 continue
             sgn = 1 if centre[g] < toward else -1
             dv = (sgn, 0) if axis == 0 else (0, sgn)
-            new = [(p[0] + dv[0], p[1] + dv[1]) for p in (self.pos(c, g, off) for c in self.cells[g])]
-            if any(occ.get(p, g) != g for p in new):
+            mv = lambda p: (p[0] + dv[0], p[1] + dv[1])
+            new = [mv(self.pos(c, g, off)) for c in self.cells[g]]
+            mine = {i for c, i in ports[g]}
+            if any(occ.get(p, g) != g or any(i not in mine for i in halo.get(p, ())) for p in new):
+                continue
+            newp = [(mv(self.pos(c, g, off)), i) for c, i in ports[g]]
+            if any(occ.get(p, g) != g or any(j != i for j in halo.get(p, ())) for p, i in newp):
                 continue
             for c in self.cells[g]:
                 del occ[self.pos(c, g, off)]
+            for c, i in ports[g]:
+                p = self.pos(c, g, off)
+                halo[p][i] -= 1
+                if not halo[p][i]:
+                    del halo[p][i]
             off[g] = (off[g][0] + dv[0], off[g][1] + dv[1])
             for p in new:
                 occ[p] = g
+            for p, i in newp:
+                halo.setdefault(p, {}).setdefault(i, 0)
+                halo[p][i] += 1
             moved += 1
         return off, moved
 
@@ -161,7 +237,7 @@ def main(path, out, seconds=1200):
     best = st.route(st.off)
     assert best is not None, 'the starting layout does not route'
     frac, fails = 1.0, 0
-    while time.time() - t0 < float(seconds) and fails < 12:
+    while time.time() - t0 < float(seconds) and fails < 40:
         x0, y0, x1, y1 = st.box()
         W, H = x1 - x0 + 1, y1 - y0 + 1
         axis = 0 if W >= H else 1                              # shrink the longer side first (most square)
