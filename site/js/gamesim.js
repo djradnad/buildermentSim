@@ -832,8 +832,9 @@ class Feed {
   constructor(seg, kind, perMin) { this.seg = seg; this.kind = kind; this.perMin = perMin; this.n = 0; this.acc = 0; }
   tick(M) {
     if (this.perMin < 480) {
-      this.acc = Math.min(this.acc + this.perMin / 3600, 1);
-      if (this.acc < 1) return;
+      // keep the fraction (dropping it, or 10 x 0.1 < 1 in floats, made a 360/min feed give 327/min)
+      this.acc = Math.min(this.acc + this.perMin / 3600, 2);
+      if (this.acc < 1 - 1e-9) return;
     }
     if (this.seg.free > 239) { this.seg.insert(M, this.kind); this.n++; this.acc -= 1; }
   }

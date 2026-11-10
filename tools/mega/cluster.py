@@ -71,6 +71,7 @@ def cap(mod, key):
         t = step((x, y), d, k)
         mod.rows.append([B, t[0], t[1], d, 0, -1, 0])
         mod.cells.add(t)
+    mod.cells.add(step((x, y), d, 3))                  # keep the tile past the dead end empty
 
 
 def source_mod(item, rate):
@@ -84,6 +85,7 @@ def sink_mod(name):
     m = Mod('sink ' + name, [[B, 0, 0, 3, 0, -1, 0], [B, 1, 0, 3, 0, -1, 0]])
     m.ins['in'] = ((-1, 0), 3)
     m.sink = (1, 0)
+    m.cells.add((2, 0))                                # nothing may sit where the sink pushes
     return m
 
 
@@ -129,7 +131,41 @@ class Layout(cc.State):
         rows += [[BUILDING_ID[c[0]], x + x0, y + y0, int(c[1]), 0, -1, 0] for (x, y), c in sorted(res['tiles'].items())]
         return rows
 
-    def sim(self, res, minutes=60, warmup=40):
+    def check(self, res):
+        """every push across a module border must be one of the planned belts; -> list of problems"""
+        x0, y0 = res['origin']
+        owner, piece = {}, {}
+        for g, m in enumerate(self.mods):
+            o = self.off[g]
+            for c in m.cells:
+                owner[(c[0] + o[0], c[1] + o[1])] = g
+            for r in m.rows:
+                if r[0] in (B, I, O):
+                    piece[(r[1] + o[0], r[2] + o[1])] = (r[0], r[3])
+        for (x, y), c in res['tiles'].items():
+            p = (x + x0, y + y0)
+            if p in owner:
+                return ['route piece on module tile %s' % (p,)]
+            owner[p] = -1
+            piece[p] = (BUILDING_ID[c[0]], int(c[1]))
+        ok = set()
+        for (s, d, gs, e, de, ge) in self.nets:
+            a, b = self.pos(s, gs), self.pos(e, ge)
+            ok.add((step(a, (d + 2) % 4), a))
+            ok.add((b, step(b, de)))
+        bad = []
+        for p, (kind, d) in piece.items():
+            if kind == I:
+                continue
+            q = step(p, d)
+            if q in owner and owner[q] != owner[p] and (p, q) not in ok:
+                bad.append('%s (%s) pushes into %s (%s)' % (p, self.name(owner[p]), q, self.name(owner[q])))
+        return bad
+
+    def name(self, g):
+        return 'route' if g < 0 else self.mods[g].name
+
+    def sim(self, res, minutes=60, warmup=40, save=None):
         rows = self.game_rows(res)
         bs = [dict(id=r[0], x=r[1], y=r[2], o=r[3], tier=r[4] + 1, recipe=r[5] if r[5] > 0 else 0) for r in rows]
         feeds, sinks, names = [], [], {}
@@ -141,12 +177,15 @@ class Layout(cc.State):
             if m.sink:
                 sinks.append([m.sink[0] + o[0], m.sink[1] + o[1]])
                 names['%d,%d' % (m.sink[0] + o[0], m.sink[1] + o[1])] = m.name
+        if save:
+            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks), open(save, 'w'))
         with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
             json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks), f)
         try:
             rep = json.loads(subprocess.run(['node', 'tools/simlayout.mjs', f.name], capture_output=True, text=True, check=True).stdout)
         finally:
             os.unlink(f.name)
+        self.rep = rep
         made = {}
         for mm in rep['machines']:
             made[mm['recipe']] = made.get(mm['recipe'], 0) + mm['perMin']
@@ -333,10 +372,14 @@ def main(which='mc', seconds=120):
         print('no routed placement')
         return
     out = os.path.expanduser('~/data/cluster_%s' % which)
+    import pickle
+    pickle.dump((lay.off, best), open(out + '.pkl', 'wb'))
+    for line in lay.check(best):
+        print('  CHECK:', line, flush=True)
     json.dump({'rows': lay.game_rows(best)}, open(out + '.json', 'w'))
     W, H = picture(lay, best, out + '.png')
     print('routed: %dx%d, %d route pieces; running the game sim...' % (W, H, best['pieces']), flush=True)
-    made, got = lay.sim(best)
+    made, got = lay.sim(best, save=out + '_sim.json')
     for rid, v in sorted(made.items()):
         print('  machines make %-20s %.1f/min' % (RECIPES[rid]['out'][0]['item'], v))
     for k, v in got.items():
