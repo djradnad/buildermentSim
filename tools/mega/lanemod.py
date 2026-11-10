@@ -28,17 +28,23 @@ def machine_row(bid, x, y, o, recipe, tier):
     return [bid, x - mx, y - my, o, tier - 1, recipe, 0]
 
 
-def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4):
+def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False):
     """-> dict(rows, inputs [(x, y, d)], outputs [(x, y, d)], through [(x, y, d)], w, h)"""
     s = rc.SIZE[bid][0]
     assert lanes <= s
     P = s + 3
     per = [n // rows + (1 if k < n % rows else 0) for k in range(rows)]
     width = max(per) * P
-    out, inputs, outputs, through = [], [], [], []
+    out, inputs, outputs, through, outm = [], [], [], [], []
     prev_ends = None
+    ytop = []                                               # share: rows 2j and 2j+1 face one collector (john, zp0gq6)
+    y = 0
     for k in range(rows):
-        y0 = k * (s + 1)
+        ytop.append(y)
+        y += s + (0 if share and k % 2 == 1 else 1)
+    for k in range(rows):
+        y0 = ytop[k]
+        up = share and k % 2 == 1
         east = k % 2 == 0
         m = per[k]
         fx = (lambda x: x) if east else (lambda x: width - 1 - x)
@@ -50,13 +56,15 @@ def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4):
                 out.append([ARM, fx(base + s + 1), y0 + i, 1 if east else 3, arm_tier - 1, -1, 0])
                 out.append([O, fx(base + s + 2), y0 + i, d, 0, -1, 0])
             mx = base + 1 if east else width - 1 - (base + s)
-            out.append(machine_row(bid, mx, y0, 2, recipe, tier))
+            out.append(machine_row(bid, mx, y0, 0 if up else 2, recipe, tier))
         # collector under the machines, flowing back toward the row's start
         cd = 1 if east else 3
-        xs = sorted(fx(x) for x in range(1, m * P - 2))
-        for x in xs:
-            out.append([B, x, y0 + s, cd, 0, -1, 0])
-        outputs.append((xs[0] if east else xs[-1], y0 + s, cd))
+        xs = sorted(fx(x) for x in range(1, m * P - (1 if share and k + 1 < rows else 2)))
+        if not up:
+            for x in xs:
+                out.append([B, x, y0 + s, cd, 0, -1, 0])
+            outputs.append((xs[0] if east else xs[-1], y0 + s, cd))
+            outm.append(m + (per[k + 1] if share and k + 1 < rows else 0))
         starts = [(fx(0), y0 + i) for i in range(lanes)]
         ends = [(fx(m * P - 1), y0 + i) for i in range(lanes)]
         if k == 0:
@@ -90,14 +98,14 @@ def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4):
         cells.update(rc.footprint(r) if r[0] not in (B, S, I, O) else [(r[1], r[2])])
     cx = [c[0] for c in cells]
     cy = [c[1] for c in cells]
-    return dict(rows=out, inputs=inputs, outputs=outputs, through=through,
+    return dict(rows=out, inputs=inputs, outputs=outputs, through=through, outm=outm,
                 w=max(cx) - min(cx) + 1, h=max(cy) - min(cy) + 1, machines=n)
 
 
 def stack(mods):
     """independent modules one under the other (each keeps its own inputs: a lane carries at most one belt, so
     a recipe whose heaviest ingredient needs more than 480/min is split into groups)"""
-    out = dict(rows=[], inputs=[], outputs=[], through=[], machines=0, groups=len(mods))
+    out = dict(rows=[], inputs=[], outputs=[], through=[], machines=0, groups=len(mods), outm=[])
     y = 0
     w = 0
     for m in mods:
@@ -107,16 +115,17 @@ def stack(mods):
         for k in ('inputs', 'outputs', 'through'):
             out[k] += [sh(t) for t in m[k]]
         out['machines'] += m['machines']
+        out['outm'] += m['outm']
         y += m['h']
         w = max(w, m['w'])
     out['w'], out['h'] = w, y
     return out
 
 
-def family(bid, recipe, n, groups, rows):
+def family(bid, recipe, n, groups, rows, share=False):
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
     s = rc.SIZE[bid][0]
-    return stack([build(bid, recipe, m, rows, s) for m in per])
+    return stack([build(bid, recipe, m, rows, s, share=share) for m in per])
 
 
 def sim(mod, feeds, minutes=40, warmup=20):
@@ -153,7 +162,7 @@ if __name__ == '__main__':
     import modlib
     bid, recipe, n, groups, rows = map(int, sys.argv[1:6])
     rec = {r['id']: r for r in modlib.gamedata()['recipes'].values()}[recipe]
-    mod = family(bid, recipe, n, groups, rows)
+    mod = family(bid, recipe, n, groups, rows, share=len(sys.argv) > 6)
     per = 60.0 / rec['seconds'] * 3 * n                     # tier 4 machines run 3x
     feeds = [(i['item'], i['amount'] * per / groups) for g in range(groups) for i in rec['in']]
     made, got, rep = sim(mod, feeds)

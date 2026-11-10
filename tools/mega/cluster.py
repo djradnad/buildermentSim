@@ -36,12 +36,12 @@ class Mod:
         self.sink = None       # tile for the sim
 
 
-def recipe_mod(name, recipe, n, groups=1, rows=1):
+def recipe_mod(name, recipe, n, groups=1, rows=1, share=False):
     rec = RECIPES[recipe]
     bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
     L = len(rec['in'])
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
-    fam = lanemod.stack([lanemod.build(bid, recipe, m, rows, L) for m in per])
+    fam = lanemod.stack([lanemod.build(bid, recipe, m, rows, L, share=share) for m in per])
     mod = Mod(name, [list(r) for r in fam['rows']])
     mod.rec, mod.groups, mod.per = rec, groups, per
     rate1 = 60.0 / rec['seconds'] * 3
@@ -53,12 +53,9 @@ def recipe_mod(name, recipe, n, groups=1, rows=1):
             x, y, d = fam['through'][g * L + j]
             mod.outs[('thru', g, ing['item'])] = ((x, y), d)
         mod.need = {(g, ing['item']): ing['amount'] * rate1 * per[g] for g in range(groups) for ing in rec['in']}
-    k = 0
-    for g in range(groups):
-        for r in range(rows):
-            x, y, d = fam['outputs'][k]
-            mod.outs[('out', k)] = ((x, y), d)
-            k += 1
+    mod.outm = fam['outm']
+    for k, (x, y, d) in enumerate(fam['outputs']):
+        mod.outs[('out', k)] = ((x, y), d)
     mod.out_item = rec['out'][0]['item']
     mod.out_rate = rate1 * n
     return mod

@@ -92,14 +92,9 @@ def make(rn, rec, crafts):
     groups = math.ceil(n / mg)
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
     rows = 2 if max(per) >= 8 else 1
-    m = cl.recipe_mod(rn, rec['id'], n, groups, rows)
-    m.out_rates = {}
-    k = 0
-    for g in range(groups):
-        pr = [per[g] // rows + (1 if j < per[g] % rows else 0) for j in range(rows)]
-        for j in range(rows):
-            m.out_rates[('out', k)] = pr[j] * rate1 * outa
-            k += 1
+    share = rows == 2 and max(per) * rate1 * outa <= 480
+    m = cl.recipe_mod(rn, rec['id'], n, groups, rows, share=share)
+    m.out_rates = {('out', k): c * rate1 * outa for k, c in enumerate(m.outm)}
     return m
 
 
