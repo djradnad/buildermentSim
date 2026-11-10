@@ -15,12 +15,15 @@ from .pieces import UG_REACH, opposite, step, DIRS
 
 
 def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=60, hop_cost=0.5, turn_cost=0.05,
-          open_cost=0.0, log=None, timeout=None):
+          open_cost=0.0, log=None, timeout=None, fixed_ug=(), no_ug=()):
     """sources: (tile, d, net) items enter the tile moving d; sinks: (tile, d, net) the piece there pushes d.
     hop_cost: extra price of one hop (john prefers plain belts when equal); open_cost: extra price of a tile
-    with no block next to it (routes hug buildings)."""
+    with no block next to it (routes hug buildings). fixed_ug: (tile, d) of underground pieces that stay (a new
+    hop may not pass one of its own direction); no_ug: (tile, d) where no new entrance / exit of direction d may
+    go (the tiles between a fixed entrance and its exit)."""
     t0 = time.time()
     blocked = set(blocked)
+    fixed_ug, no_ug = set(fixed_ug), set(no_ug)
     inside = lambda p: 0 <= p[0] < W and 0 <= p[1] < H
     free = lambda p: inside(p) and p not in blocked
     start = {n: (q, d) for q, d, n in sources}
@@ -98,9 +101,9 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
             clash = 0.0                                             # an entrance on p (facing d), exit k ahead
             for k in range(1, reach + 1):
                 r = step(p, d, k)
-                if not inside(r):
+                if not inside(r) or (p, d) in no_ug or (r, d) in fixed_ug:
                     break
-                if free(r):
+                if free(r) and (r, d) not in no_ug:
                     tr = tile_cost(r, n)
                     if tr is not None and not (strict and mine((p, d), r, step(r, d))):
                         if r == g and d == gd:                      # the exit itself pushes into the sink
