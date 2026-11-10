@@ -244,5 +244,50 @@ def main(seconds=120, rounds=1):
     print('done, best side %s' % best, flush=True)
 
 
+
+
+def anneal_main(seconds=600, rounds=6):
+    """pack (legal start, turned modules) -> free annealing on belt length and box -> route; keeps the smallest"""
+    import pack
+    import random
+    import time
+    mods, nets, open_in, spare = build()
+    base = cl.Layout(mods, nets)
+    side = math.ceil(sum(len(m.cells) for m in mods) ** 0.5)
+    out = os.path.expanduser('~/data/core_ann')
+    rnd = random.Random(7)
+    best = None
+    t0 = time.time()
+    for r in range(int(rounds)):
+        off, flip, top, wl = pack.place(base, ch=1, per_port=0.25, cap=3, width=side + 30, seconds=30, seed=r + 1, wl_w=0.05)
+        tm = [cl.transpose(m) if f else m for m, f in zip(mods, flip)]
+        lay = cl.Layout(tm, nets)
+        lay.off = off
+        ch = rnd.choice([2, 2, 3])
+        an = anneal_core.Anneal(lay, ch=ch, box_w=rnd.choice([10.0, 30.0]), seed=r + 1)
+        off2 = an.run(float(seconds), log=lambda s: None)
+        x0, y0, x1, y1 = an.box()
+        W, H = x1 - x0 + 1, y1 - y0 + 1
+        tag = 'anneal %d (%.0f min): channel %d, %dx%d, belt length %d, overlap %d' % (r + 1, (time.time() - t0) / 60, ch, W, H, an.wl, an.overlap)
+        if an.overlap or (best and max(W, H) >= best):
+            print(tag + ': skipped', flush=True)
+            continue
+        res = lay.route(off2, timeout=900)
+        if res is None:
+            print(tag + ': did not route (%d belts still clash)' % len(getattr(lay, 'fail', {}).get('nets', [])), flush=True)
+            continue
+        lay.off = off2
+        bad = lay.check(res)
+        best = max(W, H)
+        pickle.dump((off2, flip, res), open(out + '.pkl', 'wb'))
+        json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
+        PW, PH = cl.picture(lay, res, out + '.png')
+        print(tag + ': ROUTED %dx%d with %d route pieces%s' % (PW, PH, res['pieces'], '' if not bad else ' (check failed: %s)' % bad[0]), flush=True)
+    print('done, best side %s' % best, flush=True)
+
+
 if __name__ == '__main__':
-    main(*[float(a) for a in sys.argv[1:3]])
+    if sys.argv[1] == 'anneal':
+        anneal_main(*[float(a) for a in sys.argv[2:4]])
+    else:
+        main(*[float(a) for a in sys.argv[1:3]])
