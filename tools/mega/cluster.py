@@ -85,6 +85,31 @@ def shop_mod(name, recipe, n, blocks):
     return mod
 
 
+def paired_mod(name, recipe, per, left=()):
+    """single-row groups stacked in collector-sharing pairs; left = ingredient indices that get a second arm"""
+    rec = RECIPES[recipe]
+    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
+    L = len(rec['in'])
+    fam = lanemod.paired(bid, recipe, per, L, left=left)
+    mod = Mod(name, [list(r) for r in fam['rows']])
+    mod.rec, mod.groups, mod.per = rec, len(per), per
+    rate1 = 60.0 / rec['seconds'] * 3
+    mod.need = {}
+    for g in range(len(per)):
+        for i, ing in enumerate(rec['in']):
+            x, y, d = fam['inputs'][g * L + i]
+            mod.ins[(g, ing['item'])] = (step((x, y), (d + 2) % 4), d)
+            x, y, d = fam['through'][g * L + i]
+            mod.outs[('thru', g, ing['item'])] = ((x, y), d)
+            mod.need[(g, ing['item'])] = ing['amount'] * rate1 * per[g]
+    mod.outm = fam['outm']
+    for k, (x, y, d) in enumerate(fam['outputs']):
+        mod.outs[('out', k)] = ((x, y), d)
+    mod.out_item = rec['out'][0]['item']
+    mod.out_rate = rate1 * sum(per) * rec['out'][0]['amount']
+    return mod
+
+
 def cap(mod, key):
     """dead-end an unused flow-through exit with a short belt so the last arm can still take from it"""
     (x, y), d = mod.outs.pop(key)

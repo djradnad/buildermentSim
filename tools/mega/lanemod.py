@@ -28,11 +28,12 @@ def machine_row(bid, x, y, o, recipe, tier):
     return [bid, x - mx, y - my, o, tier - 1, recipe, 0]
 
 
-def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False):
+def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False, left=(), up_only=False):
     """-> dict(rows, inputs [(x, y, d)], outputs [(x, y, d)], through [(x, y, d)], w, h)"""
     s = rc.SIZE[bid][0]
     assert lanes <= s
-    P = s + 3
+    L = 1 if left else 0                                    # left: lanes with a second arm, taking from the entrance
+    P = s + 3 + L
     per = [n // rows + (1 if k < n % rows else 0) for k in range(rows)]
     width = max(per) * P
     out, inputs, outputs, through, outm = [], [], [], [], []
@@ -44,7 +45,7 @@ def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False):
         y += s + (0 if share and k % 2 == 1 else 1)
     for k in range(rows):
         y0 = ytop[k]
-        up = share and k % 2 == 1
+        up = (share and k % 2 == 1) or up_only          # up_only: one row pushing up into a neighbour's collector
         east = k % 2 == 0
         m = per[k]
         fx = (lambda x: x) if east else (lambda x: width - 1 - x)
@@ -53,13 +54,15 @@ def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False):
             base = j * P
             for i in range(lanes):
                 out.append([I, fx(base), y0 + i, d, 0, -1, 0])
-                out.append([ARM, fx(base + s + 1), y0 + i, 1 if east else 3, arm_tier - 1, -1, 0])
-                out.append([O, fx(base + s + 2), y0 + i, d, 0, -1, 0])
-            mx = base + 1 if east else width - 1 - (base + s)
+                if (i if k % 2 == 0 else lanes - 1 - i) in left:        # the U-turn flips the lane order
+                    out.append([ARM, fx(base + 1), y0 + i, d, arm_tier - 1, -1, 0])
+                out.append([ARM, fx(base + L + s + 1), y0 + i, 1 if east else 3, arm_tier - 1, -1, 0])
+                out.append([O, fx(base + L + s + 2), y0 + i, d, 0, -1, 0])
+            mx = base + L + 1 if east else width - 1 - (base + L + s)
             out.append(machine_row(bid, mx, y0, 0 if up else 2, recipe, tier))
         # collector under the machines, flowing back toward the row's start
         cd = 1 if east else 3
-        xs = sorted(fx(x) for x in range(1, m * P - (1 if share and k + 1 < rows else 2)))
+        xs = sorted(fx(x) for x in range(1 + L, m * P - (1 if share and k + 1 < rows else 2)))
         if not up:
             for x in xs:
                 out.append([B, x, y0 + s, cd, 0, -1, 0])
@@ -119,6 +122,28 @@ def stack(mods):
         y += m['h']
         w = max(w, m['w'])
     out['w'], out['h'] = w, y
+    return out
+
+
+def paired(bid, recipe, per, lanes, left=()):
+    """single-row groups (own inputs each) stacked in pairs that face one collector"""
+    s = rc.SIZE[bid][0]
+    out = dict(rows=[], inputs=[], outputs=[], through=[], machines=sum(per), groups=len(per), outm=[])
+    y = 0
+    w = 0
+    for g, m in enumerate(per):
+        low = g % 2 == 1
+        mod = build(bid, recipe, m, 1, lanes, left=left, up_only=low)
+        if low:
+            out['outm'][-1] += m
+        else:
+            out['outm'] += mod['outm']
+        out['rows'] += [[r[0], r[1], r[2] + y] + r[3:] for r in mod['rows']]
+        for k in ('inputs', 'outputs', 'through'):
+            out[k] += [(t[0], t[1] + y, t[2]) for t in mod[k]]
+        y += s if low else s + 1
+        w = max(w, mod['w'])
+    out['w'], out['h'] = w, y - (1 if len(per) % 2 == 0 else 0) + (0 if len(per) % 2 == 0 else 0)
     return out
 
 

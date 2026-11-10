@@ -21,7 +21,7 @@ from bmsolver.pieces import step
 
 B = 3000
 CORE = ('factory_manufacturer', 'factory_industrial', 'factory_machine_shop')
-STANDIN = {2035: (33, 8), 2015: (23, 27), 2029: (14, 21), 2041: (14, 13)}     # recipe -> (w, h)
+STANDIN = {2035: (33, 8), 2041: (14, 13)}     # recipe -> (w, h)
 GLUE_IN_DUPLICATOR = True       # john's duplicator build makes its own particle glue from matter compressors
 
 
@@ -78,7 +78,7 @@ def make(rn, rec, crafts):
     heavy = max(i['amount'] for i in rec['in']) * rate1
     if rec['id'] in STANDIN:
         return standin(rn, rec, crafts)
-    if rec['building'] == 'factory_machine_shop':
+    if rec['building'] == 'factory_machine_shop' and heavy <= 90:
         blocks = max(1, min(3, int(480 / (2 * heavy)), int(480 / (4 * rate1 * outa))))
         while blocks > 1 and 2 * blocks * math.ceil(n / (2 * blocks)) - n >= 2:
             blocks -= 1                                   # fewer spare machines
@@ -90,6 +90,12 @@ def make(rn, rec, crafts):
         return m
     mg = max(1, int(480 / heavy + 1e-9))
     groups = math.ceil(n / mg)
+    arms = [math.ceil(i['amount'] * rate1 / 90 - 1e-9) for i in rec['in']]
+    if max(arms) == 2:                                    # a second arm on those lanes, taking from the entrance
+        per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
+        m = cl.paired_mod(rn, rec['id'], per, left=tuple(i for i, a in enumerate(arms) if a == 2))
+        m.out_rates = {('out', k): c * rate1 * outa for k, c in enumerate(m.outm)}
+        return m
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
     rows = 2 if max(per) >= 8 else 1
     share = rows == 2 and max(per) * rate1 * outa <= 480
