@@ -111,12 +111,32 @@ def main(path, out=None):
     old = sum(len(t) for t, s, e in nets)
     print('%dx%d, %d buildings, %d belt pieces; %d fixed, %d connecting runs with %d pieces ripped out'
           % (W, H, len(rows), len(belts), len(anchored), len(nets), old), flush=True)
-    ok, res, secs = negotiate.route(W, H, len(nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug,
+    swap = []
+    if '--swap' in sys.argv:                                # neighbouring sinks of one direction = one module's lanes
+        at = {e: (d, i) for e, d, i in sinks}
+        seen = set()
+        for e in at:
+            if e in seen:
+                continue
+            grp, todo = [e], [e]
+            seen.add(e)
+            while todo:
+                p = todo.pop()
+                for dd in range(4):
+                    q = step(p, dd)
+                    if q in at and q not in seen and at[q][0] == at[p][0]:
+                        seen.add(q)
+                        grp.append(q)
+                        todo.append(q)
+            if len(grp) > 1:
+                swap.append([at[q][1] for q in grp])
+        print('%d lane groups with %d runs may swap ends' % (len(swap), sum(map(len, swap))))
+    ok, res, secs = negotiate.route(W, H, len(nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug, swap=swap,
                                     open_cost=0.2, log=lambda s: print('  ' + s, flush=True), timeout=900)
     if not ok:
         print('NOT ROUTED in %.1f s: %s' % (secs, str(res)[:300]))
         return
-    place.trace(dict(W=W, H=H, blocked=blocked, sources=sources, sinks=sinks, nets=len(nets), reach=UG_REACH), res)
+    place.trace(dict(W=W, H=H, blocked=blocked, sources=sources, sinks=res['sinks'], nets=len(nets), reach=UG_REACH), res)
     print('routed and traced in %.1f s (%d rounds): %d pieces, the hand-made runs had %d' % (secs, res['rounds'], res['pieces'], old))
     longer = sum(1 for i, (t, s, e) in enumerate(nets) if len(res['by_net'][i]) > len(t))
     shorter = sum(1 for i, (t, s, e) in enumerate(nets) if len(res['by_net'][i]) < len(t))
