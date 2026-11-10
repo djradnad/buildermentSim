@@ -28,7 +28,9 @@ def geometry(lay, ch, per_port, cap):
                 cnt[1] += 1
             elif y > y1:
                 cnt[3] += 1
-        mar = [ch + min(cap, int(math.ceil(c * per_port))) for c in cnt]
+        mar = [min(cap, int(math.ceil(c * per_port))) for c in cnt]
+        mar[2] += ch                                    # the channel itself only on the right and bottom:
+        mar[3] += ch                                    # the neighbour on the other sides brings its own
         out.append((x0, y0, x1, y1, mar))
     return out
 
@@ -92,7 +94,7 @@ def place(lay, ch=1, per_port=0.5, cap=4, width=100, seconds=60, seed=1, wl_w=0.
             b = (e[1], e[0]) if flip[ge] else e
             wl += abs(off[gs][0] + a[0] - off[ge][0] - b[0]) + abs(off[gs][1] + a[1] - off[ge][1] - b[1])
         used = max(pos[g][0] + W[g] for g in range(n))
-        return max(top, used) + 0.2 * top + wl_w * wl, off, top, wl
+        return max(top, used) + 0.5 * top + wl_w * wl, off, top, wl
 
     order = sorted(range(n), key=lambda g: -dims(g, 0)[0] * dims(g, 0)[1])
     flip = [0] * n

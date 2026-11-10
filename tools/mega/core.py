@@ -219,7 +219,7 @@ def main(seconds=120, rounds=1):
     rnd = random.Random(1)
     t0 = time.time()
     for r in range(int(rounds)):
-        per_port, cap, ch = rnd.choice([(0.34, 4, 2), (0.34, 3, 1), (0.25, 2, 1), (0.25, 3, 2), (0.2, 2, 1), (0.0, 0, 2), (0.0, 0, 1)])
+        per_port, cap, ch = rnd.choice([(0.34, 3, 3), (0.25, 2, 3), (0.34, 3, 2), (0.25, 2, 2), (0.0, 0, 3), (0.0, 0, 4), (0.5, 3, 2)])
         width = side + rnd.randrange(8, 34)
         off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1, wl_w=rnd.choice([0.02, 0.04, 0.06]))
         tm = [cl.transpose(m) if f else m for m, f in zip(mods, flip)]
@@ -232,7 +232,7 @@ def main(seconds=120, rounds=1):
         if best and max(W, H) >= best:
             print(tag + ': not smaller than the best, skipped', flush=True)
             continue
-        res = lay.route(off, timeout=240)
+        res = lay.route(off, timeout=150)
         if res is None:
             print(tag + ': did not route', flush=True)
             continue
