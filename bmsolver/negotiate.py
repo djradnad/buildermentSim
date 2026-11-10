@@ -15,14 +15,16 @@ from .pieces import UG_REACH, opposite, step, DIRS
 
 
 def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=60, hop_cost=0.5, turn_cost=0.05,
-          open_cost=0.0, log=None, timeout=None, fixed_ug=(), no_ug=(), swap=()):
+          open_cost=0.0, log=None, timeout=None, fixed_ug=(), no_ug=(), swap=(), join=None):
     """sources: (tile, d, net) items enter the tile moving d; sinks: (tile, d, net) the piece there pushes d.
     hop_cost: extra price of one hop (john prefers plain belts when equal); open_cost: extra price of a tile
     with no block next to it (routes hug buildings). fixed_ug: (tile, d) of underground pieces that stay (a new
     hop may not pass one of its own direction); no_ug: (tile, d) where no new entrance / exit of direction d may
     go (the tiles between a fixed entrance and its exit). swap: groups of nets whose sinks are interchangeable
     (a module's input lanes that can each take any of its resources): the router picks who ends where and
-    reports it as result['sinks'] in the same form as the sinks argument."""
+    reports it as result['sinks'] in the same form as the sinks argument. join: {net: other net} = this net has
+    no sink of its own, it ends by pushing into a belt of the other net from the side (two collectors of one item
+    joining; the caller makes sure the sum fits one belt)."""
     t0 = time.time()
     blocked = set(blocked)
     fixed_ug, no_ug = set(fixed_ug), set(no_ug)
@@ -35,12 +37,15 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
         for n in grp:
             team[n] = min(grp)
     goals = {}
+    join = dict(join or {})
     for n in range(nets):
-        goals.setdefault(team[n], {})[goal[n][0]] = goal[n][1]
+        if n not in join:
+            goals.setdefault(team[n], {})[goal[n][0]] = goal[n][1]
     reserved = {}                                # port tiles belong to their net (or its team)
     for n in range(nets):
         reserved[start[n][0]] = ('s', n)
-        reserved[goal[n][0]] = ('g', team[n])
+        if n not in join:
+            reserved[goal[n][0]] = ('g', team[n])
     base = {}
     if open_cost:
         for y in range(H):
@@ -54,6 +59,23 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
     paths = {}                                   # net -> {tile: code}
     pres = 0.5
     ended = {}                                   # net -> the sink tile it took
+    ended_dir = {}
+
+    def join_goals(n):
+        """tiles next to a belt of the net we join, with the direction that pushes into it (not head-on)"""
+        G = {}
+        pm = paths.get(join[n], {})
+        for t, code in pm.items():
+            if code[0] != 'B':
+                continue
+            e = int(code[1])
+            for g in range(4):
+                if g == opposite(e):
+                    continue
+                q = step(t, opposite(g))
+                if free(q) and q not in pm and reserved.get(q) in (None, ('s', n)):
+                    G.setdefault(q, g)
+        return G
 
     def tile_cost(p, n):
         r = reserved.get(p)
@@ -64,8 +86,12 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
 
     def astar(n, strict=False):
         s, sd = start[n]
-        G = goals[team[n]]
-        if len(G) == 1:
+        G = join_goals(n) if n in join else goals[team[n]]
+        if not G:
+            return None
+        if n in join:
+            h = lambda p: 0
+        elif len(G) == 1:
             (g0, _), = G.items()
             h = lambda p: abs(p[0] - g0[0]) + abs(p[1] - g0[1])
         else:
@@ -88,6 +114,7 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
             if p in G and (d == 4 or d != opposite(G[p])):
                 out = {} if d == 4 else {p: 'B%d' % G[p]}
                 ended[n] = p       # last belt (or exit) pushes into the sink
+                ended_dir[n] = G[p]
                 key = (p, d)
                 count = len(out)
                 while key in prev:
@@ -176,6 +203,9 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
 
     todo = list(range(nets))
     for it in range(rounds):
+        todo = set(todo)
+        todo |= {n for n, m in join.items() if m in todo}           # a moved belt takes its joiners along
+        todo = sorted(todo, key=lambda n: (n in join, n))
         for n in todo:
             rip(n)
             pieces = astar(n)
@@ -190,7 +220,7 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
             for n, pieces in paths.items():
                 tiles.update(pieces)
             return True, dict(tiles=tiles, placed=[], pieces=len(tiles), rounds=it + 1, by_net=paths,
-                              sinks=[(ended[n], goals[team[n]][ended[n]], n) for n in range(nets)]), time.time() - t0
+                              sinks=[(ended[n], ended_dir[n], n) for n in range(nets)]), time.time() - t0
         for p, ns in use.items():
             if len(ns) > 1:
                 hist[p] = hist.get(p, 0) + 0.5 * (len(ns) - 1)

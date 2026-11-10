@@ -177,8 +177,15 @@ class Layout(cc.State):
         self.cells = [sorted(m.cells) for m in mods]
         self.off = [(0, 0)] * self.n
         self.nets = []
-        for a, ka, b, kb in nets:
+        self.joins = {}        # net -> the net whose belt it joins (given as (a, ka, None, index of that net))
+        for i, (a, ka, b, kb) in enumerate(nets):
             (t, d) = mods[a].outs[ka]
+            if b is None:
+                self.joins[i] = kb
+                a2, ka2 = nets[kb][0], nets[kb][1]
+                (t2, d2) = mods[a2].outs[ka2]
+                self.nets.append((step(t, d), d, a, step(t2, d2, 2), d2, a2))      # placement: stay near that belt
+                continue
             (e, de) = mods[b].ins[kb]
             self.nets.append((step(t, d), d, a, e, de, b))
         self.ug = []
@@ -221,10 +228,11 @@ class Layout(cc.State):
             owner[p] = -1
             piece[p] = (BUILDING_ID[c[0]], int(c[1]))
         ok = set()
-        for (s, d, gs, e, de, ge) in self.nets:
+        for i, (s, d, gs, e, de, ge) in enumerate(self.nets):
             a, b = self.pos(s, gs), self.pos(e, ge)
             ok.add((step(a, (d + 2) % 4), a))
-            ok.add((b, step(b, de)))
+            if i not in self.joins:
+                ok.add((b, step(b, de)))
         bad = []
         for p, (kind, d) in piece.items():
             if kind == I:
@@ -296,6 +304,11 @@ def _route(self, off, timeout=60):
     owner = {}
     for i, (s, d, gs, e, de, ge) in enumerate(self.nets):
         a, b = sh(self.pos(s, gs, off)), sh(self.pos(e, ge, off))
+        if i in self.joins:
+            if a in blocked or owner.setdefault(a, i) != i:
+                return None
+            sources.append((a, d, i))
+            continue
         if a in blocked or b in blocked:
             return None
         for t in (a, b):
@@ -303,13 +316,13 @@ def _route(self, off, timeout=60):
                 return None
         sources.append((a, d, i))
         sinks.append((b, de, i))
-    ok, res, secs = negotiate.route(W, H, len(self.nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug, log=getattr(self, "rlog", None),
+    ok, res, secs = negotiate.route(W, H, len(self.nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug, log=getattr(self, "rlog", None), join=self.joins,
                                     open_cost=0.2, timeout=timeout, rounds=getattr(self, "rounds", 150))
     if not ok:
         self.fail = res
         return None
     try:
-        place.trace(dict(W=W, H=H, blocked=blocked, sources=sources, sinks=sinks, nets=len(self.nets), reach=UG_REACH), res)
+        place.trace(dict(W=W, H=H, blocked=blocked, sources=sources, sinks=res['sinks'] if self.joins else sinks, nets=len(self.nets), reach=UG_REACH), res)
     except AssertionError as ex:
         print('trace failed:', ex)
         return None

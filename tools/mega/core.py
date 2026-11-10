@@ -104,6 +104,11 @@ def make(rn, rec, crafts):
     return m
 
 
+def primary_index(nets):
+    """index of the last real (non-join) net"""
+    return max(i for i, n in enumerate(nets) if n[2] is not None)
+
+
 def build():
     rs = recipes()
     mods, nets, names = [], [], []
@@ -161,19 +166,18 @@ def build():
             open_in.append((i, (g, item), need))
             continue
         if pick is None:        # join belts until there is enough
-            pick = pool.pop()
+            pick = list(pool.pop()) + [[]]
             while pick[2] < need - 1e-6 and pool:
                 other = pool.pop()
-                j = len(mods)
-                mods.append(cl.merge_mod())
-                nets.append((pick[0], pick[1], j, 'a'))
-                nets.append((other[0], other[1], j, 'b'))
-                pick = [j, 'out', pick[2] + other[2]]
+                pick[3].append((other[0], other[1]))                # joins this belt on the way (router's job)
+                pick[2] += other[2]
             if pick[2] < need - 1e-6:
                 print('  short: %s for %s wants %.1f, has %.1f' % (item, mods[i].name, need, pick[2]))
         else:
             pool.remove(pick)
         nets.append((pick[0], pick[1], i, (g, item)))
+        for (jm, jk) in (pick[3] if len(pick) > 3 else []):
+            nets.append((jm, jk, None, len(nets) - 1 - 0 * len(nets) if False else primary_index(nets)))
         left = pick[2] - need
         thru = ('thru', g, item)
         if thru in mods[i].outs and left > 0.5:
@@ -215,8 +219,8 @@ def main(seconds=120, rounds=1):
     rnd = random.Random(1)
     t0 = time.time()
     for r in range(int(rounds)):
-        per_port, cap, ch = rnd.choice([(0.5, 4, 1), (0.34, 3, 1), (0.5, 6, 1), (0.25, 3, 2), (0.34, 4, 2)])
-        width = side + rnd.randrange(18, 46)
+        per_port, cap, ch = rnd.choice([(0.34, 4, 2), (0.34, 3, 1), (0.25, 2, 1), (0.25, 3, 2), (0.2, 2, 1), (0.0, 0, 2), (0.0, 0, 1)])
+        width = side + rnd.randrange(8, 34)
         off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1, wl_w=rnd.choice([0.02, 0.04, 0.06]))
         tm = [cl.transpose(m) if f else m for m, f in zip(mods, flip)]
         lay = cl.Layout(tm, nets)
@@ -228,7 +232,7 @@ def main(seconds=120, rounds=1):
         if best and max(W, H) >= best:
             print(tag + ': not smaller than the best, skipped', flush=True)
             continue
-        res = lay.route(off, timeout=600)
+        res = lay.route(off, timeout=240)
         if res is None:
             print(tag + ': did not route', flush=True)
             continue
