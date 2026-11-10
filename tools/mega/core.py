@@ -290,7 +290,85 @@ def anneal_main(seconds=600, rounds=6):
     print('done, best side %s' % best, flush=True)
 
 
+def squeeze_main(minutes=100, src='~/data/core_gen.pkl'):
+    """pull the modules of a routed core toward the middle one at a time, re-routing everything after each move;
+    a move stays when the core still routes.  Saves ~/data/core_sq.{pkl,json,png} after every gain."""
+    import time
+    mods, nets, open_in, spare = build()
+    off, flip, res = pickle.load(open(os.path.expanduser(src), 'rb'))
+    tm = [cl.transpose(m) if f else m for m, f in zip(mods, flip)]
+    lay = cl.Layout(tm, nets)
+    lay.off = list(off)
+    out = os.path.expanduser('~/data/core_sq')
+    t0 = time.time()
+
+    def box(o, r=None):
+        xs = [c[0] + oo[0] for cells, oo in zip(lay.cells, o) for c in cells]
+        ys = [c[1] + oo[1] for cells, oo in zip(lay.cells, o) for c in cells]
+        if r:
+            xs += [x + r['origin'][0] for (x, y) in r['tiles']]
+            ys += [y + r['origin'][1] for (x, y) in r['tiles']]
+        return min(xs), min(ys), max(xs), max(ys)
+
+    def overlaps(o, g):
+        mine = {(c[0] + o[g][0], c[1] + o[g][1]) for c in lay.cells[g]}
+        for h in range(lay.n):
+            if h != g and any((c[0] + o[h][0], c[1] + o[h][1]) in mine for c in lay.cells[h]):
+                return True
+        return False
+    b = box(lay.off, res)
+    print('start %dx%d' % (b[2] - b[0] + 1, b[3] - b[1] + 1), flush=True)
+    step_sizes = [8, 4, 2, 1]
+    while time.time() - t0 < minutes * 60:
+        gained = False
+        b = box(lay.off)
+        cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
+        W, H = b[2] - b[0], b[3] - b[1]
+
+        def far(g):
+            xs = [c[0] + lay.off[g][0] for c in lay.cells[g]]
+            ys = [c[1] + lay.off[g][1] for c in lay.cells[g]]
+            mx, my = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+            return max(abs(mx - cx) / max(W, 1), abs(my - cy) / max(H, 1)), mx, my
+        for g in sorted(range(lay.n), key=lambda g: -far(g)[0]):
+            if time.time() - t0 > minutes * 60:
+                break
+            _, mx, my = far(g)
+            dirs = []
+            if abs(my - cy) / max(H, 1) >= abs(mx - cx) / max(W, 1):
+                dirs = [(0, 1 if my < cy else -1), (1 if mx < cx else -1, 0)]
+            else:
+                dirs = [(1 if mx < cx else -1, 0), (0, 1 if my < cy else -1)]
+            done = False
+            for dx, dy in dirs:
+                for k in step_sizes:
+                    o2 = list(lay.off)
+                    o2[g] = (lay.off[g][0] + dx * k, lay.off[g][1] + dy * k)
+                    if overlaps(o2, g):
+                        continue
+                    r2 = lay.route(o2, timeout=90)
+                    if r2 is None:
+                        continue
+                    lay.off, res = o2, r2
+                    bb = box(lay.off, res)
+                    print('%.0f min: %s moved %d,%d -> %dx%d, %d route pieces' % (
+                        (time.time() - t0) / 60, tm[g].name, dx * k, dy * k, bb[2] - bb[0] + 1, bb[3] - bb[1] + 1, res['pieces']), flush=True)
+                    pickle.dump((lay.off, flip, res), open(out + '.pkl', 'wb'))
+                    gained = done = True
+                    break
+                if done:
+                    break
+        if not gained:
+            break
+    json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
+    PW, PH = cl.picture(lay, res, out + '.png')
+    print('done %dx%d, check %s' % (PW, PH, lay.check(res) or 'ok'), flush=True)
+
+
 if __name__ == '__main__':
+    if sys.argv[1] == 'squeeze':
+        squeeze_main(*[float(a) for a in sys.argv[2:3]])
+        sys.exit()
     if sys.argv[1] == 'anneal':
         anneal_main(*[float(a) for a in sys.argv[2:4]])
     else:
