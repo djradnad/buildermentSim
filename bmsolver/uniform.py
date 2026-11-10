@@ -40,7 +40,7 @@ def levels(M):
     return [(i, j) for i in range(a + 1) for j in range(b + 1)], (a, b)
 
 
-def build(win, N, M=None, pass_splitters=True, same_merge=False):
+def build(win, N, M=None, pass_splitters=True, same_merge=False, cuts=False):
     """Model(win, flows=False) plus a set and a share on every link and port term. N inputs, M outputs."""
     M = M or N
     LV, target = levels(M)
@@ -123,6 +123,39 @@ def build(win, N, M=None, pass_splitters=True, same_merge=False):
             for i in range(N):
                 m.Add(mem[t][i] == mem[u][N - 1 - i])
 
+    if cuts and not win.port_options:
+        # implied counting rules the local labels cannot see: across every line between two columns the links
+        # carry exactly one belt of every input westwards (net), and across every line between two rows the net
+        # amount of input i going down is fixed by where lane i enters and how many outputs lie above the line
+        val = [M // (2 ** i * 3 ** j) for i, j in LV]
+        Y = {}
+
+        def amount(t, i):                     # units of 1/M of input i on link t
+            if (t, i) not in Y:
+                ys = []
+                for x in range(NL):
+                    y = m.NewBoolVar('')
+                    m.AddBoolAnd([sh[t][x], mem[t][i]]).OnlyEnforceIf(y)
+                    m.AddBoolOr([sh[t][x].Not(), mem[t][i].Not(), y])
+                    ys.append(val[x] * y)
+                Y[t, i] = sum(ys)
+            return Y[t, i]
+        in_row = {lane[k]: k[0][1] for k in lane}
+        out_rows = [p[1] for p, kind, l in terms if kind == 'out']
+        inner = [(k, p, q) for k, (p, q, l, kind) in enumerate(mod.links) if p is not None and q is not None]
+        for c in range(win.W - 1):
+            west = [k for k, p, q in inner if p[0] > c >= q[0]]
+            east = [k for k, p, q in inner if q[0] > c >= p[0]]
+            for i in range(N):
+                m.Add(sum(amount(('L', k), i) for k in west) - sum(amount(('L', k), i) for k in east) == M)
+        for r in range(win.H - 1):
+            down = [k for k, p, q in inner if q[1] > r >= p[1]]
+            up = [k for k, p, q in inner if p[1] > r >= q[1]]
+            above = sum(1 for y in out_rows if y <= r)
+            for i in range(N):
+                m.Add(sum(amount(('L', k), i) for k in down) - sum(amount(('L', k), i) for k in up)
+                      == (M if in_row[i] <= r else 0) - above)
+
     nact = lambda ts: sum(1 if act[t] is True else act[t] for t in ts)
     neg = lambda a: [] if a is True else [a.Not()]
     mod.sh, mod.mem, mod.act = sh, mem, act
@@ -191,9 +224,9 @@ def build(win, N, M=None, pass_splitters=True, same_merge=False):
     return mod
 
 
-def solve(win, N, M=None, engine='cadical195', timeout=None, pass_splitters=True, same_merge=False):
+def solve(win, N, M=None, engine='cadical195', timeout=None, pass_splitters=True, same_merge=False, cuts=False):
     t0 = time.time()
-    mod = build(win, N, M, pass_splitters, same_merge)
+    mod = build(win, N, M, pass_splitters, same_merge, cuts)
     tb = time.time() - t0
     if engine == 'cpsat':
         from ortools.sat.python import cp_model

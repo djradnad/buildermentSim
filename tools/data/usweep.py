@@ -14,6 +14,28 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from bmsolver import uniform, spec as S, bench  # noqa: E402
 
 
+def kill_tree(root):
+    """stop every solver process started below this one (grandchildren of the pool workers)"""
+    import signal
+    kids = {}
+    for d in os.listdir('/proc'):
+        if d.isdigit():
+            try:
+                kids.setdefault(int(open('/proc/%s/stat' % d).read().rsplit(')', 1)[1].split()[1]), []).append(int(d))
+            except OSError:
+                pass
+    todo, seen = [root], []
+    while todo:
+        for c in kids.get(todo.pop(), []):
+            seen.append(c)
+            todo.append(c)
+    for c in reversed(seen):
+        try:
+            os.kill(c, signal.SIGKILL)
+        except OSError:
+            pass
+
+
 def one(a):
     n, m, W, H, ia, oa, sym, eng, timeout = a
     win = S.Spec([S.Group('E', n, at=ia)], [S.Group('W', m, at=oa)]).window(W, H, symmetry='y' if sym else None)
@@ -34,7 +56,8 @@ def sweep(n, m, W, H, sym, eng, timeout, procs, out=None, log=print, stop_first=
     else:
         pairs = [(ia, oa) for ia in range(kn + 1) for oa in range(km + 1) if (ia, oa) <= (kn - ia, km - oa)]
     found, unknown, t0 = None, False, time.time()
-    with cf.ProcessPoolExecutor(procs) as ex:
+    ex = cf.ProcessPoolExecutor(procs)
+    if True:
         futs = [ex.submit(one, (n, m, W, H, ia, oa, sym, eng, timeout)) for ia, oa in pairs]
         for f in cf.as_completed(futs):
             rec = f.result()
@@ -47,8 +70,9 @@ def sweep(n, m, W, H, sym, eng, timeout, procs, out=None, log=print, stop_first=
                 if stop_first:
                     for g in futs:
                         g.cancel()
-                    os.system('pkill -P %d -f kissat >/dev/null 2>&1; pkill -f "m.cnf" >/dev/null 2>&1' % os.getpid())
+                    kill_tree(os.getpid())
                     break
+    ex.shutdown(wait=False, cancel_futures=True)
     st = 'FEASIBLE' if found else 'UNKNOWN' if unknown else 'INFEASIBLE'
     if log:
         log('%d:%d %dx%d%s %s %.0fs%s' % (n, m, W, H, ' sym' if sym else '', st, time.time() - t0,
@@ -64,7 +88,7 @@ if __name__ == '__main__':
     ap.add_argument('--m', type=int, default=None)
     ap.add_argument('--size', required=True)
     ap.add_argument('--sym', action='store_true')
-    ap.add_argument('--procs', type=int, default=4)
+    ap.add_argument('--procs', type=int, default=8, help='placements at once (more than the cores is fine: fits come fast, misses are slow)')
     ap.add_argument('--timeout', type=float, default=1800)
     ap.add_argument('--engine', default='~/solvers/kissat')
     ap.add_argument('--out', default=None)
