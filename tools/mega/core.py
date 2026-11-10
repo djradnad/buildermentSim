@@ -190,54 +190,59 @@ def build():
     return mods, nets, open_in, spare
 
 
-def main(seconds=120):
+def main(seconds=120, rounds=1):
+    """keeps trying packings (width, channel rule, seed) and routing them; every routed one that beats the best
+    so far is saved to ~/data/core_gen.{pkl,png,json}"""
+    import pack
+    import random
+    import time
     mods, nets, open_in, spare = build()
     area = sum(len(m.cells) for m in mods)
+    side = math.ceil(area ** 0.5)
     print('%d modules, %d tiles (a %dx%d square before any routing), %d belts inside, %d open inputs' % (
-        len(mods), area, math.ceil(area ** 0.5), math.ceil(area ** 0.5), len(nets), len(open_in)), flush=True)
-    for m in sorted(mods, key=lambda m: -len(m.cells)):
-        if len(m.cells) > 4:
-            xs = [c[0] for c in m.cells]
-            ys = [c[1] for c in m.cells]
-            print('  %-26s %3dx%-3d %5d tiles%s' % (m.name, max(xs) - min(xs) + 1, max(ys) - min(ys) + 1, len(m.cells),
-                                                  '  (stand-in)' if getattr(m, 'standin', False) else ''))
-    print('  spare product ends:', {k: len(v) for k, v in spare.items()}, flush=True)
+        len(mods), area, side, side, len(nets), len(open_in)), flush=True)
     if seconds <= 0:
+        for m in sorted(mods, key=lambda m: -len(m.cells)):
+            if len(m.cells) > 4:
+                xs = [c[0] for c in m.cells]
+                ys = [c[1] for c in m.cells]
+                print('  %-26s %3dx%-3d %5d tiles%s' % (m.name, max(xs) - min(xs) + 1, max(ys) - min(ys) + 1, len(m.cells),
+                                                      '  (stand-in)' if getattr(m, 'standin', False) else ''))
         return
-    lay = cl.Layout(mods, nets)
-    x = y = rowh = 0
-    off = []
-    for i in sorted(range(len(mods)), key=lambda i: -len(mods[i].cells)):
-        xs = [c[0] for c in mods[i].cells]
-        ys = [c[1] for c in mods[i].cells]
-        w, h = max(xs) - min(xs) + 4, max(ys) - min(ys) + 4
-        if x + w > 105:
-            x, y, rowh = 0, y + rowh, 0
-        off.append((i, (x - min(xs), y - min(ys))))
-        x += w
-        rowh = max(rowh, h)
-    lay.off = [o for i, o in sorted(off)]
+    base = cl.Layout(mods, nets)
     out = os.path.expanduser('~/data/core_gen')
-    import pack
-    tries = []
-    for width in (96, 100, 104, 108):
-        off2, top, wl = pack.place(lay, ch=2, width=width, seconds=seconds / 4, seed=width, log=lambda s: print('  ' + s, flush=True))
-        tries.append((max(width, top) + 0.02 * wl, width, off2))
-    for score, width, off2 in sorted(tries):
-        print('routing the width %d packing...' % width, flush=True)
-        res = lay.route(off2, timeout=300)
-        if res is None:
-            print('  did not route', flush=True)
+    best = None
+    rnd = random.Random(1)
+    t0 = time.time()
+    for r in range(int(rounds)):
+        per_port, cap, ch = rnd.choice([(0.5, 4, 1), (0.34, 3, 1), (0.5, 6, 1), (0.25, 3, 2), (0.34, 4, 2)])
+        width = side + rnd.randrange(8, 40)
+        off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1)
+        tm = [cl.transpose(m) if f else m for m, f in zip(mods, flip)]
+        lay = cl.Layout(tm, nets)
+        xs = [c[0] + o[0] for cells, o in zip(lay.cells, off) for c in cells]
+        ys = [c[1] + o[1] for cells, o in zip(lay.cells, off) for c in cells]
+        W, H = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+        tag = 'try %d (%.0f min): channel %d + %.2f per port (max %d), %dx%d, belt length %d, %d turned' % (
+            r + 1, (time.time() - t0) / 60, ch, per_port, cap, W, H, wl, sum(flip))
+        if best and max(W, H) >= best:
+            print(tag + ': not smaller than the best, skipped', flush=True)
             continue
-        lay.off = off2
-        pickle.dump((lay.off, res), open(out + '.pkl', 'wb'))
-        for line in lay.check(res):
+        res = lay.route(off, timeout=600)
+        if res is None:
+            print(tag + ': did not route', flush=True)
+            continue
+        lay.off = off
+        bad = lay.check(res)
+        for line in bad:
             print('  CHECK:', line, flush=True)
-        W, H = cl.picture(lay, res, out + '.png')
-        print('routed: %dx%d, %d route pieces' % (W, H, res['pieces']), flush=True)
-        return
-    print('no routed placement')
+        best = max(W, H)
+        pickle.dump((off, flip, res), open(out + '.pkl', 'wb'))
+        json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
+        PW, PH = cl.picture(lay, res, out + '.png')
+        print(tag + ': ROUTED %dx%d with %d route pieces%s' % (PW, PH, res['pieces'], '' if not bad else ' (check failed)'), flush=True)
+    print('done, best side %s' % best, flush=True)
 
 
 if __name__ == '__main__':
-    main(*[float(a) for a in sys.argv[1:2]])
+    main(*[float(a) for a in sys.argv[1:3]])

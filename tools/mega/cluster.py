@@ -110,6 +110,32 @@ def paired_mod(name, recipe, per, left=()):
     return mod
 
 
+TR = {0: 1, 1: 0, 2: 3, 3: 2}
+
+
+def transpose(mod):
+    """the module mirrored on its diagonal (x and y swapped): a new Mod with the same port keys"""
+    m = Mod(mod.name, [])
+    for r in mod.rows:
+        if r[0] in KIND_OF_ID or r[0] == lanemod.ARM:
+            m.rows.append([r[0], r[2], r[1], TR[r[3]]] + list(r[4:]))
+        else:
+            fp = rc.footprint(r)
+            mx, my = min(c[0] for c in fp), min(c[1] for c in fp)
+            m.rows.append(lanemod.machine_row(r[0], my, mx, TR[r[3]], r[5], r[4] + 1))
+    m.cells = {(y, x) for x, y in mod.cells}
+    m.ins = {k: ((t[1], t[0]), TR[d]) for k, (t, d) in mod.ins.items()}
+    m.outs = {k: ((t[1], t[0]), TR[d]) for k, (t, d) in mod.outs.items()}
+    for k, v in mod.__dict__.items():
+        if k not in ('rows', 'cells', 'ins', 'outs'):
+            setattr(m, k, v)
+    if mod.feed:
+        m.feed = ((mod.feed[0][1], mod.feed[0][0]),) + tuple(mod.feed[1:])
+    if mod.sink:
+        m.sink = (mod.sink[1], mod.sink[0])
+    return m
+
+
 def cap(mod, key):
     """dead-end an unused flow-through exit with a short belt so the last arm can still take from it"""
     (x, y), d = mod.outs.pop(key)
