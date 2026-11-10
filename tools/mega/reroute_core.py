@@ -121,6 +121,8 @@ def main(path, out=None):
     longer = sum(1 for i, (t, s, e) in enumerate(nets) if len(res['by_net'][i]) > len(t))
     shorter = sum(1 for i, (t, s, e) in enumerate(nets) if len(res['by_net'][i]) < len(t))
     print('%d runs shorter, %d longer, %d equal' % (shorter, longer, len(nets) - shorter - longer))
+    kinds = lambda cs: (sum(c[0] == 'B' for c in cs), sum(c[0] == 'I' for c in cs))
+    print('belts / hops: before %s, after %s' % (kinds([belts[p] for t, s, e in nets for p in t]), kinds(res['tiles'].values())))
     if out:
         keep = [r for r in rows if r[0] not in KIND_OF_ID or (r[1], r[2]) in anchored]
         from bmsolver.pieces import BUILDING_ID

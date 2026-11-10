@@ -107,7 +107,7 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
                     tr = tile_cost(r, n)
                     if tr is not None and not (strict and mine((p, d), r, step(r, d))):
                         if r == g and d == gd:                      # the exit itself pushes into the sink
-                            nc = c + tr + hop_cost + clash + (k - 1)
+                            nc = c + tr + hop_cost + clash + (k - 1) * (1 + open_cost)
                             if nc < best.get((g, 4), 1e18):
                                 best[g, 4] = nc
                                 prev[g, 4] = ((p, d), {p: 'I%d' % d, r: 'O%d' % d})
@@ -116,7 +116,7 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
                         if free(q) and r != g and not (q == g and d == opposite(gd)):
                             tq = tile_cost(q, n)
                             if tq is not None:
-                                nc = c + tr + tq + hop_cost + clash + (k - 1)
+                                nc = c + tr + tq + hop_cost + clash + (k - 1) * (1 + open_cost)
                                 if nc < best.get((q, d), 1e18):
                                     best[q, d] = nc
                                     prev[q, d] = ((p, d), {p: 'I%d' % d, r: 'O%d' % d})
