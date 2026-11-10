@@ -216,8 +216,8 @@ def main(seconds=120, rounds=1):
     t0 = time.time()
     for r in range(int(rounds)):
         per_port, cap, ch = rnd.choice([(0.5, 4, 1), (0.34, 3, 1), (0.5, 6, 1), (0.25, 3, 2), (0.34, 4, 2)])
-        width = side + rnd.randrange(8, 40)
-        off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1)
+        width = side + rnd.randrange(18, 46)
+        off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1, wl_w=rnd.choice([0.02, 0.04, 0.06]))
         tm = [cl.transpose(m) if f else m for m, f in zip(mods, flip)]
         lay = cl.Layout(tm, nets)
         xs = [c[0] + o[0] for cells, o in zip(lay.cells, off) for c in cells]

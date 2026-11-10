@@ -304,8 +304,9 @@ def _route(self, off, timeout=60):
         sources.append((a, d, i))
         sinks.append((b, de, i))
     ok, res, secs = negotiate.route(W, H, len(self.nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug, log=getattr(self, "rlog", None),
-                                    open_cost=0.2, timeout=timeout, rounds=40)
+                                    open_cost=0.2, timeout=timeout, rounds=getattr(self, "rounds", 150))
     if not ok:
+        self.fail = res
         return None
     try:
         place.trace(dict(W=W, H=H, blocked=blocked, sources=sources, sinks=sinks, nets=len(self.nets), reach=UG_REACH), res)
