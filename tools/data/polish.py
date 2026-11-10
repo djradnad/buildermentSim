@@ -60,6 +60,7 @@ def main():
     ap.add_argument('--out', required=True)
     ap.add_argument('--timeout', type=float, default=120, help='per layout')
     ap.add_argument('--engine', default='~/solvers/cadical')
+    ap.add_argument('--newest', action='store_true', help='newest records first (the latest frontier boxes)')
     a = ap.parse_args()
     seen = set()
     out = os.path.expanduser(a.out)
@@ -68,7 +69,8 @@ def main():
             r = json.loads(line)
             seen.add((r['n'], r['W'], r['H'], tuple(r['at']), r.get('sym'), tuple(r['src_grid'])))
     for path in sorted(glob.glob(os.path.expanduser(a.data))):
-        for line in open(path):
+        lines = open(path).readlines()
+        for line in (reversed(lines) if a.newest else lines):
             r = json.loads(line)
             if 'grid' not in r or not r.get('ok'):
                 continue
