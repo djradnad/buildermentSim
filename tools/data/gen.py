@@ -72,7 +72,8 @@ def frontier(n, H, sym, start_W, engine, timeout, variants, closed, write, log=p
         if sym:
             pairs = [((H - n) // 2, (H - n) // 2)] if (H - n) % 2 == 0 else []
         else:
-            pairs = [(ia, oa) for ia in range(H - n + 1) for oa in range(H - n + 1)]
+            k = H - n             # a placement and its top-bottom mirror fit the same boxes: solve one of each pair
+            pairs = [(ia, oa) for ia in range(k + 1) for oa in range(k + 1) if (ia, oa) <= (k - ia, k - oa)]
         found = False
         for ia, oa in pairs:
             for rec in run_job((n, W, H, ia, oa, sym), engine, timeout, variants, closed):
@@ -136,8 +137,11 @@ def main():
         def write(rec):
             with open(os.path.expanduser(a.out), 'a') as fh:
                 fh.write(json.dumps(rec) + '\n')
-        for H in range(h0, h1 + 1):
-            frontier(n, H, sym, int(parts[2]), os.path.expanduser(a.engine), a.timeout, a.variants, a.closed, write)
+        start = int(parts[2])
+        for H in range(h0, h1 + 1):    # a taller box is never wider at the frontier: start at the last height's best
+            low = frontier(n, H, sym, start, os.path.expanduser(a.engine), a.timeout, a.variants, a.closed, write)
+            if low < start:
+                start = low + 1
         return
     if a.sweep:
         k, mm = map(int, a.part.split('/'))
