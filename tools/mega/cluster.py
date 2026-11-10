@@ -64,6 +64,30 @@ def recipe_mod(name, recipe, n, groups=1, rows=1):
     return mod
 
 
+def shop_mod(name, recipe, n, blocks):
+    """machine-shop recipe in the dense two-lane column form; n is rounded up to whole columns"""
+    import shopmod
+    rec = RECIPES[recipe]
+    cols = -(-n // (2 * blocks))
+    fam = shopmod.build(recipe, blocks, cols)
+    mod = Mod(name, [list(r) for r in fam['rows']])
+    mod.rec, mod.groups, mod.per = rec, cols, [2 * blocks] * cols
+    rate1 = 60.0 / rec['seconds'] * 3
+    mod.need = {}
+    for g in range(cols):
+        for i, ing in enumerate(rec['in']):
+            x, y, d = fam['inputs'][g * 2 + i]
+            mod.ins[(g, ing['item'])] = (step((x, y), (d + 2) % 4), d)
+            x, y, d = fam['through'][g * 2 + i]
+            mod.outs[('thru', g, ing['item'])] = ((x, y), d)
+            mod.need[(g, ing['item'])] = ing['amount'] * rate1 * 2 * blocks
+    for k, (x, y, d) in enumerate(fam['outputs']):
+        mod.outs[('out', k)] = ((x, y), d)
+    mod.out_item = rec['out'][0]['item']
+    mod.out_rate = rate1 * 2 * blocks * cols * rec['out'][0]['amount']
+    return mod
+
+
 def cap(mod, key):
     """dead-end an unused flow-through exit with a short belt so the last arm can still take from it"""
     (x, y), d = mod.outs.pop(key)
