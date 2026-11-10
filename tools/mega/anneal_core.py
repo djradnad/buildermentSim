@@ -77,23 +77,23 @@ class Anneal:
         w, h = x1 - x0 + 1, y1 - y0 + 1
         return 2 * max(w, h) + w + h
 
-    def try_move(self, g, new, T, lam):
+    def apply(self, g, new, lam):
+        """move module g (always); -> cost change, or None when it would leave the grid (nothing moved)"""
         st = self.st
         ys, xs = self.idx[g]
         old = self.off[g]
         oy, ox = ys + old[1], xs + old[0]
         ny, nx = ys + new[1], xs + new[0]
         if nx.min() < 2 or ny.min() < 2 or nx.max() >= SIZE - 2 or ny.max() >= SIZE - 2:
-            return False
+            return None
         d_ov = -int((self.count[oy, ox] >= 2).sum())
         self.count[oy, ox] -= 1
         d_ov += int((self.count[ny, nx] >= 1).sum())
+        self.count[ny, nx] += 1
         d_wl = 0
-        saved = []
         for i in self.gnets[g]:
             s, d, gs, e, de, ge = st.nets[i]
             before = self.net_len(i)
-            saved.append((i, list(self.netpos[i])))
             if gs == g:
                 self.netpos[i][0] = self.abs(s, g, new)
             if ge == g:
@@ -102,16 +102,40 @@ class Anneal:
         b0 = self.box_cost()
         self.off[g] = new
         d_box = self.box_cost() - b0
-        delta = d_wl + lam * d_ov + self.box_w * d_box
+        self.overlap += d_ov
+        self.wl += d_wl
+        return d_wl + lam * d_ov + self.box_w * d_box
+
+    def try_move(self, g, new, T, lam):
+        old = self.off[g]
+        delta = self.apply(g, new, lam)
+        if delta is None:
+            return False
         if delta <= 0 or self.rnd.random() < math.exp(-delta / T):
-            self.count[ny, nx] += 1
-            self.overlap += d_ov
-            self.wl += d_wl
             return True
-        self.off[g] = old
-        self.count[oy, ox] += 1
-        for i, p in saved:
-            self.netpos[i] = p
+        self.apply(g, old, lam)
+        return False
+
+    def try_swap(self, g, h, T, lam):
+        """exchange the places of two modules (centres swapped)"""
+        (ax0, ay0, ax1, ay1), (bx0, by0, bx1, by1) = self.bb[g], self.bb[h]
+        og, oh = self.off[g], self.off[h]
+        cg = (og[0] + (ax0 + ax1) // 2, og[1] + (ay0 + ay1) // 2)
+        chh = (oh[0] + (bx0 + bx1) // 2, oh[1] + (by0 + by1) // 2)
+        ng = (chh[0] - (ax0 + ax1) // 2, chh[1] - (ay0 + ay1) // 2)
+        nh = (cg[0] - (bx0 + bx1) // 2, cg[1] - (by0 + by1) // 2)
+        d1 = self.apply(g, ng, lam)
+        if d1 is None:
+            return False
+        d2 = self.apply(h, nh, lam)
+        if d2 is None:
+            self.apply(g, og, lam)
+            return False
+        delta = d1 + d2
+        if delta <= 0 or self.rnd.random() < math.exp(-delta / T):
+            return True
+        self.apply(h, oh, lam)
+        self.apply(g, og, lam)
         return False
 
     def run(self, seconds, log=print):
@@ -130,6 +154,12 @@ class Anneal:
             for _ in range(500):
                 g = self.rnd.randrange(n)
                 o = self.off[g]
+                if self.rnd.random() < 0.1:
+                    h = self.rnd.randrange(n)
+                    if h != g:
+                        it += 1
+                        acc += self.try_swap(g, h, T, lam)
+                    continue
                 if self.rnd.random() < 0.15 and self.gnets[g]:     # jump toward the middle of its partners
                     tx = ty = k = 0
                     for i in self.gnets[g]:

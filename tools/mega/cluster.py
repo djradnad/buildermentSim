@@ -255,7 +255,7 @@ def _route(self, off, timeout=60):
                 return None
         sources.append((a, d, i))
         sinks.append((b, de, i))
-    ok, res, secs = negotiate.route(W, H, len(self.nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug,
+    ok, res, secs = negotiate.route(W, H, len(self.nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug, log=getattr(self, "rlog", None),
                                     open_cost=0.2, timeout=timeout, rounds=40)
     if not ok:
         return None
