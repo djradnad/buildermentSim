@@ -71,6 +71,6 @@ if __name__ == '__main__':
     made, got, rep = lanemod.sim(mod, feeds)
     print('%s x%d: %dx%d = %d tiles (%.1f per machine), wanted %.1f/min, sim makes %.2f, lanes %s' % (
         rec['out'][0]['item'], n, mod['w'], mod['h'], mod['w'] * mod['h'], mod['w'] * mod['h'] / n,
-        per * n * rec['out'][0]['amount'], made * rec['out'][0]['amount'], [round(f[1]) for f in feeds[:2]]), flush=True)
+        per * n * rec['out'][0]['amount'], made, [round(f[1]) for f in feeds[:2]]), flush=True)
     print(sorted(set(round(m['perMin'], 2) for m in rep['machines'])))
     json.dump({'rows': mod['rows']}, open(os.path.expanduser('~/data/shopmod_last.json'), 'w'))
