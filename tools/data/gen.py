@@ -64,9 +64,24 @@ def sweep_jobs(ns, sym_only=False):
     return jobs
 
 
-def frontier(n, H, sym, start_W, engine, timeout, variants, closed, write, log=print):
+def done_jobs(path):
+    """{(n, W, H, ia, oa, sym): found?} for boxes already solved in an output file (resume after a restart)"""
+    out = {}
+    if path and os.path.exists(path):
+        for line in open(path):
+            r = json.loads(line)
+            if 'W' not in r:
+                continue
+            k = (r['n'], r['W'], r['H'], r['at'][0], r['at'][1], r.get('sym') or False)
+            out[k] = out.get(k, False) or r['status'] == 'FEASIBLE'
+    return out
+
+
+def frontier(n, H, sym, start_W, engine, timeout, variants, closed, write, log=print, done=None):
     """walk widths down from start_W at height H until no port placement fits (all proven impossible or timed
-    out); every solve is written. Fixes the miss of a fixed width range (3:3 10x4 was never tried)."""
+    out); every solve is written. Fixes the miss of a fixed width range (3:3 10x4 was never tried). Boxes in done
+    are not solved again."""
+    done = done or {}
     W = start_W
     while W >= 2:
         if sym:
@@ -76,6 +91,10 @@ def frontier(n, H, sym, start_W, engine, timeout, variants, closed, write, log=p
             pairs = [(ia, oa) for ia in range(k + 1) for oa in range(k + 1) if (ia, oa) <= (k - ia, k - oa)]
         found = False
         for ia, oa in pairs:
+            k = (n, W, H, ia, oa, sym)
+            if k in done:
+                found |= done[k]
+                continue
             for rec in run_job((n, W, H, ia, oa, sym), engine, timeout, variants, closed):
                 write(rec)
                 found |= rec['status'] == 'FEASIBLE'
@@ -139,7 +158,8 @@ def main():
                 fh.write(json.dumps(rec) + '\n')
         start = int(parts[2])
         for H in range(h0, h1 + 1):    # a taller box is never wider at the frontier: start at the last height's best
-            low = frontier(n, H, sym, start, os.path.expanduser(a.engine), a.timeout, a.variants, a.closed, write)
+            low = frontier(n, H, sym, start, os.path.expanduser(a.engine), a.timeout, a.variants, a.closed, write,
+                           done=done_jobs(os.path.expanduser(a.out)))
             if low < start:
                 start = low + 1
         return

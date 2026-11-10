@@ -72,7 +72,11 @@ if __name__ == '__main__':
     name, sizes, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])
     polish = float(sys.argv[4]) if len(sys.argv) > 4 else 0     # seconds to then minimise pieces from the find
     f = CASES[name]()
+    stat = os.path.expanduser('~/data/modules/%s.status' % name)     # sizes already settled (resume after restarts)
+    settled = set(l.split()[0] for l in open(stat)) if os.path.exists(stat) else set()
     for s in sizes.split(','):
+        if s in settled:
+            continue
         W, H = map(int, s.split('x'))
         win = f.window(W, H)
         t0 = time.time()
@@ -87,6 +91,9 @@ if __name__ == '__main__':
             ok = bench.verify_factory(r['grid'], win, r.get('machines'), r.get('options'), r.get('filters'), r.get('fill'))
         print('%s %dx%d %s %.1fs verified=%s pieces=%s options=%s' % (name, W, H, r['status'], time.time() - t0, ok,
               r.get('pieces'), r.get('options')), flush=True)
+        os.makedirs(os.path.dirname(stat), exist_ok=True)
+        with open(stat, 'a') as fh:
+            fh.write('%s %s %s\n' % (s, r['status'], ok))
         if 'grid' in r:
             import json
             os.makedirs(os.path.expanduser('~/data/modules'), exist_ok=True)
