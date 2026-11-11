@@ -50,8 +50,19 @@ def reach(rows):
     x0, y0 = min(c[0] for c in cells), min(c[1] for c in cells)
     ins = [((x + x0, y + y0), d, k) for x, y, d, k in m['inputs']]
     global OUTS
-    OUTS = [((x + x0, y + y0), d) for x, y, d in m['outputs']]
+    kind = {(r[1], r[2]): r[0] for r in rows if r[0] in KIND_OF_ID}
+    OUTS = [((x + x0, y + y0), d) for x, y, d in m['outputs']
+            if kind[(x + x0, y + y0)] != 3001 or step((x + x0, y + y0), d)[0] not in range(x0, x0 + m['w'])
+            or step((x + x0, y + y0), d)[1] not in range(y0, y0 + m['h'])]
+    # a splitter side facing an empty tile inside the block is not an exit; one facing out of the block is
     belts = {(r[1], r[2]): KIND_OF_ID[r[0]] + str(r[3]) for r in rows if r[0] in KIND_OF_ID}
+    solid = set()
+    for r in rows:
+        if r[0] not in KIND_OF_ID and r[0] != ARM:
+            solid.update(rc.footprint(r))
+    # a belt that starts beside a machine without pointing into it is that machine's collector, not an input
+    ins = [(p, d, k) for p, d, k in ins
+           if not (k == 'B' and any(step(p, dd) in solid for dd in range(4) if dd != d))]
     des = Design(belts)
     nxt = collections.defaultdict(list)
     for p, q, k in des.links():
