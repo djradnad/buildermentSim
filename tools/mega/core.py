@@ -369,7 +369,7 @@ def frame_main(seconds=90, rounds=10):
         lay = cl.Layout(tm2, nets2)
         tag = 'try %d (%.0f min): channel %d + %.2f per port (max %d), %dx%d, belt length %d' % (
             r + 1, (time.time() - t0) / 60, ch, per_port, cap, width, top, wl)
-        res = lay.route(off2, timeout=600)
+        res = lay.route(off2, timeout=900)
         if res is None:
             f = getattr(lay, 'fail', None)
             print(tag + ': did not route (%s)' % ('%d belts still clash' % len(f.get('nets', [])) if f else 'a port is blocked'), flush=True)

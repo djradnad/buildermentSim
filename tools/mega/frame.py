@@ -35,13 +35,11 @@ def info(mod, ports, ring_ports, ch, per_port, cap, outward=None):
 
 
 def ring_side(mod, keys):
-    """which side all of the module's outside-fed inputs are on: 1 top, 3 bottom, else None"""
-    xs = [c[0] for c in mod.cells]
-    ys = [c[1] for c in mod.cells]
-    ts = [mod.ins[k][0] for k in keys]
-    if all(t[1] < min(ys) for t in ts):
-        return 1
-    if all(t[1] > max(ys) for t in ts):
+    """which side all of the module's outside-fed inputs come in from: 1 top, 3 bottom, else None"""
+    ds = {mod.ins[k][1] for k in keys}
+    if ds == {2}:
+        return 1                                   # belts enter moving south: from the top
+    if ds == {0}:
         return 3
     return None
 
