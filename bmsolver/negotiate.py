@@ -56,13 +56,14 @@ def _route_cpp(W, H, nets, blocked, sources, sinks, reach, rounds, hop_cost, tur
     for ug in (list(fixed_ug), list(no_ug)):
         L.append(str(len(ug)))
         L += ['%d %d %d' % (p[0], p[1], d) for p, d in ug]
-    pr = subprocess.run([_BIN], input='\n'.join(L) + '\n', capture_output=True, text=True)
-    if log:
+    live = bool(log) and os.environ.get('BM_LIVE')            # BM_LIVE=1: the router's progress lines go straight to stderr
+    pr = subprocess.run([_BIN], input='\n'.join(L) + '\n', stdout=subprocess.PIPE, stderr=None if live else subprocess.PIPE, text=True)
+    if log and not live:
         for line in pr.stderr.splitlines():
             log(line)
     out = pr.stdout.split('\n')
     if not out or not out[0].startswith('OK'):
-        reason = out[0][5:] if out and out[0].startswith('FAIL') else 'router crashed: ' + pr.stderr[-200:]
+        reason = out[0][5:] if out and out[0].startswith('FAIL') else 'router crashed: ' + (pr.stderr or '')[-200:]
         cut = out.index('TILES') if 'TILES' in out else len(out)
         bad = [int(x) for x in out[2:cut] if x.strip()] if len(out) > 2 else []
         res = dict(reason=reason)

@@ -18,6 +18,7 @@ from bmsolver.pieces import step
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BELT = 480.0
+SLOT_EVERY = 3                              # edge slots: two of every three tiles of the factory edge (the third stays closed)
 RATE = {True: 240.0, False: 150.0}          # Gen 2 tier 5 extractor, boosted +60% or not
 URANIUM = 50.0                              # Gen 2 uranium extractor
 BASE = ('Wood Log', 'Stone', 'Iron Ore', 'Copper Ore', 'Coal')
@@ -79,9 +80,9 @@ def build(cover, site, plan, margin=12, ban=()):
         for y in range(L['y0'] + 1, L['y1']):
             blocked.add(T(x, y))
     slots = []                              # (tile on the loop line, direction pushing inward)
-    for x in range(L['x0'] + 2, L['x1'] - 1, 2):
+    for x in [x for x in range(L['x0'] + 2, L['x1'] - 1) if (x - L['x0']) % SLOT_EVERY]:
         slots += [(T(x, L['y0']), 2), (T(x, L['y1']), 0)]
-    for y in range(L['y0'] + 2, L['y1'] - 1, 2):
+    for y in [y for y in range(L['y0'] + 2, L['y1'] - 1) if (y - L['y0']) % SLOT_EVERY]:
         slots += [(T(L['x0'], y), 3), (T(L['x1'], y), 1)]
     for x in range(L['x0'], L['x1'] + 1):   # the rest of the line is closed, so belts cannot run along the wall
         for y in (L['y0'], L['y1']):
