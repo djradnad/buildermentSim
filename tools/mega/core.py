@@ -152,9 +152,9 @@ def build():
             while tot > 0.5 and pool:
                 pick = next((s for s in pool if s[2] >= tot - 1e-6), None) or pool[-1]
                 pool.remove(pick)
-                if k >= len(ports):
-                    ports.append(((-1, y), 3))
-                    y += 1
+                if k >= len(ports):                           # more belts than lanes on the west side: come in from the top
+                    xt = 1 + 2 * len([1 for t_, d_ in m.ins.values() if d_ == 2])
+                    ports.append(((xt, -1), 2))
                 m.ins[('p', k, item)] = ports[k]
                 nets.append((pick[0], pick[1], i, ('p', k, item)))
                 tot -= pick[2]

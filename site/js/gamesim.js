@@ -893,8 +893,11 @@ export class Factory extends World {
     const sinkAt = new Set((opts.sinks || []).map(p => key(p[0], p[1])));
     for (const g of this.segs) {
       const last = g.nodes[g.nodes.length - 1];
-      if (g.target !== null || last.outputs.length || last.kind !== 0 || last.sub !== 0) continue;
-      if (opts.openEndsSink || (last.owner && last.owner.added === 'out') || sinkAt.has(key(last.x, last.y))) g.target = { sink: true };
+      if (g.target !== null || last.outputs.length) continue;
+      // a listed sink also counts when the run ends on an underground exit (a hop that surfaces on the last tile)
+      if (sinkAt.has(key(last.x, last.y))) { g.target = { sink: true }; continue; }
+      if (last.kind !== 0 || last.sub !== 0) continue;
+      if (opts.openEndsSink || (last.owner && last.owner.added === 'out')) g.target = { sink: true };
     }
     for (const f of opts.feeds || []) {
       const g = this.segs.find(s => s.nodes[0].x === f.at[0] && s.nodes[0].y === f.at[1]);
