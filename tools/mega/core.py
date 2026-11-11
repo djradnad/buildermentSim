@@ -185,6 +185,7 @@ def plan_item(lanes, pool, leftover, limit=200000):
 FLOW = {}                       # (module, out key) -> planned items per minute on that belt, filled by build()
 
 
+DIRECT = os.environ.get('BM_DIRECT', '1') == '1'   # ring sources right at border-facing entrances
 TIGHT = float(os.environ.get('BM_TIGHT', 0.98))   # a module using more than this share of its machines has no room to catch up
 THIN_MARGIN = float(os.environ.get('BM_THIN', 1.0))   # leftover below this many arm takes counts as thin
 TWO_ARM = set()                 # (recipe name, item): lanes that get a second arm per machine so a thin leftover can pass on
@@ -503,6 +504,8 @@ def add_ring(tm, nets, open_in, off):
     x0, y0, x1, y1 = min(xs) - 3, min(ys) - 3, max(xs) + 3, max(ys) + 3
     mods2, nets2, off2 = list(tm), list(nets), list(off)
     taken = set()
+    cellset = {(c[0] + o[0], c[1] + o[1]) for m, o in zip(tm, off) for c in m.cells}
+    direct = set()                          # tiles in front of entrances that got their source directly
     def near(e):
         (t, d) = tm[e[0]].ins[e[1]]
         px, py = t[0] + off[e[0]][0], t[1] + off[e[0]][1]
@@ -512,6 +515,18 @@ def add_ring(tm, nets, open_in, off):
         (t, d) = tm[i].ins[key]
         px, py = t[0] + off[i][0], t[1] + off[i][1]
         side = min((px - x0, 3), (x1 - px, 1), (py - y0, 2), (y1 - py, 0))[1]     # direction the source pushes
+        if d == side and DIRECT:            # john's cleanup 04p0g7: an entrance that looks out of the core with nothing
+            dx, dy = cl.DIRS[d]             # in front of it gets its source right there, no lead-in belts
+            line, q = [], (px - dx, py - dy)
+            while x0 - 2 <= q[0] <= x1 + 2 and y0 - 2 <= q[1] <= y1 + 2:
+                line.append(q); q = (q[0] - dx, q[1] - dy)
+            if not any(q in cellset or q in direct for q in line):
+                direct.update(line)
+                mods2.append(border_source(key[-1], need, side))
+                off2.append((px - 2 * dx, py - 2 * dy))
+                nets2.append((len(mods2) - 1, 'out', i, key))
+                taken.add((side, px if side in (0, 2) else py))
+                continue
         k = 0
         while True:
             for sgn in (1, -1):

@@ -18,6 +18,7 @@ from bmsolver.pieces import step
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BELT = 480.0
+TURN = float(os.environ.get('BM_TURN', 3.0))   # price of a turned belt in tiles: john wants the fewest turns (straight runs, buses)
 SLOT_EVERY = 3                              # edge slots: two of every three tiles of the factory edge (the third stays closed)
 RATE = {True: 240.0, False: 150.0}          # Gen 2 tier 5 extractor, boosted +60% or not
 URANIUM = 50.0                              # Gen 2 uranium extractor
@@ -177,7 +178,7 @@ def run(cover_path, out, seconds=600):
         blocked = set(B['blocked']) | {p for p, d, *_ in B['ext']} | {s[0] for s in free}
         t0 = time.time()
         ok, res, dt = negotiate.route(B['W'], B['H'], len(B['sources']), blocked=blocked, sources=B['sources'], sinks=sinks,
-                                      rounds=300, timeout=seconds, swap=[prim], join=B['joins'],
+                                      rounds=300, timeout=seconds, turn_cost=TURN, swap=[prim], join=B['joins'],
                                       log=lambda l: print('   ' + l) if 'onto' not in l else None)
         print('attempt %d: %s in %.0f s, %d joins' % (attempt + 1, 'routed' if ok else 'NOT routed: %s' % res.get('reason'), time.time() - t0, len(B['joins'])))
         pickle.dump((B, sinks, ok, res), open(out + '.pkl', 'wb'))
