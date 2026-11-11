@@ -45,8 +45,8 @@ class Window:
         self.tun_in, self.tun_out, self.no_ug = {}, {}, set()
         self.symmetry = None        # None, 'y' (top/bottom mirror) or 'x' (left/right mirror)
         self.sym_free = set()       # with symmetry: tiles left out of it (e.g. an output corner that may differ)
-        self.quasi = 0              # with symmetry: up to this many tiles in the middle row(s) may face another
-                                    # way than their mirror image (1 = one turned splitter, the usual quasi)
+        self.quasi = 0              # with symmetry: up to this many mirror pairs in the middle row(s) may differ:
+                                    # turned another way, or a splitter facing a belt (1 = the usual quasi)
         self.closed_edges = False   # splitters may not face a window edge that has no port
         self.clear_col = None       # a column that must become deletable: only west belts (no side inputs) or
                                     # empty tiles that would not join their neighbours once the column is gone
@@ -407,7 +407,9 @@ class Model:
                 if (p[1] if ax == 'y' else p[0]) in middle:
                     t = m.NewBoolVar('turned')
                     turned.append(t)
-                    for k in kinds:             # still the same kind of piece, maybe facing another way
+                    # still the same kind of piece, maybe facing another way; or a splitter whose mirror image
+                    # is a plain belt (the wiki 1:even splitters: the input splitter's mirror tile is a belt)
+                    for k in kinds.replace('S', '').replace('B', ''):
                         m.Add(sum(X[p, k + str(o)] for o in range(4)) == sum(X[q, k + str(o)] for o in range(4)))
                 for k in kinds:
                     for o in range(4):

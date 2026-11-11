@@ -1,9 +1,9 @@
-// Designer tab: pick a splitter, merger or balancer and a symmetry rule, and see the best known layout for it
+// Designer tab: pick a splitter or balancer and a symmetry rule, and see the best known layout for it
 // (from catalogue.json: community wiki designs and our solver results, all checked with exact flows), or watch a
 // running solver (python -m bmsolver ... --live).
 
 import { World } from './gamesim.js';
-import { rowsToBuildings, bpLink, bpLinkBits } from './blueprint.js';
+import { rowsToBuildings, bpLink, bpLinkBits, makeBlueprint } from './blueprint.js';
 import { View } from './view.js';
 
 const $ = id => document.getElementById(id);
@@ -11,7 +11,7 @@ const CODE_ID = { B: 3000, S: 3001, I: 3002, O: 3003 };
 const MODE_NAME = { sym: 'symmetric', quasi: 'quasi-symmetric', asym: 'asymmetric' };
 const MODE_HELP = {
   sym: 'Mirror symmetric top to bottom.',
-  quasi: 'Mirror symmetric except one tile pair in the middle that faces another way, like the wiki splitters with one turned splitter in the centre. Symmetric layouts count too.',
+  quasi: 'Mirror symmetric except one tile pair in the middle: turned another way, or a splitter whose mirror tile is a plain belt (like the wiki splitters, where the input splitter in the centre has a belt opposite it). Symmetric layouts count too.',
   asym: 'Any layout.',
 };
 // which layouts each rule accepts
@@ -43,7 +43,9 @@ export function initDesigner({ openInSim }) {
   function show(rows, meta) {
     st.current = { rows, meta };
     view.setWorld(new World(rowsToBuildings(rows)));
-    $('dSim').disabled = $('dCopy').disabled = false;
+    st.bpId = null;                                // set again by pick() for catalogue designs that have one
+    st.bpName = meta.name || 'layout';
+    $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = $('dMirror').disabled = false;
   }
 
   function seg(id, key, after) {
@@ -54,26 +56,36 @@ export function initDesigner({ openInSim }) {
       update();
     }));
   }
+  // splitters rank by smallest area, balancers by most square (the other goal stays one tap away)
+  function setGoal() {
+    st.goal = st.kind === 'split' ? 'area' : 'square';
+    $('dGoal').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === st.goal));
+  }
   seg('dKind', 'kind', () => {
+    setGoal();
     if (st.kind === 'split') { $('dN').value = 1; if (+$('dM').value < 2) $('dM').value = 8; }
-    if (st.kind === 'merge') { $('dM').value = 1; if (+$('dN').value < 2) $('dN').value = 4; }
     if (st.kind === 'balance') { if (+$('dN').value < 2) $('dN').value = 4; if (+$('dM').value < 2) $('dM').value = 4; }
   });
   seg('dMode', 'mode');
   seg('dGoal', 'goal');
   for (const id of ['dN', 'dM']) $(id).addEventListener('input', () => {
     const n = +$('dN').value, m = +$('dM').value;
-    const kind = n === 1 ? 'split' : m === 1 ? 'merge' : 'balance';
+    const kind = n === 1 ? 'split' : 'balance';
     if (kind !== st.kind) {
       st.kind = kind;
       $('dKind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === kind));
+      setGoal();
     }
     update();
   });
 
+  // same box: smaller footprint (tiles inside the outline), fewer pieces, fewer splitters facing out of the edge,
+  // less gold to build; then the stricter rule and community designs first
+  const tail = d => [d.footprint ?? d.W * d.H, d.pieces, d.edge_splitters ?? 0, d.gold ?? 0, LOOSE[d.mode],
+    d.source === 'ours' ? 1 : 0];
   const score = d => st.goal === 'area'
-    ? [d.W * d.H, Math.max(d.W, d.H), d.pieces, LOOSE[d.mode], d.source === 'wiki' ? 0 : 1]
-    : [Math.max(d.W, d.H), d.W * d.H, d.pieces, LOOSE[d.mode], d.source === 'wiki' ? 0 : 1];
+    ? [d.W * d.H, Math.max(d.W, d.H), ...tail(d)]
+    : [Math.max(d.W, d.H), d.W * d.H, ...tail(d)];
   const cmp = (a, b) => { const x = score(a), y = score(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };
 
   function command(n, m) {
@@ -90,19 +102,37 @@ export function initDesigner({ openInSim }) {
   }
 
   function label(d, all) {
-    const src = d.source === 'wiki' ? `community design from the wiki${d.id ? ' (blueprint ' + d.id + ')' : ''}` : 'found by our solver';
+    const src = d.source === 'wiki' ? 'community design from the wiki' : d.source === 'ours' ? 'found by our solver' : 'by ' + d.source;
     const pr = st.goal === 'area' && proven(d, all) ? ' · <span class="good">smallest possible area (proven)</span>' : '';
-    return `${d.W}×${d.H} · ${d.pieces} pieces · ${d.splitters} splitters${d.ug ? ' · ' + d.ug + ' underground' : ''} · ${MODE_NAME[d.mode]} · ${src}${pr}`;
+    const fp = d.footprint != null && d.footprint < d.W * d.H ? ` (footprint ${d.footprint})` : '';
+    const edge = d.edge_splitters ? ` · ${d.edge_splitters} splitter face${d.edge_splitters > 1 ? 's' : ''} out of the edge` : '';
+    return `${d.W}×${d.H}${fp} · ${d.pieces} pieces · ${d.splitters} splitters${d.ug ? ' · ' + d.ug + ' underground' : ''}${edge}` +
+      `${d.gold ? ' · ' + d.gold + ' gold' : ''} · ${MODE_NAME[d.mode]} · ${src}${pr}`;
   }
 
-  function pick(d) {
-    show(gridRows(d.grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}` });
+  // top <-> bottom mirror image of a catalogue layout (north and south swap; east and west stay)
+  const FLIP = { 0: 2, 2: 0 };
+  const mirrorGrid = g => [...g].reverse().map(r => r.replace(/([A-Z])([0-3])/g, (_, k, o) => k + (FLIP[o] ?? o)));
+  const mirrorPorts = (ps, H) => ps && ps.map(([x, y, o]) => [x, H - 1 - y, FLIP[o] ?? o]);
+
+  function pick(d, mirrored = false) {
+    st.picked = d; st.mirrored = mirrored;
+    $('dMirror').classList.toggle('on', mirrored);
+    $('dMirror').hidden = d.mode === 'sym';         // a symmetric layout is its own mirror image
+    const grid = mirrored ? mirrorGrid(d.grid) : d.grid;
+    show(gridRows(grid), { name: `${d.n}:${d.m} ${MODE_NAME[d.mode]} ${d.W}x${d.H}${mirrored ? ' mirrored' : ''}`,
+      outputs: mirrored ? mirrorPorts(d.outs, d.H) : d.outs, inputs: mirrored ? mirrorPorts(d.ins, d.H) : d.ins,
+      // different amounts on every input, all below the belts' limit: a working balancer shows the same total on
+      // every output (equal steady inputs can stay in step through the splitters and look unmixed)
+      feedRates: d.ins && d.ins.map((_, i) => Math.round(480 * Math.min(1, d.m / d.n) * (i + 1) / d.n)) });
     $('dinfo').textContent = (d.name ? `${d.name}${d.trimmed ? ` (${d.trimmed} unused pieces removed)` : ''}` : '') +
       (d.stray_out ? ' · Note: a splitter at the end of the output side also faces out on a row that is not an output; leave that tile empty.' : '');
-    $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}`;
-    st.bpId = d.id || null;
-    $('dLink').disabled = !st.bpId;
-    $('dLink').title = st.bpId ? 'Copies ' + bpLink(st.bpId) + ' (paste it into the game\'s Import New Blueprint box)' : 'Only community designs have a game blueprint id so far';
+    $('dstatus').textContent = `${d.n}:${d.m} ${d.W}×${d.H}, ${d.pieces} pieces, ${MODE_NAME[d.mode]}${mirrored ? ', mirrored' : ''}`;
+    st.bpId = (mirrored ? d.mirror_id : d.id) || null;   // the mirror image has its own blueprint (made if missing)
+    st.bpName = `${d.n}:${d.m} ${d.kind === 'split' ? 'splitter' : 'balancer'} ${d.W}x${d.H}${mirrored ? ' mirrored' : ''}`;
+    $('dLink').disabled = false;
+    $('dLink').title = st.bpId ? 'Copies ' + bpLink(st.bpId) + ' (paste it into the game\'s Import New Blueprint box)'
+      : 'Makes a game blueprint of this layout, then copies its link';
     if (st.bpId) $('dinfo').append(' ', bpLinkBits(st.bpId));
     document.querySelectorAll('#dAll .gal').forEach(x => x.classList.toggle('on', x.dataset.k === d._k));
   }
@@ -119,8 +149,10 @@ export function initDesigner({ openInSim }) {
       const el = document.createElement('div');
       el.className = 'gal' + (ALLOWED[st.mode].includes(d.mode) ? '' : ' off');
       el.dataset.k = d._k;
-      el.innerHTML = `<span>${d.W}×${d.H} <span class="muted">· ${d.pieces} pcs</span></span>` +
-        `<span class="badge ${d.mode}">${d.mode}</span><span class="muted small">${d.source === 'wiki' ? 'wiki' : 'ours'}</span>`;
+      const fp = d.footprint != null && d.footprint < d.W * d.H ? ' (' + d.footprint + ')' : '';
+      const edge = d.edge_splitters ? ` · ${d.edge_splitters} edge` : '';
+      el.innerHTML = `<span>${d.W}×${d.H}${fp} <span class="muted">· ${d.pieces} pcs${d.gold ? ' · ' + d.gold + 'g' : ''}${edge}</span></span>` +
+        `<span class="badge ${d.mode}">${d.mode}</span><span class="muted small">${d.source}${d.id ? ' · ' + d.id : ''}</span>`;
       el.addEventListener('click', () => pick(d));
       $('dAll').appendChild(el);
     }
@@ -129,30 +161,74 @@ export function initDesigner({ openInSim }) {
       $('dBest').innerHTML = `<div class="best"><b>${n}:${m}</b> ${label(best, all)}</div>`;
       pick(best);
     } else {
-      const why = st.mode === 'sym' && ((n === 1 && m % 2 === 0) || (m === 1 && n % 2 === 0))
-        ? `A mirror-symmetric ${n}:${m} can't exist with the ${n === 1 ? 'outputs' : 'inputs'} side by side: an even number of lanes has no middle lane for the single ${n === 1 ? 'input' : 'output'}. Quasi is the closest form.`
+      // mirror image of side-by-side ports: n inputs and m outputs both centred on the axis, so n and m need the
+      // same parity (quasi only lets a single port sit on one of the two middle rows)
+      const single = n === 1 || m === 1;
+      const why = st.mode === 'sym' && (n - m) % 2
+        ? `A mirror-symmetric ${n}:${m} can't exist with the inputs side by side and the outputs side by side: ${n} lanes and ${m} lanes can't both be centred on the same middle line.${single ? ' Quasi is the closest form.' : ''}`
+        : st.mode === 'quasi' && (n - m) % 2 && !single
+        ? `A quasi-symmetric ${n}:${m} can't exist with the ports side by side (${n} and ${m} lanes can't both be centred). The asymmetric layouts are listed below.`
+        : m === 1 && n > 1 ? `The catalogue has no ${n}:1 mergers: belts that are known not to go over a full belt together can simply be joined.`
         : `No ${MODE_NAME[st.mode]} ${n}:${m} layout known yet${all.length ? ' (other rules have some, listed below)' : ''}. Run the command below to search for one.`;
       $('dBest').innerHTML = `<div class="muted small">${why}</div>`;
       st.current = null;
-      $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = true;
+      $('dSim').disabled = $('dCopy').disabled = $('dLink').disabled = $('dMirror').disabled = true;
       $('dinfo').innerHTML = '&nbsp;';
       view.setWorld(null);
       $('dstatus').textContent = 'Nothing known for this choice yet';
     }
   }
 
-  $('dSim').addEventListener('click', () => st.current && openInSim(st.current.rows, st.current.meta));
+  // submissions: a GitHub issue the submit workflow checks (exact flows, scores) and commits when it is a new best
+  $('dSubmit').addEventListener('click', () => {
+    const raw = $('dSubmitCode').value.trim();
+    const code = (raw.match(/[?&]id=([0-9A-Za-z]+)/) || raw.match(/^([0-9A-Za-z]{4,12})$/) || [])[1];
+    if (!code) { $('dSubmitCode').focus(); return; }
+    const title = 'Layout submission: ' + code.toLowerCase();
+    const body = 'Blueprint: https://builderment.com/blueprints?id=' + code.toLowerCase() +
+      '\n\nKeep the title as it is: a check runs on it and answers here.';
+    window.open('https://github.com/djradnad/buildermentSim/issues/new?title=' + encodeURIComponent(title) +
+      '&body=' + encodeURIComponent(body), '_blank', 'noopener');
+  });
+  $('dMirror').addEventListener('click', () => st.picked && pick(st.picked, !st.mirrored));
+  $('dSim').addEventListener('click', () => st.current && openInSim(st.current.rows, st.current.meta, st.bpId));
   $('dCopy').addEventListener('click', async () => {
     if (!st.current) return;
     const json = JSON.stringify({ meta: { name: st.current.meta.name || 'layout', count: st.current.rows.length }, rows: st.current.rows });
-    try { await navigator.clipboard.writeText(json); $('dinfo').textContent = 'Copied blueprint json.'; }
+    try { await navigator.clipboard.writeText(json); $('dinfo').textContent = 'Copied layout json.'; }
     catch { $('dinfo').textContent = json; }
   });
 
+  // Layouts without a blueprint yet get one made on the spot (uploaded, downloaded again and checked). The
+  // clipboard write starts inside the tap with a pending value, so Safari still allows it after the upload.
+  async function linkFor(rows) {
+    if (st.bpId) return bpLink(st.bpId);
+    const cur = st.current;
+    const code = await makeBlueprint(rows, st.bpName || 'layout');
+    if (st.current === cur) {
+      st.bpId = code;
+      $('dinfo').append(' ', bpLinkBits(code));
+    }
+    return bpLink(code);
+  }
   $('dLink').addEventListener('click', async () => {
-    if (!st.bpId) return;
-    try { await navigator.clipboard.writeText(bpLink(st.bpId)); $('dinfo').textContent = 'Copied ' + bpLink(st.bpId); }
-    catch { $('dinfo').textContent = bpLink(st.bpId); }
+    if (!st.current) return;
+    const btn = $('dLink'), label = btn.textContent;
+    const p = linkFor(st.current.rows);
+    if (!st.bpId) { btn.disabled = true; btn.textContent = 'Making blueprint…'; }
+    try {
+      if (window.ClipboardItem && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'text/plain': p.then(t => new Blob([t], { type: 'text/plain' })) })]);
+      } else {
+        await navigator.clipboard.writeText(await p);
+      }
+      btn.textContent = 'Copied';
+    } catch (e) {
+      try { const t = await p; $('dinfo').textContent = t; btn.textContent = label; }
+      catch (e2) { $('dinfo').textContent = 'Could not make a blueprint: ' + e2.message; btn.textContent = label; }
+    }
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = label; }, 2000);
   });
 
   fetch('catalogue.json').then(r => r.json()).then(c => {

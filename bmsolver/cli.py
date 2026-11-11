@@ -32,8 +32,8 @@ def main(argv=None):
                        help='smallest area, most square (shortest longest side), or both')
         p.add_argument('--sym', action='store_true', help='mirror symmetric')
         p.add_argument('--quasi', nargs='?', type=int, const=1, default=0, metavar='N',
-                       help='mirror symmetric except N tiles (default 1) in the middle row(s) that may face another way, '
-                       'like the one turned splitter in the middle of the wiki 1:even splitters')
+                       help='mirror symmetric except N tile pairs (default 1) in the middle row(s): turned another way, '
+                       'or a splitter facing a plain belt like the input splitter of the wiki 1:even splitters')
         p.add_argument('--axis', choices=['y', 'x'], default=None,
                        help='mirror axis: y flips top/bottom (default for east/west ports), x flips left/right')
         p.add_argument('--timeout', type=float, default=60, help='seconds per window size (default 60)')

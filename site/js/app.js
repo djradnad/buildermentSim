@@ -1,7 +1,7 @@
 // Page controller: loading blueprints, running the sim at any game speed, measuring rates, settling.
 
 import { Factory, GAMEDATA, QuadTree, World, setRoundf, beltSpeed, gameLabel, BELT_TECHS } from './gamesim.js';
-import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS, bpLinkBits } from './blueprint.js';
+import { rowsToBuildings, parseBlueprintText, fetchBlueprint, addFeeders, addDrains, guessFeedItem, guessFeedItems, RAW_ITEMS, bpLinkBits, makeBlueprintButton } from './blueprint.js';
 import { View, itemColor, fmtRate } from './view.js';
 import { initDesigner } from './designer.js';
 import { initWorld } from './world.js';
@@ -52,16 +52,38 @@ async function loadFromInput(text) {
   }
 }
 
-function loadBlueprint(rows, meta = {}, id = null) {
+function loadBlueprint(rows, meta = {}, id = null, { hash = true } = {}) {
   state.rows = rows; state.meta = meta;
-  if (id) history.replaceState(null, '', '#bp=' + id);
+  if (id && hash) history.replaceState(null, '', '#bp=' + id);
   const n = rows.length;
   $('bpMeta').textContent = `${meta.name || id || 'blueprint'}: ${n} pieces`;
   if (id) $('bpMeta').append(' · ', bpLinkBits(id));
+  else if (n) $('bpMeta').append(' · ', makeBlueprintButton(rows, meta.name || 'build',
+    code => history.replaceState(null, '', '#bp=' + code)));
   // inputs: open belt starts; their item guessed from the machines downstream
   const bs = rowsToBuildings(rows);
-  const added = addFeeders(bs);
-  addDrains(bs);
+  let added;
+  if (meta.inputs) {
+    // layouts that know their real inputs (designer catalogue): one feeder tile behind each, pointing in, also
+    // where the lane joins a belt from the side
+    const taken = new Set(bs.map(b => b.x + ',' + b.y));
+    added = [];
+    for (const [x, y, d] of meta.inputs) {
+      const q = [x - [0, -1, 0, 1][d], y - [-1, 0, 1, 0][d]];
+      if (taken.has(q[0] + ',' + q[1])) continue;
+      bs.push({ id: 3000, x: q[0], y: q[1], o: d, tier: 1, recipe: 0, filter: 0, added: 'in' });
+      added.push({ at: q, into: [x, y] });
+    }
+  } else added = addFeeders(bs);
+  // layouts that know their real outputs (designer catalogue) get drains there only, not on every splitter
+  // face that happens to point out of the edge; others: open ends facing out of the build
+  if (meta.outputs) {
+    const taken = new Set(bs.map(b => b.x + ',' + b.y));
+    for (const [x, y, d] of meta.outputs) {
+      const q = [x + [0, -1, 0, 1][d], y + [-1, 0, 1, 0][d]];
+      if (!taken.has(q[0] + ',' + q[1])) bs.push({ id: 3000, x: q[0], y: q[1], o: d, tier: 1, recipe: 0, filter: 0, added: 'out' });
+    }
+  } else addDrains(bs);
   const probe = new Factory(bs, { extractors: {}, ugRange: +$('ugRange').value });
   const feedSegs = added.map(a => probe.segs.find(s => s.nodes[0].x === a.at[0] && s.nodes[0].y === a.at[1]));
   const found = feedSegs.filter(g => g);
@@ -73,7 +95,7 @@ function loadBlueprint(rows, meta = {}, id = null) {
   state.feeds = added.map((a, i) => {
     const j = found.indexOf(feedSegs[i]);
     const kind = j >= 0 && kinds[j];
-    return { at: a.at, kind: kind || 'In' + (i + 1), perMin: kind || !hasMachines ? 480 : 0 };
+    return { at: a.at, kind: kind || 'In' + (i + 1), perMin: meta.feedRates?.[i] ?? (kind || !hasMachines ? 480 : 0) };
   });
   state.extractors = bs.filter(b => b.id === 3004).map(b => {
     const g = probe.outSeg.get(b);
@@ -132,6 +154,7 @@ fetch('examples/index.json').then(r => r.json()).then(list => {
   for (const ex of list) {
     const o = document.createElement('option');
     o.value = ex.file; o.textContent = ex.name;
+    if (ex.id) o.dataset.id = ex.id;
     $('examples').appendChild(o);
   }
 }).catch(() => {});
@@ -140,7 +163,8 @@ $('examples').addEventListener('change', async e => {
   if (!f) return;
   const text = await (await fetch('examples/' + f)).text();
   const bp = parseBlueprintText(text);
-  loadBlueprint(bp.rows, { ...bp.meta, name: e.target.selectedOptions[0].textContent });
+  const opt = e.target.selectedOptions[0];
+  loadBlueprint(bp.rows, { ...bp.meta, name: opt.textContent }, opt.dataset.id || null);
   e.target.value = '';
 });
 
@@ -641,6 +665,14 @@ function inputActions(x, y) {
         state.feeds.push({ at: [x, y], kind: g ? guessFeedItem(probe, g, 'In' + (state.feeds.length + 1)) : 'In' + (state.feeds.length + 1), perMin: 480 });
       }]);
     }
+    // an output: a belt here facing away from a neighbour that pushes into this tile; it takes items away
+    for (let d = 0; d < 4; d++) {
+      const nb = { id: 3000, x, y, o: d, tier: 1, recipe: 0, filter: 0, added: 'out' };
+      const t = new World([...state.buildings, nb], { ugRange: +$('ugRange').value });
+      const n = t.belt.get(k);
+      if (!n || !n.inputs.length || n.outputs.length) continue;
+      acts.push([`Place an output belt facing ${names[d]}`, () => { state.buildings.push(nb); }]);
+    }
     return acts;
   }
   const start = w.segs.find(g => g.nodes[0].x === x && g.nodes[0].y === y && g.flag && !g.nodes[0].inputs.length);
@@ -663,11 +695,12 @@ function setStatus(t) { $('status').textContent = t; }
 // start: #bp=<id> in the link, else the first example
 const m = location.hash.match(/bp=([a-z0-9]+)/i);
 if (m) { $('bpInput').value = m[1]; loadFromInput(m[1]); }
-else fetch('examples/split_1_5_3x5.txt').then(r => r.text()).then(t => loadBlueprint(parseBlueprintText(t).rows, { name: '1:5 splitter 3x5' }));
+else fetch('examples/split_1_5_3x5.txt').then(r => r.text())
+  .then(t => loadBlueprint(parseBlueprintText(t).rows, { name: '1:5 splitter 3x5 (wiki)' }, 'fwgldk', { hash: false }));
 
-initDesigner({ openInSim: (rows, meta) => {
+initDesigner({ openInSim: (rows, meta, id) => {
   document.querySelector('.tab[data-tab="sim"]').click();
-  loadBlueprint(rows, meta);
+  loadBlueprint(rows, meta, id || null);
 } });
 
 initWorld({

@@ -134,7 +134,7 @@
     <button class="sheet-handle" id="dsheetHandle" aria-label="show or hide the panel"></button>
     <div class="card">
       <h2>Find a layout</h2>
-      <div class="seg" id="dKind"><button data-v="split" class="on">Splitter</button><button data-v="merge">Merger</button><button data-v="balance">Balancer</button></div>
+      <div class="seg" id="dKind"><button data-v="split" class="on">Splitter</button><button data-v="balance">Balancer</button></div>
       <div class="row ratio">
         <label>In <input id="dN" type="number" min="1" max="64" value="1" inputmode="numeric"></label>
         <span class="muted">:</span>
@@ -144,17 +144,20 @@
       <div class="seg" id="dMode"><button data-v="sym">Symmetric</button><button data-v="quasi" class="on">Quasi</button><button data-v="asym">Any</button></div>
       <p class="muted small" id="dModeHelp"></p>
       <h3>Goal</h3>
-      <div class="seg" id="dGoal"><button data-v="area" class="on">Smallest area</button><button data-v="square">Most square</button></div>
+      <div class="seg" id="dGoal"><button data-v="square">Most square</button><button data-v="area" class="on">Smallest area</button></div>
     </div>
     <div class="card">
       <h2>Best known</h2>
       <div id="dBest"></div>
-      <div class="row"><button id="dSim" class="primary" disabled>Open in simulator</button><button id="dCopy" disabled>Copy blueprint json</button><button id="dLink" disabled>Copy blueprint link</button></div>
+      <div class="row"><button id="dLink" class="primary" disabled>Copy game blueprint</button><button id="dSim" disabled>Open in simulator</button><button id="dMirror" disabled title="Flip the layout top to bottom (its mirror image works the same)">Mirror</button><button id="dCopy" disabled title="The layout as json rows, for the simulator and other tools (the game itself takes the blueprint link)">Copy json</button></div>
       <div id="dinfo" class="meta">&nbsp;</div>
       <h3>Solve it yourself</h3>
       <code class="cmd" id="dCmd"></code>
       <h3>All known layouts for this ratio</h3>
       <div id="dAll" class="list"></div>
+      <h3>Submit a layout</h3>
+      <p class="muted small">Found a better one? Paste its game blueprint code. It is checked automatically (exact flows, inputs and outputs side by side, the scores above) and added with your name if it is new and beats every listed layout on at least one score. Opens a GitHub issue, so it needs a GitHub account.</p>
+      <div class="row"><input id="dSubmitCode" placeholder="blueprint code, e.g. t6t6fg" autocomplete="off" spellcheck="false"><button id="dSubmit">Submit</button></div>
     </div>
     <div class="card">
       <h2>Live solver</h2>

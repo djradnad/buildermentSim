@@ -1,0 +1,62 @@
+# Layout submissions: an issue titled "Layout submission: CODE" (the site's Submit a layout box opens one).
+# The layout is downloaded, checked with exact flows and scored like every catalogue design; a true, new best
+# is committed to main and the site is redeployed. The answer is posted on the issue, which is then closed.
+name: submit
+on:
+  issues:
+    types: [opened, edited]
+permissions:
+  contents: write
+  issues: write
+  actions: write
+concurrency:
+  group: catalogue
+  cancel-in-progress: false
+jobs:
+  check:
+    if: startsWith(github.event.issue.title, 'Layout submission:') && github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ortools
+      - name: Check the layout
+        id: check
+        env:
+          TITLE: ${{ github.event.issue.title }}
+          AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          code=$(printf '%s' "$TITLE" | sed -E 's/^Layout submission:[[:space:]]*//' | tr 'A-Z' 'a-z' | grep -oE '^[0-9a-z]{4,12}' || true)
+          set +e
+          python site/tools/submit.py "${code:-none}" "$AUTHOR" > result.json
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          cat result.json
+      - name: Commit the catalogue
+        if: steps.check.outputs.status == '0'
+        env:
+          AUTHOR: ${{ github.event.issue.user.login }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "catalogue bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python site/tools/blueprints.py upload || true     # the mirror image's blueprint
+          git add site/catalogue.json site/tools/catalogue_extra.jsonl
+          git commit -m "Catalogue: layout submitted by $AUTHOR"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          # pushes made with this workflow's token don't start other workflows: start the site deploy by hand
+          gh workflow run site --ref main
+      - name: Answer on the issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+        run: |
+          text=$(python -c "import json; print(json.load(open('result.json'))['text'])" 2>/dev/null || echo "The check could not run; see the workflow log.")
+          printf '%s\n\n(Checked automatically: exact flows, ports side by side, and the catalogue scores.)\n' "$text" > body.md
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body-file body.md
+          gh issue close "$ISSUE" --repo "$GITHUB_REPOSITORY"
