@@ -16,7 +16,8 @@ const fed0 = w.feeds.map(f => f.n);
 const sink0 = new Map([...w.sinks].map(([g, m]) => [g, { ...m }]));
 for (let i = 0; i < H; i++) w.tick();
 const mins = H / 3600;
-const machines = w.machines.map((m, i) => ({ x: m.b.x, y: m.b.y, id: m.b.id, recipe: m.b.recipe, perMin: (m.made - made0[i]) / mins }));
+const machines = w.machines.map((m, i) => ({ x: m.b.x, y: m.b.y, id: m.b.id, recipe: m.b.recipe, perMin: (m.made - made0[i]) / mins,
+  out: m.out, lack: m.rec.in.filter(q => m.have[q.item] < q.amount).map(q => q.item) }));
 const sinks = {};
 for (const [g, m] of w.sinks) {
   const last = g.nodes[g.nodes.length - 1], b0 = sink0.get(g) || {};

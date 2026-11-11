@@ -85,7 +85,7 @@ def make(rn, rec, crafts, far=False):
         serp = max(1, int(480 / (2 * blocks * heavy) + 1e-9))
         m = cl.shop_mod(rn, rec['id'], n, blocks, serp=serp)
         m.out_rates = {}
-        cols = m.groups
+        cols = len([k for k in m.outs if k[0] == 'out']) * 2 - (math.ceil(n / (2 * blocks)) % 2)   # machine columns (m.groups counts serpentine runs)
         for k in range((cols + 1) // 2):
             m.out_rates[('out', k)] = min(2, cols - 2 * k) * 2 * blocks * rate1 * outa
         return m
@@ -430,13 +430,17 @@ def frame_diag(path, minutes=40, warmup=60):
         g = owner.get((mm['x'], mm['y']))
         rec = cl.RECIPES[mm['recipe']]
         nominal = 60.0 / rec['seconds'] * 3 * rec['out'][0]['amount']
-        t = per.setdefault(g, [0, 0, 0])
+        t = per.setdefault(g, [0, 0, 0, {}])
         t[0] += mm['perMin']
         t[1] += nominal
         t[2] += 1
+        if mm['perMin'] < 0.9 * nominal:                    # why slow, from the state at the end
+            why = 'output backed up' if mm['out'] >= 2 * rec['out'][0]['amount'] else 'waits for ' + ' + '.join(mm['lack']) if mm['lack'] else 'busy'
+            t[3][why] = t[3].get(why, 0) + 1
     want = {rn.replace(' ', '_'): crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
-    for g, (made, nominal, n) in sorted(per.items(), key=lambda t: t[1][0] / t[1][1]):
-        print('%-28s %3d machines make %8.1f/min, plan %8.1f, full speed %8.1f' % (tm[g].name, n, made, want.get(tm[g].name, 0), nominal))
+    for g, (made, nominal, n, why) in sorted(per.items(), key=lambda t: t[1][0] / t[1][1]):
+        print('%-28s %3d machines make %8.1f/min, plan %8.1f, full speed %8.1f  %s' % (
+            tm[g].name, n, made, want.get(tm[g].name, 0), nominal, ', '.join('%d %s' % (v, k) for k, v in sorted(why.items(), key=lambda t: -t[1]))))
     at = {}
     for g, m in enumerate(tm):
         if m.feed:
