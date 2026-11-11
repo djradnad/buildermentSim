@@ -361,7 +361,7 @@ def _route(self, off, timeout=60):
         self.fail = res
         return None
     try:
-        place.trace(dict(W=W, H=H, blocked=blocked, sources=sources, sinks=res['sinks'] if self.joins else sinks, nets=len(self.nets), reach=UG_REACH), res)
+        place.trace(dict(W=W, H=H, blocked=blocked, sources=sources, sinks=res["sinks"], nets=len(self.nets), reach=UG_REACH), res)
     except AssertionError as ex:
         print('trace failed:', ex)
         return None

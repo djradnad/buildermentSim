@@ -9,9 +9,80 @@ bmsolver.place.route (exact) can decide the stuck region.
     route(W, H, nets, blocked, sources, sinks) -> (ok, result, seconds)
 """
 import heapq
+import os
+import subprocess
 import time
 
 from .pieces import UG_REACH, opposite, step, DIRS
+
+
+_BIN = None
+
+
+def _binary():
+    """the compiled router (built on first use next to the source; None when there is no compiler)"""
+    global _BIN
+    if _BIN is None:
+        src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'negotiate.cpp')
+        exe = os.path.join(os.path.expanduser('~/.cache'), 'bm_negotiate_cpp')
+        try:
+            if not os.path.exists(exe) or os.path.getmtime(exe) < os.path.getmtime(src):
+                os.makedirs(os.path.dirname(exe), exist_ok=True)
+                subprocess.run(['g++', '-O2', '-std=c++17', '-o', exe, src], check=True, capture_output=True)
+            _BIN = exe
+        except Exception:
+            _BIN = False
+    return _BIN
+
+
+def _route_cpp(W, H, nets, blocked, sources, sinks, reach, rounds, hop_cost, turn_cost, open_cost, log, timeout,
+               fixed_ug, no_ug, swap, join):
+    t0 = time.time()
+    join = dict(join or {})
+    start = {n: (q, d) for q, d, n in sources}
+    goal = {n: (p, d) for p, d, n in sinks}
+    team = {n: n for n in range(nets)}
+    for grp in swap:
+        for n in grp:
+            team[n] = min(grp)
+    L = ['%d %d %d %d %d' % (W, H, nets, reach, rounds),
+         '%r %r %r %r %d' % (hop_cost, turn_cost, open_cost, timeout or 0, 1 if log else 0)]
+    blocked = list(blocked)
+    L.append(str(len(blocked)))
+    L += ['%d %d' % p for p in blocked]
+    L += ['%d %d %d' % (start[n][0][0], start[n][0][1], start[n][1]) for n in range(nets)]
+    L += ['-1 -1 -1' if n in join else '%d %d %d' % (goal[n][0][0], goal[n][0][1], goal[n][1]) for n in range(nets)]
+    L += ['%d %d' % (team[n], join.get(n, -1)) for n in range(nets)]
+    for ug in (list(fixed_ug), list(no_ug)):
+        L.append(str(len(ug)))
+        L += ['%d %d %d' % (p[0], p[1], d) for p, d in ug]
+    pr = subprocess.run([_BIN], input='\n'.join(L) + '\n', capture_output=True, text=True)
+    if log:
+        for line in pr.stderr.splitlines():
+            log(line)
+    out = pr.stdout.split('\n')
+    if not out or not out[0].startswith('OK'):
+        reason = out[0][5:] if out and out[0].startswith('FAIL') else 'router crashed: ' + pr.stderr[-200:]
+        bad = [int(x) for x in out[2:] if x.strip()] if len(out) > 2 else []
+        res = dict(reason=reason)
+        if reason == 'still clashing':
+            res['nets'] = bad
+        return False, res, time.time() - t0
+    rounds_used = int(out[0].split()[1])
+    i = 1
+    tiles, by_net, snk = {}, {}, []
+    for n in range(nets):
+        _, ex, ey, ed, cnt = map(int, out[i].split())
+        i += 1
+        pieces = {}
+        for k in range(cnt):
+            x, y, c, d = out[i].split()
+            pieces[(int(x), int(y))] = c + d
+            i += 1
+        by_net[n] = pieces
+        tiles.update(pieces)
+        snk.append(((ex, ey), ed, n))
+    return True, dict(tiles=tiles, placed=[], pieces=len(tiles), rounds=rounds_used, by_net=by_net, sinks=snk), time.time() - t0
 
 
 def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=60, hop_cost=0.5, turn_cost=0.05,
@@ -26,6 +97,9 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
     no sink of its own, it ends by pushing into a belt of the other net from the side (two collectors of one item
     joining; the caller makes sure the sum fits one belt)."""
     t0 = time.time()
+    if os.environ.get('BM_ROUTER', 'cpp') == 'cpp' and _binary():
+        return _route_cpp(W, H, nets, blocked, sources, sinks, reach, rounds, hop_cost, turn_cost, open_cost, log,
+                          timeout, fixed_ug, no_ug, swap, join)
     blocked = set(blocked)
     fixed_ug, no_ug = set(fixed_ug), set(no_ug)
     inside = lambda p: 0 <= p[0] < W and 0 <= p[1] < H

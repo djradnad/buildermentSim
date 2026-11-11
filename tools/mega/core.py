@@ -373,6 +373,11 @@ def frame_main(seconds=90, rounds=10):
         if res is None:
             f = getattr(lay, 'fail', None)
             print(tag + ': did not route (%s)' % ('%d belts still clash' % len(f.get('nets', [])) if f else 'a port is blocked'), flush=True)
+            if f and 'nets' not in f:
+                import re
+                k = int(re.search(r'net (\d+)', f.get('reason', 'net 0')).group(1))
+                a_, ka, b_, kb = nets2[k]
+                print('      %s: %s %s -> %s %s' % (f.get('reason'), tm2[a_].name, ka, 'join' if b_ is None else tm2[b_].name, kb), flush=True)
             if f:
                 import collections
                 c = collections.Counter()
