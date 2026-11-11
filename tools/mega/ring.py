@@ -3,7 +3,8 @@
     top band   steel std + graphite, steel ALT, steel rod            (yxy4vn as it is)
     left       graphite + carbon fiber column                        (yxy4vn as it is)
     right      concrete, wood frames, planks                         (srb44l)
-    bottom     tiled stack: copper ingot / wire / heat sink, iron ingot / plating (cut from k3xv5h, flipped)
+    bottom     tiled stack as staircases (stair.py, john's vc04aj / mbl5k9 style), plan-sized and flipped:
+               sand/glass + tungsten ore, then copper ingot / wire / heat sink + iron ingot / plating
 
 The blocks are placed around a hole for the core. Writes the rows, a picture, the hole size and a game-sim run
 of the whole ring with every typed input lane fed.
@@ -63,15 +64,16 @@ def place(rows, x, y):
 def build(hole_w=140, hole_h=140):
     steel = jmod.load('yxy4vn')
     xa, xb, ya, yb = box(steel)
-    k3 = jmod.load('k3xv5h')
-    stack = flip_v(cut(k3, -60, 200, -200, -44))
+    stack = flip_v(jmod.load('data/ring/north_stair.json'))    # copper + iron staircase, plan-sized (tools/mega/stair.py)
+    glass = flip_v(jmod.load('data/ring/east_stair.json'))     # sand/glass + tungsten ore staircase
     conc = jmod.load('srb44l')
     # yxy4vn: band rows ya..-28, column x xa..-63; the hole starts right of the column and under the band
     hx, hy = -62, -27
     rows = [list(r) for r in steel]
-    cw = box(conc)[1] - box(conc)[0] + 1
     rows += place(conc, max(xb + 1, hx + hole_w), ya)
-    rows += place(stack, hx, hy + hole_h)
+    gw = box(glass)[1] - box(glass)[0] + 1
+    rows += place(glass, xa, hy + hole_h)
+    rows += place(stack, xa + gw + 1, hy + hole_h)
     return rows, (hx, hy, hole_w, hole_h)
 
 

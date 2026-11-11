@@ -33,7 +33,7 @@ def recipes():
 
 
 def load(code, swap=None):
-    rows = [list(r) for r in json.load(open('data/bp/%s.json' % code))['rows']]
+    rows = [list(r) for r in json.load(open(code if code.endswith('.json') else 'data/bp/%s.json' % code))['rows']]
     for r in rows:
         if swap and r[5] in swap:
             r[5] = swap[r[5]]
