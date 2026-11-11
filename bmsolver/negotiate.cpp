@@ -1,3 +1,4 @@
+#include <cstdlib>
 // Negotiated-congestion belt router: the same search as bmsolver/negotiate.py, compiled.
 // Reads the problem as plain numbers on stdin, writes the routes on stdout (see negotiate.py: _route_cpp).
 //   g++ -O2 -std=c++17 -o negotiate_cpp negotiate.cpp
@@ -69,6 +70,8 @@ int main() {
     vector<char> hasPath(N, 0);
     vector<int> endedT(N, -1), endedD(N, -1);
     double pres = 0.5;
+    const double PMAX = getenv("BM_PMAX") ? atof(getenv("BM_PMAX")) : 100;
+    const double HISTUG = getenv("BM_HISTUG") ? atof(getenv("BM_HISTUG")) : 0.5;
 
     auto freeT = [&](int t) { return t >= 0 && !blocked[t]; };
     auto tileCost = [&](int p, int n) -> double {       // < 0 = not allowed
@@ -281,11 +284,25 @@ int main() {
             return 0;
         }
         for (int t = 0; t < WH; t++) if (use[t].size() > 1) hist[t] += 0.5 * (use[t].size() - 1);
-        pres *= 1.6;
+        // overuse through a hop (someone else's entrance or exit under this hop) also leaves a mark
+        for (int n = 0; n < N; n++)
+            for (auto &kv : paths[n]) if (kv.second.first == 'I') {
+                int p = kv.first, d = kv.second.second;
+                for (int k = 1; k <= REACH; k++) {
+                    int r = stepT(p, d, k);
+                    if (r < 0) break;
+                    auto f = paths[n].find(r);
+                    if (f != paths[n].end() && f->second.first == 'O' && f->second.second == d) break;
+                    for (int m : ugs[r * 4 + d]) if (m != n) { hist[r] += HISTUG; break; }
+                }
+            }
+        pres = min(pres * 1.6, PMAX);                    // unbounded growth drowned the path length in the cost
         todo.assign(bad.begin(), bad.end());
         if (TIMEOUT > 0 && secs() > TIMEOUT) break;
     }
     printf("FAIL still clashing\n%d\n", (int)bad.size());
     for (int m : bad) printf("%d\n", m);
+    printf("TILES\n");                               // where the belts lie now: x y (number of belts on the tile)
+    for (int t = 0; t < WH; t++) if (!use[t].empty()) printf("%d %d %d\n", t % W, t / W, (int)use[t].size());
     return 0;
 }

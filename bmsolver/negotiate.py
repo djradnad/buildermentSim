@@ -63,8 +63,10 @@ def _route_cpp(W, H, nets, blocked, sources, sinks, reach, rounds, hop_cost, tur
     out = pr.stdout.split('\n')
     if not out or not out[0].startswith('OK'):
         reason = out[0][5:] if out and out[0].startswith('FAIL') else 'router crashed: ' + pr.stderr[-200:]
-        bad = [int(x) for x in out[2:] if x.strip()] if len(out) > 2 else []
+        cut = out.index('TILES') if 'TILES' in out else len(out)
+        bad = [int(x) for x in out[2:cut] if x.strip()] if len(out) > 2 else []
         res = dict(reason=reason)
+        res['use'] = {(int(a), int(b)): int(c) for a, b, c in (ln.split() for ln in out[cut + 1:] if ln.strip())}
         if reason == 'still clashing':
             res['nets'] = bad
         return False, res, time.time() - t0

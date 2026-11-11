@@ -374,6 +374,7 @@ def _route(self, off, timeout=60):
                                     open_cost=0.2, timeout=timeout, rounds=getattr(self, "rounds", 150))
     if not ok:
         self.fail = res
+        res['origin'] = (x0, y0)
         return None
     try:
         place.trace(dict(W=W, H=H, blocked=blocked, sources=sources, sinks=res["sinks"], nets=len(self.nets), reach=UG_REACH), res)
@@ -469,6 +470,40 @@ def picture(lay, res, path):
             col = tuple(int(255 * v) for v in colorsys.hsv_to_rgb(big.index(g) / len(big), 0.55, 0.8))
         else:
             col = (255, 80, 80)
+        d.rectangle([(x - mx) * Z, (y - my) * Z, (x - mx) * Z + Z - 2, (y - my) * Z + Z - 2], fill=col)
+    im.save(path)
+    return W, H
+
+
+def fail_picture(lay, off, path):
+    """where a failed routing got stuck: modules in colour, belts grey, tiles wanted by two or more belts red"""
+    from PIL import Image, ImageDraw
+    import colorsys
+    f = lay.fail
+    x0, y0 = f['origin']
+    cells = {}
+    for g, m in enumerate(lay.mods):
+        for c in m.cells:
+            cells[lay.pos(c, g, off)] = g
+    for (x, y), k in f.get('use', {}).items():
+        cells[(x + x0, y + y0)] = -k
+    xs = [p[0] for p in cells]
+    ys = [p[1] for p in cells]
+    mx, my = min(xs), min(ys)
+    W, H = max(xs) - mx + 1, max(ys) - my + 1
+    Z = max(4, min(12, 1400 // max(W, H)))
+    im = Image.new('RGB', (W * Z, H * Z), (20, 22, 26))
+    d = ImageDraw.Draw(im)
+    big = [g for g, m in enumerate(lay.mods) if len(m.cells) > 4]
+    for (x, y), g in cells.items():
+        if g < -1:
+            col = (255, 30, 30)
+        elif g == -1:
+            col = (150, 150, 150)
+        elif g in big:
+            col = tuple(int(255 * v) for v in colorsys.hsv_to_rgb(big.index(g) / len(big), 0.45, 0.6))
+        else:
+            col = (255, 200, 60)
         d.rectangle([(x - mx) * Z, (y - my) * Z, (x - mx) * Z + Z - 2, (y - my) * Z + Z - 2], fill=col)
     im.save(path)
     return W, H

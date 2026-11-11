@@ -348,7 +348,12 @@ def add_ring(tm, nets, open_in, off):
     x0, y0, x1, y1 = min(xs) - 3, min(ys) - 3, max(xs) + 3, max(ys) + 3
     mods2, nets2, off2 = list(tm), list(nets), list(off)
     taken = set()
-    for (i, key, need) in open_in:
+    def near(e):
+        (t, d) = tm[e[0]].ins[e[1]]
+        px, py = t[0] + off[e[0]][0], t[1] + off[e[0]][1]
+        dist, side = min((px - x0, 3), (x1 - px, 1), (py - y0, 2), (y1 - py, 0))
+        return (d != side, dist)
+    for (i, key, need) in sorted(open_in, key=near):    # inputs that face the border first: they get the slot in line
         (t, d) = tm[i].ins[key]
         px, py = t[0] + off[i][0], t[1] + off[i][1]
         side = min((px - x0, 3), (x1 - px, 1), (py - y0, 2), (y1 - py, 0))[1]     # direction the source pushes
@@ -368,6 +373,37 @@ def add_ring(tm, nets, open_in, off):
         off2.append(pos)
         nets2.append((len(mods2) - 1, 'out', i, key))
     return mods2, nets2, off2
+
+
+def widen(tm, off, fail, by=2):
+    """open the layout where a failed routing jammed: the tiles wanted by several belts mark the spot; every module
+    that starts past it moves `by` tiles away (right for a jam in an upright channel, down for a flat one).
+    -> new offsets for the modules of tm, or None when there is no jam to read"""
+    x0, y0 = fail['origin']
+    red = sorted((x + x0, y + y0) for (x, y), k in fail.get('use', {}).items() if k > 1)
+    if not red:
+        return None
+    xs = sorted(p[0] for p in red)
+    ys = sorted(p[1] for p in red)
+    mid = lambda v: v[len(v) // 2]
+    iqr = lambda v: v[(3 * len(v)) // 4] - v[len(v) // 4]
+    upright = iqr(ys) >= iqr(xs)                             # the jam runs north-south: make the channel wider
+    c = mid(xs) if upright else mid(ys)
+    k = 0 if upright else 1
+    new = []
+    for m, o in zip(tm, off):
+        lo = min(cc[k] for cc in m.cells) + o[k]
+        new.append(((o[0] + by, o[1]) if upright else (o[0], o[1] + by)) if lo > c else tuple(o))
+    seen = set()
+    for m, o in zip(tm, new):
+        for cc in m.cells:
+            t = (cc[0] + o[0], cc[1] + o[1])
+            if t in seen:
+                return None
+            seen.add(t)
+    if new == [tuple(o) for o in off]:
+        return None
+    return new
 
 
 def frame_main(seconds=90, rounds=10, seed0=0):
@@ -391,12 +427,24 @@ def frame_main(seconds=90, rounds=10, seed0=0):
         if tm is None:
             print('try %d: width %d does not hold the frame modules' % (r + 1, width), flush=True)
             continue
-        tm2, nets2, off2 = add_ring(tm, nets, open_in, off)
-        lay = cl.Layout(tm2, nets2)
         tag = 'try %d (%.0f min): channel %d + %.2f per port (max %d), %dx%d, belt length %d' % (
             r + 1, (time.time() - t0) / 60, ch, per_port, cap, width, top, wl)
-        lay.rounds = 1000
-        res = lay.route(off2, timeout=900)
+        for fix in range(13):                                # route; where it jams, open the layout there and go again
+            tm2, nets2, off2 = add_ring(tm, nets, open_in, off)
+            lay = cl.Layout(tm2, nets2)
+            lay.rounds = 300
+            res = lay.route(off2, timeout=600)
+            f = getattr(lay, 'fail', None)
+            if res is not None or not f or 'use' not in f or fix == 12:
+                break
+            cl.fail_picture(lay, off2, out + '_%d_jam.png' % (r + 1))
+            off_new = widen(tm, off, f)
+            if off_new is None:
+                break
+            print('    %d belts clash, opening the layout at the jam (%d)' % (len(f.get('nets', [])), fix + 1), flush=True)
+            off = off_new
+        if fix:
+            tag += ', opened %d times' % fix
         if res is None:
             f = getattr(lay, 'fail', None)
             print(tag + ': did not route (%s)' % ('%d belts still clash' % len(f.get('nets', [])) if f else 'a port is blocked'), flush=True)
