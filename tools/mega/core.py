@@ -229,7 +229,7 @@ def main(seconds=120, rounds=1, ring=0):
         per_port, cap, ch = rnd.choice([(0.34, 4, 3), (0.5, 5, 3), (0.5, 6, 2), (0.34, 4, 4), (0.5, 8, 3)])
         width = side + rnd.randrange(8, 34)
         extra = [(i, mods[i].ins[key][0]) for (i, key, need) in open_in] if ring else ()
-        off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1, wl_w=rnd.choice([0.02, 0.04, 0.06]), extra=extra)
+        off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=seed0 + r + 1, wl_w=rnd.choice([0.02, 0.04, 0.06]), extra=extra)
         tm = [cl.transpose(m) if f else m for m, f in zip(mods, flip)]
         nets_r = nets
         if ring:
@@ -345,22 +345,23 @@ def add_ring(tm, nets, open_in, off):
     return mods2, nets2, off2
 
 
-def frame_main(seconds=90, rounds=10):
+def frame_main(seconds=90, rounds=10, seed0=0):
     """frame placement (ring-fed modules on the top and bottom edges) -> ring sources -> route -> game sim"""
     import frame
     import random
     import time
     mods, nets, open_in, spare = build()
     side = math.ceil(sum(len(m.cells) for m in mods) ** 0.5)
-    out = os.path.expanduser('~/data/core_frame')
-    rnd = random.Random(3)
+    seed0 = int(seed0)
+    out = os.path.expanduser('~/data/core_frame%s' % ('_s%d' % seed0 if seed0 else ''))
+    rnd = random.Random(3 + seed0)
     best = None
     t0 = time.time()
     want = {rec['id']: crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
     for r in range(int(rounds)):
         per_port, cap, ch = rnd.choice([(0.34, 3, 2), (0.34, 4, 3), (0.5, 4, 2), (0.25, 2, 2), (0.5, 5, 3)])
         width = side + rnd.randrange(12, 40)
-        tm, off, top, wl = frame.place(mods, nets, open_in, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1,
+        tm, off, top, wl = frame.place(mods, nets, open_in, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=seed0 + r + 1,
                                        log=lambda s: print('  ' + s, flush=True))
         if tm is None:
             print('try %d: width %d does not hold the frame modules' % (r + 1, width), flush=True)
@@ -369,6 +370,7 @@ def frame_main(seconds=90, rounds=10):
         lay = cl.Layout(tm2, nets2)
         tag = 'try %d (%.0f min): channel %d + %.2f per port (max %d), %dx%d, belt length %d' % (
             r + 1, (time.time() - t0) / 60, ch, per_port, cap, width, top, wl)
+        lay.rounds = 1000
         res = lay.route(off2, timeout=900)
         if res is None:
             f = getattr(lay, 'fail', None)
@@ -479,7 +481,7 @@ def squeeze_main(minutes=100, src='~/data/core_gen.pkl'):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'frame':
-        frame_main(*[float(a) for a in sys.argv[2:4]])
+        frame_main(*[float(a) for a in sys.argv[2:5]])
         sys.exit()
     if sys.argv[1] == 'squeeze':
         squeeze_main(*[float(a) for a in sys.argv[2:3]])
