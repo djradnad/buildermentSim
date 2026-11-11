@@ -61,23 +61,23 @@ def recipe_mod(name, recipe, n, groups=1, rows=1, share=False, far=False):
     return mod
 
 
-def shop_mod(name, recipe, n, blocks):
+def shop_mod(name, recipe, n, blocks, serp=1):
     """machine-shop recipe in the dense two-lane column form; n is rounded up to whole columns"""
     import shopmod
     rec = RECIPES[recipe]
     cols = -(-n // (2 * blocks))
-    fam = shopmod.build(recipe, blocks, cols)
+    fam = shopmod.build(recipe, blocks, cols, serp=serp)
     mod = Mod(name, [list(r) for r in fam['rows']])
-    mod.rec, mod.groups, mod.per = rec, cols, [2 * blocks] * cols
+    mod.rec, mod.groups, mod.per = rec, fam['groups'], [2 * blocks * c for c in fam['run_cols']]
     rate1 = 60.0 / rec['seconds'] * 3
     mod.need = {}
-    for g in range(cols):
-        for i, ing in enumerate(rec['in']):
-            x, y, d = fam['inputs'][g * 2 + i]
+    for (kind, g, i), (x, y, d) in fam['ports'].items():
+        ing = rec['in'][i]
+        if kind == 'in':
             mod.ins[(g, ing['item'])] = (step((x, y), (d + 2) % 4), d)
-            x, y, d = fam['through'][g * 2 + i]
+            mod.need[(g, ing['item'])] = ing['amount'] * rate1 * mod.per[g]
+        else:
             mod.outs[('thru', g, ing['item'])] = ((x, y), d)
-            mod.need[(g, ing['item'])] = ing['amount'] * rate1 * 2 * blocks
     for k, (x, y, d) in enumerate(fam['outputs']):
         mod.outs[('out', k)] = ((x, y), d)
     mod.out_item = rec['out'][0]['item']
@@ -85,23 +85,25 @@ def shop_mod(name, recipe, n, blocks):
     return mod
 
 
-def paired_mod(name, recipe, per, left=(), far=False):
+def paired_mod(name, recipe, per, left=(), far=False, chain=None):
     """single-row groups stacked in collector-sharing pairs; left = ingredient indices that get a second arm"""
     rec = RECIPES[recipe]
     bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
     L = len(rec['in'])
-    fam = lanemod.paired(bid, recipe, per, L, left=left, far=far)
+    fam = lanemod.paired(bid, recipe, per, L, left=left, far=far, chain=chain)
     mod = Mod(name, [list(r) for r in fam['rows']])
     mod.rec, mod.groups, mod.per = rec, len(per), per
     rate1 = 60.0 / rec['seconds'] * 3
     mod.need = {}
-    for g in range(len(per)):
-        for i, ing in enumerate(rec['in']):
-            x, y, d = fam['inputs'][g * L + i]
+    for (kind, g, i), (x, y, d) in fam['ports'].items():
+        ing = rec['in'][i]
+        if kind == 'in':
             mod.ins[(g, ing['item'])] = (step((x, y), (d + 2) % 4), d)
-            x, y, d = fam['through'][g * L + i]
-            mod.outs[('thru', g, ing['item'])] = ((x, y), d)
             mod.need[(g, ing['item'])] = ing['amount'] * rate1 * per[g]
+            if i == chain and g % 2 == 0 and g + 1 < len(per):      # the pair's lower group takes it from this lane
+                mod.need[(g, ing['item'])] += ing['amount'] * rate1 * per[g + 1]
+        else:
+            mod.outs[('thru', g, ing['item'])] = ((x, y), d)
     mod.outm = fam['outm']
     for k, (x, y, d) in enumerate(fam['outputs']):
         mod.outs[('out', k)] = ((x, y), d)

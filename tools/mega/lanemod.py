@@ -28,7 +28,7 @@ def machine_row(bid, x, y, o, recipe, tier):
     return [bid, x - mx, y - my, o, tier - 1, recipe, 0]
 
 
-def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False, left=(), up_only=False, far=False):
+def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False, left=(), up_only=False, far=False, west=False):
     """-> dict(rows, inputs [(x, y, d)], outputs [(x, y, d)], through [(x, y, d)], w, h)"""
     s = rc.SIZE[bid][0]
     assert lanes <= s
@@ -46,7 +46,7 @@ def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False, left=(),
     for k in range(rows):
         y0 = ytop[k]
         up = (share and k % 2 == 1) or up_only          # up_only: one row pushing up into a neighbour's collector
-        east = k % 2 == 0
+        east = (k % 2 == 0) != west
         m = per[k]
         fx = (lambda x: x) if east else (lambda x: width - 1 - x)
         d = 3 if east else 1
@@ -127,25 +127,48 @@ def stack(mods):
     return out
 
 
-def paired(bid, recipe, per, lanes, left=(), far=False):
-    """single-row groups (own inputs each) stacked in pairs that face one collector"""
+def paired(bid, recipe, per, lanes, left=(), far=False, chain=None):
+    """single-row groups (own inputs each) stacked in pairs that face one collector.
+    chain = index of a light ingredient (two-ingredient recipes): the lower group of each pair runs the other
+    way and takes that ingredient from the upper group's lane end through a short U-turn, so the pair needs it
+    only once and the heavy ingredient enters from both sides (john: ingredients from different directions).
+    -> ports {('in' | 'thru', group, ingredient index): (x, y, d)} besides the usual lists"""
     s = rc.SIZE[bid][0]
-    out = dict(rows=[], inputs=[], outputs=[], through=[], machines=sum(per), groups=len(per), outm=[])
+    out = dict(rows=[], inputs=[], outputs=[], through=[], machines=sum(per), groups=len(per), outm=[], ports={})
     y = 0
     w = 0
+    prev = None
     for g, m in enumerate(per):
         low = g % 2 == 1
-        mod = build(bid, recipe, m, 1, lanes, left=left, up_only=low, far=far)
+        turn = low and chain is not None
+        items = [chain, 1 - chain] if turn else list(range(lanes))      # ingredient on each lane, top to bottom
+        mod = build(bid, recipe, m, 1, lanes, left=tuple(i for i, it in enumerate(items) if it in left), up_only=low,
+                    far=far, west=turn)
         if low:
             out['outm'][-1] += m
         else:
             out['outm'] += mod['outm']
         out['rows'] += [[r[0], r[1], r[2] + y] + r[3:] for r in mod['rows']]
-        for k in ('inputs', 'outputs', 'through'):
-            out[k] += [(t[0], t[1] + y, t[2]) for t in mod[k]]
+        out['outputs'] += [(t[0], t[1] + y, t[2]) for t in mod['outputs']]
+        for i, it in enumerate(items):
+            for kind, key in (('in', 'inputs'), ('thru', 'through')):
+                t = mod[key][i]
+                out['ports'][(kind, g, it)] = (t[0], t[1] + y, t[2])
+        if turn:                                                        # U-turn of the light lane at the east end
+            x0, y0, _ = out['ports'].pop(('thru', g - 1, chain))
+            x1, y1, _ = out['ports'].pop(('in', g, chain))
+            col = max(x0, x1) + 1
+            for x in range(x0 + 1, col):
+                out['rows'].append([B, x, y0, 3, 0, -1, 0])
+            for yy in range(y0, y1):
+                out['rows'].append([B, col, yy, 2, 0, -1, 0])
+            for x in range(col, x1, -1):
+                out['rows'].append([B, x, y1, 1, 0, -1, 0])
         y += s if low else s + 1
         w = max(w, mod['w'])
-    out['w'], out['h'] = w, y - (1 if len(per) % 2 == 0 else 0) + (0 if len(per) % 2 == 0 else 0)
+    for (kind, g, it), t in sorted(out['ports'].items()):
+        out['inputs' if kind == 'in' else 'through'].append(t)
+    out['w'], out['h'] = w + (1 if chain is not None else 0), y - (1 if len(per) % 2 == 0 else 0)
     return out
 
 

@@ -82,7 +82,8 @@ def make(rn, rec, crafts, far=False):
         blocks = max(1, min(3, int(480 / (2 * heavy)), int(480 / (4 * rate1 * outa))))
         while blocks > 1 and 2 * blocks * math.ceil(n / (2 * blocks)) - n >= 2:
             blocks -= 1                                   # fewer spare machines
-        m = cl.shop_mod(rn, rec['id'], n, blocks)
+        serp = max(1, int(480 / (2 * blocks * heavy) + 1e-9))
+        m = cl.shop_mod(rn, rec['id'], n, blocks, serp=serp)
         m.out_rates = {}
         cols = m.groups
         for k in range((cols + 1) // 2):
@@ -93,7 +94,10 @@ def make(rn, rec, crafts, far=False):
     arms = [math.ceil(i['amount'] * rate1 / 90 - 1e-9) for i in rec['in']]
     if max(arms) == 2:                                    # a second arm on those lanes, taking from the entrance
         per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
-        m = cl.paired_mod(rn, rec['id'], per, left=tuple(i for i, a in enumerate(arms) if a == 2), far=far)
+        light = arms.index(1) if len(arms) == 2 and 1 in arms else None
+        if light is not None and 2 * max(per) * rec['in'][light]['amount'] * rate1 > 480:
+            light = None
+        m = cl.paired_mod(rn, rec['id'], per, left=tuple(i for i, a in enumerate(arms) if a == 2), far=far, chain=None if far else light)
         m.out_rates = {('out', k): c * rate1 * outa for k, c in enumerate(m.outm)}
         return m
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
@@ -181,6 +185,8 @@ def build():
             nets.append((jm, jk, None, len(nets) - 1 - 0 * len(nets) if False else primary_index(nets)))
         left = pick[2] - need
         thru = ('thru', g, item)
+        if thru not in mods[i].outs and ('thru', g + 1, item) in mods[i].outs and (g + 1, item) not in mods[i].need:
+            thru = ('thru', g + 1, item)                    # a chained pair: the lane ends on the lower group
         if thru in mods[i].outs and left > 0.5:
             pool.append([i, thru, left])
         mods[i].fed = getattr(mods[i], 'fed', set()) | {thru}
