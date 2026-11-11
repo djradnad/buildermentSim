@@ -287,7 +287,7 @@ class Layout(cc.State):
     def name(self, g):
         return 'route' if g < 0 else self.mods[g].name
 
-    def sim(self, res, minutes=60, warmup=40, save=None):
+    def sim(self, res, minutes=60, warmup=40, save=None, probes=()):
         rows = self.game_rows(res)
         bs = [dict(id=r[0], x=r[1], y=r[2], o=r[3], tier=r[4] + 1, recipe=r[5] if r[5] > 0 else 0) for r in rows]
         feeds, sinks, names = [], [], {}
@@ -312,9 +312,9 @@ class Layout(cc.State):
                 rate = [m.out_rates[k] for k, (t, dd) in m.outs.items() if step(t, dd) == s][0]
                 feeds.append(dict(at=list(self.pos(s, gs)), kind=m.out_item, perMin=rate, buffer=10))
         if save:
-            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks), open(save, 'w'))
+            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, probes=[list(p) for p in probes]), open(save, 'w'))
         with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
-            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks), f)
+            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, probes=[list(p) for p in probes]), f)
         try:
             rep = json.loads(subprocess.run(['node', 'tools/simlayout.mjs', f.name], capture_output=True, text=True, check=True).stdout)
         finally:

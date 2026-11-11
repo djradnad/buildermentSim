@@ -277,6 +277,7 @@ export class Seg {
   }
 
   insert(m, kind) {
+    this.ins = (this.ins || 0) + 1;            // items that ever entered this segment (flow probes)
     let g = Math.max(SP, this.free - m);
     if (g !== SP && Math.abs(g - SP) <= SNAP) g = SP;
     this.items.push(g); this.kinds.push(kind);

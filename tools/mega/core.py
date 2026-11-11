@@ -135,7 +135,10 @@ def build():
             streams.setdefault(m.out_item, []).append([i, key, rate])
     open_in = []                # inputs fed from outside the core
     lanes = [(need, i, key) for i, m in enumerate(mods) for key, need in m.need.items()]
-    for need, i, (g, item) in sorted(lanes, key=lambda t: -t[0]):
+    todo = sorted(lanes, key=lambda t: -t[0])
+    waited = 0                  # lanes put back in a row (a full round of them = no clean way left)
+    while todo:
+        need, i, (g, item) = todo.pop(0)
         pool = streams.get(item)
         if pool is not None and getattr(mods[i], 'standin', False):
             if g:
@@ -170,16 +173,34 @@ def build():
             print('  nothing left: %s for %s wants %.1f' % (item, mods[i].name, need))
             open_in.append((i, (g, item), need))
             continue
-        if pick is None:        # join belts until there is enough
-            pick = list(pool.pop()) + [[]]
-            while pick[2] < need - 1e-6 and pool:
-                other = pool.pop()
-                pick[3].append((other[0], other[1]))                # joins this belt on the way (router's job)
-                pick[2] += other[2]
-            if pick[2] < need - 1e-6:
-                print('  short: %s for %s wants %.1f, has %.1f' % (item, mods[i].name, need, pick[2]))
+        if pick is None:        # join belts until there is enough; a belt carries 480, so the joined total must fit
+            chosen, tot, rest = [pool[-1]], pool[-1][2], pool[:-1]
+            while tot < need - 1e-6 and rest:
+                fit = [s_ for s_ in rest if tot + s_[2] <= 480 + 1e-6]
+                if not fit:
+                    break
+                other = next((s_ for s_ in fit if tot + s_[2] >= need - 1e-6), fit[-1])
+                rest.remove(other)
+                chosen.append(other)
+                tot += other[2]
+            if tot < need - 0.01 and waited < len(todo):
+                todo.append((need, i, (g, item)))                   # later lanes leave leftovers that may fit
+                waited += 1
+                continue
+            while tot < need - 1e-6 and rest:                        # no clean way: over a full belt, say so
+                other = rest.pop()
+                chosen.append(other)
+                tot += other[2]
+            if tot > 480.5:
+                print('  OVERFULL: %s for %s joins %.1f/min on one belt' % (item, mods[i].name, tot))
+            if tot < need - 0.01:
+                print('  short: %s for %s wants %.1f, has %.1f' % (item, mods[i].name, need, tot))
+            for c in chosen:
+                pool.remove(c)
+            pick = list(chosen[0][:2]) + [tot, [(c[0], c[1]) for c in chosen[1:]]]
         else:
             pool.remove(pick)
+        waited = 0
         nets.append((pick[0], pick[1], i, (g, item)))
         for (jm, jk) in (pick[3] if len(pick) > 3 else []):
             nets.append((jm, jk, None, len(nets) - 1 - 0 * len(nets) if False else primary_index(nets)))
@@ -417,8 +438,16 @@ def frame_diag(path, minutes=40, warmup=60):
     lay.off = off
     for b_ in lay.check(res):
         print('check: ' + b_)
-    made, got = lay.sim(res, minutes=minutes, warmup=warmup)
+    ends = [lay.pos(e, ge) for (s_, d, gs, e, de, ge) in lay.nets]
+    made, got = lay.sim(res, minutes=minutes, warmup=warmup, probes=ends)
     rep = lay.rep
+    for i, (a_, ka, b_, kb) in enumerate(nets):             # what really arrives on every belt between modules
+        if b_ is None or tm[a_].feed or getattr(tm[b_], 'standin', False):
+            continue
+        need = tm[b_].need.get(kb, 0)
+        flow = rep['probes'][i]
+        if flow is not None and flow < 0.97 * need:
+            print('belt %-22s %-14s -> %-22s %-26s carries %6.1f of %6.1f' % (tm[a_].name, ka, tm[b_].name, kb, flow, need))
     for k, v in sorted(got.items()):
         print('sink %-34s %s' % (k, {a: round(b, 1) for a, b in v.items()}))
     owner = {}

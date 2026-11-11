@@ -13,6 +13,8 @@ const warm = (L.warmup ?? 10) * 3600, H = (L.minutes ?? 30) * 3600;
 for (let i = 0; i < warm; i++) w.tick();
 const made0 = w.machines.map(m => m.made);
 const fed0 = w.feeds.map(f => f.n);
+const probeSeg = (L.probes || []).map(p => w.segs.find(g => g.nodes.some(n => n.x === p[0] && n.y === p[1])));
+const probe0 = probeSeg.map(g => g ? (g.ins || 0) : 0);
 const sink0 = new Map([...w.sinks].map(([g, m]) => [g, { ...m }]));
 for (let i = 0; i < H; i++) w.tick();
 const mins = H / 3600;
@@ -27,4 +29,5 @@ for (const [g, m] of w.sinks) {
 }
 const fed = w.feeds.length;
 const fedRates = w.feeds.map((f, i) => ({ at: f.at, kind: f.kind, want: f.perMin, perMin: (f.n - fed0[i]) / mins }));
-console.log(JSON.stringify({ machines, sinks, feeds: fed, fedRates, wanted: (L.feeds || []).length }));
+const probes = probeSeg.map((g, i) => g ? ((g.ins || 0) - probe0[i]) / mins : null);   // items per minute entering the belt run at each probe tile
+console.log(JSON.stringify({ machines, sinks, feeds: fed, fedRates, probes, wanted: (L.feeds || []).length }));
