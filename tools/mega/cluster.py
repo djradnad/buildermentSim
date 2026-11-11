@@ -36,12 +36,12 @@ class Mod:
         self.sink = None       # tile for the sim
 
 
-def recipe_mod(name, recipe, n, groups=1, rows=1, share=False):
+def recipe_mod(name, recipe, n, groups=1, rows=1, share=False, far=False):
     rec = RECIPES[recipe]
     bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
     L = len(rec['in'])
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
-    fam = lanemod.stack([lanemod.build(bid, recipe, m, rows, L, share=share) for m in per])
+    fam = lanemod.stack([lanemod.build(bid, recipe, m, rows, L, share=share, far=far and rows == 1) for m in per])
     mod = Mod(name, [list(r) for r in fam['rows']])
     mod.rec, mod.groups, mod.per = rec, groups, per
     rate1 = 60.0 / rec['seconds'] * 3
@@ -85,12 +85,12 @@ def shop_mod(name, recipe, n, blocks):
     return mod
 
 
-def paired_mod(name, recipe, per, left=()):
+def paired_mod(name, recipe, per, left=(), far=False):
     """single-row groups stacked in collector-sharing pairs; left = ingredient indices that get a second arm"""
     rec = RECIPES[recipe]
     bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
     L = len(rec['in'])
-    fam = lanemod.paired(bid, recipe, per, L, left=left)
+    fam = lanemod.paired(bid, recipe, per, L, left=left, far=far)
     mod = Mod(name, [list(r) for r in fam['rows']])
     mod.rec, mod.groups, mod.per = rec, len(per), per
     rate1 = 60.0 / rec['seconds'] * 3
@@ -134,6 +134,43 @@ def transpose(mod):
     if mod.sink:
         m.sink = (mod.sink[1], mod.sink[0])
     return m
+
+
+FV = {0: 2, 2: 0, 1: 1, 3: 3}
+
+
+def flip_v(mod):
+    """the module mirrored top to bottom: a new Mod with the same port keys"""
+    m = Mod(mod.name, [])
+    for r in mod.rows:
+        if r[0] in KIND_OF_ID or r[0] == lanemod.ARM:
+            m.rows.append([r[0], r[1], -r[2], FV[r[3]]] + list(r[4:]))
+        else:
+            fp = rc.footprint(r)
+            mx, my = min(c[0] for c in fp), max(c[1] for c in fp)
+            m.rows.append(lanemod.machine_row(r[0], mx, -my, FV[r[3]], r[5], r[4] + 1))
+    m.cells = {(x, -y) for x, y in mod.cells}
+    m.ins = {k: ((t[0], -t[1]), FV[d]) for k, (t, d) in mod.ins.items()}
+    m.outs = {k: ((t[0], -t[1]), FV[d]) for k, (t, d) in mod.outs.items()}
+    for k, v in mod.__dict__.items():
+        if k not in ('rows', 'cells', 'ins', 'outs'):
+            setattr(m, k, v)
+    if mod.feed:
+        m.feed = ((mod.feed[0][0], -mod.feed[0][1]),) + tuple(mod.feed[1:])
+    if mod.sink:
+        m.sink = (mod.sink[0], -mod.sink[1])
+    return m
+
+
+def facings(mod):
+    """the eight ways to turn and mirror a module"""
+    out = []
+    m = mod
+    for k in range(4):
+        out.append(m)
+        out.append(flip_v(m))
+        m = flip_v(transpose(m))                 # a quarter turn
+    return out
 
 
 def cap(mod, key):

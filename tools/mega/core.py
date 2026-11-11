@@ -71,7 +71,7 @@ def standin(name, rec, crafts):
     return m
 
 
-def make(rn, rec, crafts):
+def make(rn, rec, crafts, far=False):
     rate1 = 60.0 / rec['seconds'] * 3
     n = math.ceil(crafts / rate1 - 1e-6)
     outa = rec['out'][0]['amount']
@@ -93,13 +93,13 @@ def make(rn, rec, crafts):
     arms = [math.ceil(i['amount'] * rate1 / 90 - 1e-9) for i in rec['in']]
     if max(arms) == 2:                                    # a second arm on those lanes, taking from the entrance
         per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
-        m = cl.paired_mod(rn, rec['id'], per, left=tuple(i for i, a in enumerate(arms) if a == 2))
+        m = cl.paired_mod(rn, rec['id'], per, left=tuple(i for i, a in enumerate(arms) if a == 2), far=far)
         m.out_rates = {('out', k): c * rate1 * outa for k, c in enumerate(m.outm)}
         return m
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
-    rows = 2 if max(per) >= 8 else 1
+    rows = 2 if max(per) >= 8 and not far else 1
     share = rows == 2 and max(per) * rate1 * outa <= 480
-    m = cl.recipe_mod(rn, rec['id'], n, groups, rows, share=share)
+    m = cl.recipe_mod(rn, rec['id'], n, groups, rows, share=share, far=far)
     m.out_rates = {('out', k): c * rate1 * outa for k, c in enumerate(m.outm)}
     return m
 
@@ -112,9 +112,10 @@ def primary_index(nets):
 def build():
     rs = recipes()
     mods, nets, names = [], [], []
+    made_in_core = {rec['out'][0]['item'] for rec, c in rs.values() if rec['building'] in CORE}
     for rn, (rec, crafts) in sorted(rs.items()):
         if rec['building'] in CORE:
-            m = make(rn, rec, crafts)
+            m = make(rn, rec, crafts, far=not any(i['item'] in made_in_core for i in rec['in']))
             if not getattr(m, 'standin', False):           # plan rates: the machines are rounded up, the belts are not
                 i0 = rec['in'][0]
                 f = i0['amount'] * crafts / sum(v for (g, it), v in m.need.items() if it == i0['item'])
@@ -338,6 +339,58 @@ def add_ring(tm, nets, open_in, off):
     return mods2, nets2, off2
 
 
+def frame_main(seconds=90, rounds=10):
+    """frame placement (ring-fed modules on the top and bottom edges) -> ring sources -> route -> game sim"""
+    import frame
+    import random
+    import time
+    mods, nets, open_in, spare = build()
+    side = math.ceil(sum(len(m.cells) for m in mods) ** 0.5)
+    out = os.path.expanduser('~/data/core_frame')
+    rnd = random.Random(3)
+    best = None
+    t0 = time.time()
+    want = {rec['id']: crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
+    for r in range(int(rounds)):
+        per_port, cap, ch = rnd.choice([(0.34, 3, 2), (0.34, 4, 3), (0.5, 4, 2), (0.25, 2, 2), (0.5, 5, 3)])
+        width = side + rnd.randrange(12, 40)
+        tm, off, top, wl = frame.place(mods, nets, open_in, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1,
+                                       log=lambda s: print('  ' + s, flush=True))
+        if tm is None:
+            print('try %d: width %d does not hold the frame modules' % (r + 1, width), flush=True)
+            continue
+        tm2, nets2, off2 = add_ring(tm, nets, open_in, off)
+        lay = cl.Layout(tm2, nets2)
+        tag = 'try %d (%.0f min): channel %d + %.2f per port (max %d), %dx%d, belt length %d' % (
+            r + 1, (time.time() - t0) / 60, ch, per_port, cap, width, top, wl)
+        res = lay.route(off2, timeout=600)
+        if res is None:
+            f = getattr(lay, 'fail', None)
+            print(tag + ': did not route (%s)' % ('%d belts still clash' % len(f.get('nets', [])) if f else 'a port is blocked'), flush=True)
+            if f:
+                import collections
+                c = collections.Counter()
+                for k in f.get('nets', []):
+                    a_, ka, b_, kb = nets2[k]
+                    c[(tm2[a_].name, 'join' if b_ is None else tm2[b_].name)] += 1
+                for k, v in c.most_common(14):
+                    print('      %d x %s -> %s' % (v, k[0], k[1]), flush=True)
+            continue
+        lay.off = off2
+        bad = lay.check(res)
+        PW, PH = cl.picture(lay, res, out + '_%d.png' % (r + 1))
+        print(tag + ': ROUTED %dx%d with %d route pieces%s' % (PW, PH, res['pieces'], '' if not bad else ' (check: %s)' % bad[0]), flush=True)
+        made, got = lay.sim(res, minutes=40, warmup=60)
+        for rid, v in sorted(made.items(), key=lambda t: t[1] / want[t[0]]):
+            print('    %-24s sim %8.1f/min, plan %8.1f (%.0f%%)' % (cl.RECIPES[rid]['out'][0]['item'], v, want[rid], 100 * v / want[rid]), flush=True)
+        if best is None or max(PW, PH) < best:
+            best = max(PW, PH)
+            pickle.dump((off2, res, r + 1), open(out + '.pkl', 'wb'))
+            json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
+            cl.picture(lay, res, out + '.png')
+    print('done, best side %s' % best, flush=True)
+
+
 def squeeze_main(minutes=100, src='~/data/core_gen.pkl'):
     """pull the modules of a routed core toward the middle one at a time, re-routing everything after each move;
     a move stays when the core still routes.  Saves ~/data/core_sq.{pkl,json,png} after every gain."""
@@ -414,6 +467,9 @@ def squeeze_main(minutes=100, src='~/data/core_gen.pkl'):
 
 
 if __name__ == '__main__':
+    if sys.argv[1] == 'frame':
+        frame_main(*[float(a) for a in sys.argv[2:4]])
+        sys.exit()
     if sys.argv[1] == 'squeeze':
         squeeze_main(*[float(a) for a in sys.argv[2:3]])
         sys.exit()

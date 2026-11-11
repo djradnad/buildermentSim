@@ -28,7 +28,7 @@ def machine_row(bid, x, y, o, recipe, tier):
     return [bid, x - mx, y - my, o, tier - 1, recipe, 0]
 
 
-def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False, left=(), up_only=False):
+def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False, left=(), up_only=False, far=False):
     """-> dict(rows, inputs [(x, y, d)], outputs [(x, y, d)], through [(x, y, d)], w, h)"""
     s = rc.SIZE[bid][0]
     assert lanes <= s
@@ -62,11 +62,13 @@ def build(bid, recipe, n, rows, lanes, tier=4, arm_tier=4, share=False, left=(),
             out.append(machine_row(bid, mx, y0, 0 if up else 2, recipe, tier))
         # collector under the machines, flowing back toward the row's start
         cd = 1 if east else 3
+        if far:                                             # far: the collector leaves at the far end instead
+            cd = 3 if east else 1
         xs = sorted(fx(x) for x in range(1 + L, m * P - (1 if share and k + 1 < rows else 2)))
         if not up:
             for x in xs:
                 out.append([B, x, y0 + s, cd, 0, -1, 0])
-            outputs.append((xs[0] if east else xs[-1], y0 + s, cd))
+            outputs.append((xs[0] if cd == 1 else xs[-1], y0 + s, cd))
             outm.append(m + (per[k + 1] if share and k + 1 < rows else 0))
         starts = [(fx(0), y0 + i) for i in range(lanes)]
         ends = [(fx(m * P - 1), y0 + i) for i in range(lanes)]
@@ -125,7 +127,7 @@ def stack(mods):
     return out
 
 
-def paired(bid, recipe, per, lanes, left=()):
+def paired(bid, recipe, per, lanes, left=(), far=False):
     """single-row groups (own inputs each) stacked in pairs that face one collector"""
     s = rc.SIZE[bid][0]
     out = dict(rows=[], inputs=[], outputs=[], through=[], machines=sum(per), groups=len(per), outm=[])
@@ -133,7 +135,7 @@ def paired(bid, recipe, per, lanes, left=()):
     w = 0
     for g, m in enumerate(per):
         low = g % 2 == 1
-        mod = build(bid, recipe, m, 1, lanes, left=left, up_only=low)
+        mod = build(bid, recipe, m, 1, lanes, left=left, up_only=low, far=far)
         if low:
             out['outm'][-1] += m
         else:
