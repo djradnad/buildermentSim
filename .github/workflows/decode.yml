@@ -1,5 +1,5 @@
 # Decode a blueprint code into the catalogue's text grid (B/S/I/O + direction, ".." empty), printed in the log and
-# the run summary. Lets sessions that can't reach the blueprint service read in-game layouts.
+# the run summary, plus every building as raw game-file rows [id, x, y, rot, tier, recipe, filter] (machines too). Lets sessions that can't reach the blueprint service read in-game layouts.
 name: decode
 on:
   workflow_dispatch:
@@ -7,6 +7,12 @@ on:
       code:
         description: blueprint code(s), separated by spaces
         required: true
+      save:
+        description: "yes = also commit the raw rows as data/bp/<code>.json to this branch (keeps logs short)"
+        required: false
+        default: "no"
+permissions:
+  contents: write
 jobs:
   decode:
     runs-on: ubuntu-latest
@@ -15,15 +21,22 @@ jobs:
       - name: Decode
         env:
           CODES: ${{ inputs.code }}
+          SAVE: ${{ inputs.save }}
         run: |
           cd site/tools && python - <<'P' | tee -a "$GITHUB_STEP_SUMMARY"
-          import os, re
+          import os, re, json
           import blueprints as b
           ID = {v: k for k, v in b.CODE_ID.items()}
           for code in os.environ['CODES'].split():
               if not re.fullmatch(r'[0-9a-z]{4,12}', code):
                   print('bad code', code); continue
-              rows = [r for r in b.download(code) if r[0] in ID]
+              allrows = b.download(code)
+              if os.environ.get('SAVE') == 'yes':
+                  os.makedirs('../../data/bp', exist_ok=True)
+                  json.dump({'rows': allrows}, open('../../data/bp/%s.json' % code, 'w'))
+                  print('saved %s: %d buildings' % (code, len(allrows))); continue
+              print('raw %s %s' % (code, json.dumps(allrows)))
+              rows = [r for r in allrows if r[0] in ID]
               if not rows:
                   print(code, ': no belts, splitters or undergrounds'); continue
               x0 = min(r[1] for r in rows); y0 = min(r[2] for r in rows)
@@ -33,3 +46,12 @@ jobs:
                   g[r[2] - y0][r[1] - x0] = ID[r[0]] + str(r[3])
               print('```'); print('%s %dx%d' % (code, W, H)); print('\n'.join(''.join(l) for l in g)); print('```')
           P
+      - name: Commit
+        if: ${{ inputs.save == 'yes' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/bp
+          git commit -m "blueprint rows: ${{ inputs.code }}" || exit 0
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

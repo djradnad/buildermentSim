@@ -277,6 +277,7 @@ export class Seg {
   }
 
   insert(m, kind) {
+    this.ins = (this.ins || 0) + 1;            // items that ever entered this segment (flow probes)
     let g = Math.max(SP, this.free - m);
     if (g !== SP && Math.abs(g - SP) <= SNAP) g = SP;
     this.items.push(g); this.kinds.push(kind);
@@ -832,8 +833,9 @@ class Feed {
   constructor(seg, kind, perMin) { this.seg = seg; this.kind = kind; this.perMin = perMin; this.n = 0; this.acc = 0; }
   tick(M) {
     if (this.perMin < 480) {
-      this.acc = Math.min(this.acc + this.perMin / 3600, 1);
-      if (this.acc < 1) return;
+      // keep the fraction (dropping it, or 10 x 0.1 < 1 in floats, made a 360/min feed give 327/min)
+      this.acc = Math.min(this.acc + this.perMin / 3600, 2);
+      if (this.acc < 1 - 1e-9) return;
     }
     if (this.seg.free > 239) { this.seg.insert(M, this.kind); this.n++; this.acc -= 1; }
   }
@@ -891,12 +893,15 @@ export class Factory extends World {
     const sinkAt = new Set((opts.sinks || []).map(p => key(p[0], p[1])));
     for (const g of this.segs) {
       const last = g.nodes[g.nodes.length - 1];
-      if (g.target !== null || last.outputs.length || last.kind !== 0 || last.sub !== 0) continue;
-      if (opts.openEndsSink || (last.owner && last.owner.added === 'out') || sinkAt.has(key(last.x, last.y))) g.target = { sink: true };
+      if (g.target !== null || last.outputs.length) continue;
+      // a listed sink also counts when the run ends on an underground exit (a hop that surfaces on the last tile)
+      if (sinkAt.has(key(last.x, last.y))) { g.target = { sink: true }; continue; }
+      if (last.kind !== 0 || last.sub !== 0) continue;
+      if (opts.openEndsSink || (last.owner && last.owner.added === 'out')) g.target = { sink: true };
     }
     for (const f of opts.feeds || []) {
       const g = this.segs.find(s => s.nodes[0].x === f.at[0] && s.nodes[0].y === f.at[1]);
-      if (g) this.feeds.push(new Feed(g, f.kind, f.perMin ?? 480));
+      if (g) { const fd = new Feed(g, f.kind, f.perMin ?? 480); fd.at = f.at; this.feeds.push(fd); }
     }
     this.labsTakeAll = opts.labsTakeAll !== false;
     // arms take from any building with the 0x572c container, extractors included (traced)

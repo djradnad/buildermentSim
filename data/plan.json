@@ -1,0 +1,345 @@
+{
+ "Coal": {
+  "belts": 89.0,
+  "use": {
+   "Steel_ALT": 45.616622,
+   "Graphite": 43.383378
+  }
+ },
+ "Iron Ore": {
+  "belts": 88.0,
+  "use": {
+   "Steel_ALT": 45.616622,
+   "Iron_Ingot": 28.162213,
+   "Steel": 14.221166
+  }
+ },
+ "Wood Log": {
+  "belts": 83.7,
+  "use": {
+   "Wood_Plank": 40.313328,
+   "Graphite": 43.383378
+  }
+ },
+ "Stone": {
+  "belts": 75.0,
+  "use": {
+   "Sand": 30.016273,
+   "Concrete_ALT": 44.983727
+  }
+ },
+ "Copper Ore": {
+  "belts": 74.0,
+  "use": {
+   "Copper_Ingot": 74
+  }
+ },
+ "Copper Ingot": {
+  "belts": 74.0,
+  "use": {
+   "Copper_Wire": 35.782806,
+   "Heat_Sink": 38.217194
+  }
+ },
+ "Wood Plank": {
+  "belts": 40.31,
+  "use": {
+   "Wood_Frame": 40.313328
+  }
+ },
+ "Sand": {
+  "belts": 30.02,
+  "use": {
+   "Glass": 30.016273
+  }
+ },
+ "Iron Ingot": {
+  "belts": 28.16,
+  "use": {
+   "Iron_Plating": 23.850211,
+   "Electromagnet": 4.312002
+  }
+ },
+ "Copper Wire": {
+  "belts": 23.86,
+  "use": {
+   "Electromagnet": 12.936005,
+   "Gyroscope": 7.707669,
+   "Atomic_Locator": 3.211529
+  }
+ },
+ "Graphite": {
+  "belts": 14.46,
+  "use": {
+   "Carbon_Fiber": 10.80632,
+   "Steel": 2.370194,
+   "Battery": 1.284612
+  }
+ },
+ "Steel": {
+  "belts": 13.77,
+  "use": {
+   "Tungsten_Carbide_ALT": 1.803849,
+   "Industrial_Frame_ALT": 4.717599,
+   "Electric_Motor_ALT": 2.504993,
+   "Steel_Rod": 4.747909
+  }
+ },
+ "Iron Plating": {
+  "belts": 11.93,
+  "use": {
+   "Logic_Circuit_ALT": 2.408647,
+   "Metal_Frame": 4.326347,
+   "Industrial_Frame_ALT": 2.620889,
+   "Rotor": 2.569223
+  }
+ },
+ "Wood Frame": {
+  "belts": 10.08,
+  "use": {
+   "Concrete_ALT": 8.996745,
+   "Metal_Frame": 1.081587
+  }
+ },
+ "Wolframite": {
+  "belts": 9.02,
+  "use": {
+   "Tungsten_Ore": 9.019243
+  }
+ },
+ "Heat Sink": {
+  "belts": 7.64,
+  "use": {
+   "Logic_Circuit_ALT": 2.408647,
+   "Computer": 2.408647,
+   "Turbocharger_ALT": 1.798456,
+   "Super_Computer": 1.027689
+  }
+ },
+ "Glass": {
+  "belts": 7.5,
+  "use": {
+   "Nano_Wire": 3.306449,
+   "Empty_Fuel_Cell": 2.334932,
+   "Condenser_Lens": 1.541534,
+   "Tank": 0.321153
+  }
+ },
+ "Electromagnet": {
+  "belts": 5.14,
+  "use": {
+   "Electric_Motor_ALT": 2.504993,
+   "Battery": 1.284612,
+   "Electron_Microscope": 1.027689,
+   "Magnetic_Field_Generator": 0.321153
+  }
+ },
+ "Tungsten Carbide": {
+  "belts": 3.61,
+  "use": {
+   "Coupler": 1.027689,
+   "Empty_Fuel_Cell": 1.400959,
+   "Tank": 0.642306,
+   "Industrial_Frame": 0.087129,
+   "Turbocharger_ALT": 0.449614
+  }
+ },
+ "Carbon Fiber": {
+  "belts": 2.7,
+  "use": {
+   "Nano_Wire": 1.653225,
+   "Industrial_Frame_ALT": 1.048355
+  }
+ },
+ "Logic Circuit": {
+  "belts": 2.41,
+  "use": {
+   "Computer": 2.408647
+  }
+ },
+ "Concrete": {
+  "belts": 2.25,
+  "use": {
+   "Atomic_Locator": 1.541534,
+   "Tank": 0.642306,
+   "Industrial_Frame": 0.065347
+  }
+ },
+ "Tungsten Ore": {
+  "belts": 1.8,
+  "use": {
+   "Tungsten_Carbide_ALT": 1.803849
+  }
+ },
+ "Particle Glue": {
+  "belts": 1.61,
+  "use": {
+   "Matter_Duplicator": 1.605764
+  }
+ },
+ "Steel Rod": {
+  "belts": 1.58,
+  "use": {
+   "Rotor": 1.284612,
+   "Electromagnet_ALT": 0.248537,
+   "Nuclear_Fuel_Cell": 0.049488
+  }
+ },
+ "Uranium Ore": {
+  "belts": 1.48,
+  "use": {
+   "Enriched_Uranium": 1.484631
+  }
+ },
+ "Rotor": {
+  "belts": 1.28,
+  "use": {
+   "Gyroscope": 1.284612
+  }
+ },
+ "Metal Frame": {
+  "belts": 1.08,
+  "use": {
+   "Computer": 0.802882,
+   "Industrial_Frame": 0.021782,
+   "Electron_Microscope": 0.256922
+  }
+ },
+ "Coupler": {
+  "belts": 1.03,
+  "use": {
+   "Super_Computer": 1.027689
+  }
+ },
+ "Nano Wire": {
+  "belts": 0.83,
+  "use": {
+   "Magnetic_Field_Generator": 0.321153,
+   "Electron_Microscope": 0.256922,
+   "Electromagnet_ALT": 0.248537
+  }
+ },
+ "Computer": {
+  "belts": 0.8,
+  "use": {
+   "Turbocharger_ALT": 0.449614,
+   "Super_Computer": 0.256922,
+   "Stabilizer": 0.096346
+  }
+ },
+ "Gyroscope": {
+  "belts": 0.64,
+  "use": {
+   "Turbocharger_ALT": 0.449614,
+   "Stabilizer": 0.192692
+  }
+ },
+ "Condenser Lens": {
+  "belts": 0.51,
+  "use": {
+   "Electron_Microscope": 0.513845
+  }
+ },
+ "Empty Fuel Cell": {
+  "belts": 0.47,
+  "use": {
+   "Electric_Motor_ALT": 0.417499,
+   "Nuclear_Fuel_Cell": 0.049488
+  }
+ },
+ "Turbocharger": {
+  "belts": 0.45,
+  "use": {
+   "Matter_Compressor": 0.321153,
+   "Super_Computer": 0.128461
+  }
+ },
+ "Electric Motor": {
+  "belts": 0.42,
+  "use": {
+   "Matter_Compressor": 0.321153,
+   "Stabilizer": 0.096346
+  }
+ },
+ "Industrial Frame": {
+  "belts": 0.27,
+  "use": {
+   "Matter_Compressor": 0.160576,
+   "Energy_Cube": 0.080288,
+   "Magnetic_Field_Generator": 0.032115
+  }
+ },
+ "Tank": {
+  "belts": 0.16,
+  "use": {
+   "Matter_Compressor": 0.160576
+  }
+ },
+ "Matter Compressor": {
+  "belts": 0.16,
+  "use": {
+   "Particle_Glue": 0.160576
+  }
+ },
+ "Battery": {
+  "belts": 0.16,
+  "use": {
+   "Energy_Cube": 0.160576
+  }
+ },
+ "Super Computer": {
+  "belts": 0.13,
+  "use": {
+   "Atomic_Locator": 0.128461
+  }
+ },
+ "Electron Microscope": {
+  "belts": 0.13,
+  "use": {
+   "Atomic_Locator": 0.128461
+  }
+ },
+ "Stabilizer": {
+  "belts": 0.1,
+  "use": {
+   "Quantum_Entangler": 0.064231,
+   "Magnetic_Field_Generator": 0.032115
+  }
+ },
+ "Energy Cube": {
+  "belts": 0.08,
+  "use": {
+   "Matter_Duplicator": 0.080288
+  }
+ },
+ "Atomic Locator": {
+  "belts": 0.06,
+  "use": {
+   "Matter_Duplicator": 0.064231
+  }
+ },
+ "Enriched Uranium": {
+  "belts": 0.05,
+  "use": {
+   "Nuclear_Fuel_Cell": 0.049488
+  }
+ },
+ "Magnetic Field Generator": {
+  "belts": 0.03,
+  "use": {
+   "Quantum_Entangler": 0.032115
+  }
+ },
+ "Quantum Entangler": {
+  "belts": 0.03,
+  "use": {
+   "Matter_Duplicator": 0.032115
+  }
+ },
+ "Matter Duplicator": {
+  "belts": 0.02,
+  "use": {
+   "Earth_Token": 0.016058
+  }
+ }
+}

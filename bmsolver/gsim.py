@@ -1,0 +1,81 @@
+"""Check a solved layout (belts, splitters, tunnels and machines) in the game-exact simulator (site/js/gamesim.js).
+
+    rep = gsim.run(win, grid, machines, items=['Copper Ore', 'Copper Ingot'], per_unit=15, recipes=[2002])
+
+Every input port gets two feeder belts outside the window fed at its rate; every output port gets two belts outside
+whose open end takes everything. Returns the sim's settled machine rates and what each output receives per minute.
+"""
+import json
+import os
+import subprocess
+import tempfile
+
+from .pieces import BUILDING_ID, DIRS
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SIM = os.path.join(HERE, '..', 'tools', 'simlayout.mjs')
+
+
+def buildings(win, grid, machines, recipes, tiers=None, filters=None, items=None):
+    bs = []
+    for (x, y), c in grid.items():
+        if c[0] == 'A':                 # robotic arm, filtered to the item the solver routed through it
+            f = (filters or {}).get((x, y))
+            bs.append(dict(id=3012, x=x, y=y, o=int(c[1]), tier=win.arm_tier, filter=items[f] if f is not None else 0))
+        else:
+            bs.append(dict(id=BUILDING_ID[c[0]], x=x, y=y, o=int(c[1])))
+    for ti, (ax, ay), o in machines:
+        mt = win.machines[ti]
+        bs.append(dict(id=mt['bid'], x=ax, y=ay, o=o, recipe=recipes[ti], tier=(tiers or {}).get(ti, mt.get('tier', 1))))
+    return bs
+
+
+def run(win, grid, machines, items, per_unit, recipes, options=None, warmup=10, minutes=30, buffer=10, filters=None):
+    """per_unit: items per minute in one flow unit (480 / win.D for a full belt of D units). buffer: items a feed
+    may hold back while its belt is blocked (10 = a machine's output store, as when upstream production feeds it)."""
+    bs = buildings(win, grid, machines, recipes, filters=filters, items=items)
+    keys = dict(win.ports)
+    for i, g in enumerate(win.port_options):
+        for j, opt in enumerate(g):
+            if options is None or options[i] == j:
+                keys.update(opt)
+    feeds, outs = [], []
+    for (t, d), spec in keys.items():
+        kind = spec[0] if isinstance(spec, tuple) else spec
+        if kind not in ('in', 'out'):
+            continue
+        dx, dy = DIRS[d]
+        p1, p2 = (t[0] + dx, t[1] + dy), (t[0] + 2 * dx, t[1] + 2 * dy)
+        if kind == 'in':
+            o = (d + 2) % 4
+            bs += [dict(id=3000, x=p[0], y=p[1], o=o) for p in (p1, p2)]
+            for c, v in enumerate(spec[1]):
+                if v:
+                    feeds.append(dict(at=list(p2), kind=items[c], perMin=v * per_unit, buffer=buffer))
+        else:
+            bs += [dict(id=3000, x=p[0], y=p[1], o=d) for p in (p1, p2)]
+            outs.append('%d,%d' % p2)
+    with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
+        json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=[list(map(int, k.split(','))) for k in outs]), f)
+        path = f.name
+    if os.environ.get('GSIM_DUMP'):
+        import shutil
+        shutil.copy(path, os.environ['GSIM_DUMP'])
+    try:
+        out = subprocess.run(['node', SIM, path], capture_output=True, text=True, check=True).stdout
+    finally:
+        os.unlink(path)
+    rep = json.loads(out)
+    rep['outputs'] = {k: rep['sinks'].get(k, {}) for k in outs}
+    return rep
+
+
+def blueprint_rows(win, grid, machines, recipes):
+    """Rows for a blueprint json {rows: [[id, x, y, o, tier (0-based), recipe (-1 on belts), filter]]} in the decoded
+    convention (the laptop uploader turns non-belt buildings for the game file). Arms carry no filter: an arm only
+    takes from a one-kind arm line or from a machine, which puts out one product."""
+    rows = []
+    for b in buildings(win, grid, machines, recipes):
+        belt = b['id'] <= 3003
+        rows.append([b['id'], b['x'], b['y'], b['o'], 0 if belt else b.get('tier', 1) - 1, -1 if belt or b['id'] == 3012 else b['recipe'], 0])
+    return rows
