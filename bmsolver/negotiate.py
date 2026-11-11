@@ -67,7 +67,17 @@ def _route_cpp(W, H, nets, blocked, sources, sinks, reach, rounds, hop_cost, tur
         cut = out.index('TILES') if 'TILES' in out else len(out)
         bad = [int(x) for x in out[2:cut] if x.strip()] if len(out) > 2 else []
         res = dict(reason=reason)
-        res['use'] = {(int(a), int(b)): int(c) for a, b, c in (ln.split() for ln in out[cut + 1:] if ln.strip())}
+        pcut = out.index('PATHS') if 'PATHS' in out else len(out)
+        res['use'] = {(int(a), int(b)): int(c) for a, b, c in (ln.split() for ln in out[cut + 1:pcut] if ln.strip())}
+        if pcut < len(out):                      # the belts as they lay at the end
+            i, by_net, snk = pcut + 1, {}, {}
+            while i < len(out) and out[i].strip():
+                n, ex, ey, ed, cnt = map(int, out[i].split())
+                i += 1
+                by_net[n] = {(int(x), int(y)): c + d for x, y, c, d in (out[k].split() for k in range(i, i + cnt))}
+                snk[n] = ((ex, ey), ed, n)
+                i += cnt
+            res['by_net'], res['ends'] = by_net, snk
         if reason == 'still clashing':
             res['nets'] = bad
         return False, res, time.time() - t0

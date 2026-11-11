@@ -360,5 +360,10 @@ int main() {
             }
         for (int t = 0; t < WH; t++) if (cnt[t]) printf("%d %d %d\n", t % W, t / W, cnt[t]);
     }
+    printf("PATHS\n");                               // every belt as it lies now, so a caller can finish the last few itself
+    for (int n = 0; n < N; n++) {
+        printf("%d %d %d %d %d\n", n, hasPath[n] ? endedT[n] % W : -1, hasPath[n] ? endedT[n] / W : -1, hasPath[n] ? endedD[n] : -1, (int)paths[n].size());
+        for (auto &kv : paths[n]) printf("%d %d %c %d\n", kv.first % W, kv.first / W, kv.second.first, kv.second.second);
+    }
     return 0;
 }

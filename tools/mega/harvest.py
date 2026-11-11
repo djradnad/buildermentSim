@@ -184,6 +184,11 @@ def run(cover_path, out, seconds=600):
         if ok:
             break
         reason = res.get('reason', '')
+        if reason == 'still clashing' and len(res.get('nets', ())) <= 12 and res.get('by_net'):
+            ok = finish(B, res, blocked)
+            if ok:
+                pickle.dump((B, sinks, ok, res), open(out + '.pkl', 'wb'))
+                break
         if 'has no route at all' in reason:
             bads = [int(reason.split()[1])]
         elif reason == 'still clashing' and len(res.get('nets', ())) <= 20:
@@ -204,6 +209,53 @@ def run(cover_path, out, seconds=600):
         print('%d belt pieces: %s' % (len(res['tiles']), dict(codes)))
         picture(B, res, cover, site, out + '.png')
     return ok
+
+
+def finish(B, res, blocked):
+    """the last few clashing belts: take each one (with the extractors that load onto it) out and route it again alone,
+    everything else standing still as a wall; tries the nearest free edge slots in turn"""
+    joins = B['joins']
+    by = res['by_net']
+    groups = sorted({joins.get(n, n) for n in res['nets']})
+    src = {n: (q, d) for q, d, n in B['sources']}
+    used_slots = lambda: {res['ends'][n][0] for n in by if n not in joins and by[n]}
+    for g in groups:
+        mem = [g] + [n for n, j in joins.items() if j == g]
+        for n in mem:
+            by[n] = {}
+        wall = set(blocked)
+        ug = []
+        for n, pc in by.items():
+            wall.update(pc)
+            ug += [(p, int(c[1])) for p, c in pc.items() if c[0] in 'IO']
+        wall -= {src[n][0] for n in mem}
+        free = [s_ for s_ in B['slots'] if s_[0] not in used_slots()]
+        free.sort(key=lambda s_: abs(s_[0][0] - src[g][0][0]) + abs(s_[0][1] - src[g][0][1]))
+        done = False
+        for s_ in free[:12]:
+            xs = [src[n][0][0] for n in mem] + [s_[0][0]]; ys = [src[n][0][1] for n in mem] + [s_[0][1]]
+            x0, y0 = max(0, min(xs) - 40), max(0, min(ys) - 40)
+            x1, y1 = min(B['W'], max(xs) + 41), min(B['H'], max(ys) + 41)
+            inb = lambda p: x0 <= p[0] < x1 and y0 <= p[1] < y1
+            sh = lambda p: (p[0] - x0, p[1] - y0)
+            w2 = {sh(p) for p in wall if inb(p)} - {sh(s_[0])}
+            ok, r2, dt = negotiate.route(x1 - x0, y1 - y0, len(mem), blocked=w2,
+                                         sources=[(sh(src[n][0]), src[n][1], i) for i, n in enumerate(mem)],
+                                         sinks=[(sh(s_[0]), s_[1], 0)], rounds=60, timeout=60,
+                                         join={i: 0 for i in range(1, len(mem))},
+                                         fixed_ug=[(sh(p), d) for p, d in ug if inb(p)])
+            if ok:
+                for i, n in enumerate(mem):
+                    by[n] = {(x + x0, y + y0): c for (x, y), c in r2['by_net'][i].items()}
+                res['ends'][g] = (s_[0], s_[1], g)
+                done = True
+                break
+        print('   finishing belt %d (%d extractors): %s' % (g, len(mem), 'done' if done else 'no way found'))
+        if not done:
+            return False
+    res['tiles'] = {p: c for pc in by.values() for p, c in pc.items()}
+    res['sinks'] = [res['ends'][n] for n in sorted(res['ends'])]
+    return True
 
 
 COL = {'Wood Log': (60, 200, 80), 'Stone': (200, 200, 200), 'Iron Ore': (120, 150, 255), 'Copper Ore': (255, 150, 60),
