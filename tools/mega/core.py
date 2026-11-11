@@ -388,22 +388,31 @@ def widen(tm, off, fail, by=2):
     mid = lambda v: v[len(v) // 2]
     iqr = lambda v: v[(3 * len(v)) // 4] - v[len(v) // 4]
     upright = iqr(ys) >= iqr(xs)                             # the jam runs north-south: make the channel wider
-    c = mid(xs) if upright else mid(ys)
-    k = 0 if upright else 1
-    new = []
-    for m, o in zip(tm, off):
-        lo = min(cc[k] for cc in m.cells) + o[k]
-        new.append(((o[0] + by, o[1]) if upright else (o[0], o[1] + by)) if lo > c else tuple(o))
-    seen = set()
-    for m, o in zip(tm, new):
-        for cc in m.cells:
-            t = (cc[0] + o[0], cc[1] + o[1])
-            if t in seen:
-                return None
-            seen.add(t)
-    if new == [tuple(o) for o in off]:
-        return None
-    return new
+    old = [tuple(o) for o in off]
+    for up in (upright, not upright):                        # the other direction when this one moves nothing
+        k = 0 if up else 1
+        for c in ((mid(xs) if up else mid(ys)) + dc for dc in (0, -2, 2, -5, 5, -9, 9)):
+            new = []
+            for m, o in zip(tm, off):
+                lo = min(cc[k] for cc in m.cells) + o[k]
+                new.append(((o[0] + by, o[1]) if up else (o[0], o[1] + by)) if lo > c else tuple(o))
+            if new == old or len(set(new)) < 2 and False:
+                continue
+            if all(n_ != o_ for n_, o_ in zip(new, old)):
+                continue                                     # everything moved: nothing opened
+            seen, clash = set(), False
+            for m, o in zip(tm, new):
+                for cc in m.cells:
+                    t = (cc[0] + o[0], cc[1] + o[1])
+                    if t in seen:
+                        clash = True
+                        break
+                    seen.add(t)
+                if clash:
+                    break
+            if not clash:
+                return new
+    return None
 
 
 def frame_main(seconds=90, rounds=10, seed0=0):
@@ -440,6 +449,7 @@ def frame_main(seconds=90, rounds=10, seed0=0):
             cl.fail_picture(lay, off2, out + '_%d_jam.png' % (r + 1))
             off_new = widen(tm, off, f)
             if off_new is None:
+                print('    no way to open the layout at this jam', flush=True)
                 break
             print('    %d belts clash, opening the layout at the jam (%d)' % (len(f.get('nets', [])), fix + 1), flush=True)
             off = off_new

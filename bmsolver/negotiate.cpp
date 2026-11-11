@@ -303,6 +303,21 @@ int main() {
     printf("FAIL still clashing\n%d\n", (int)bad.size());
     for (int m : bad) printf("%d\n", m);
     printf("TILES\n");                               // where the belts lie now: x y (number of belts on the tile)
-    for (int t = 0; t < WH; t++) if (!use[t].empty()) printf("%d %d %d\n", t % W, t / W, (int)use[t].size());
+    {
+        vector<int> cnt(WH, 0);
+        for (int t = 0; t < WH; t++) cnt[t] = (int)use[t].size();
+        for (int n = 0; n < N; n++)                    // a hop over someone else's entrance or exit of the same direction
+            for (auto &kv : paths[n]) if (kv.second.first == 'I') {
+                int p = kv.first, d = kv.second.second;
+                for (int k = 1; k <= REACH; k++) {
+                    int r = stepT(p, d, k);
+                    if (r < 0) break;
+                    auto f = paths[n].find(r);
+                    if (f != paths[n].end() && f->second.first == 'O' && f->second.second == d) break;
+                    for (int m : ugs[r * 4 + d]) if (m != n) { cnt[r] = max(cnt[r], 2); break; }
+                }
+            }
+        for (int t = 0; t < WH; t++) if (cnt[t]) printf("%d %d %d\n", t % W, t / W, cnt[t]);
+    }
     return 0;
 }
