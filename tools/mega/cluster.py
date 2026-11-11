@@ -398,7 +398,8 @@ def _route(self, off, timeout=60):
         sources.append((a, d, i))
         sinks.append((b, de, i))
     ok, res, secs = negotiate.route(W, H, len(self.nets), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug, log=getattr(self, "rlog", None), join=self.joins,
-                                    open_cost=0.2, timeout=timeout, rounds=getattr(self, "rounds", 150))
+                                    open_cost=0.2, timeout=timeout, rounds=getattr(self, "rounds", 150),
+                                    turn_cost=float(os.environ.get("BM_CTURN", 0.05)))
     if not ok:
         self.fail = res
         res['origin'] = (x0, y0)

@@ -56,17 +56,28 @@ def _route_cpp(W, H, nets, blocked, sources, sinks, reach, rounds, hop_cost, tur
     for ug in (list(fixed_ug), list(no_ug)):
         L.append(str(len(ug)))
         L += ['%d %d %d' % (p[0], p[1], d) for p, d in ug]
-    pr = subprocess.run([_BIN], input='\n'.join(L) + '\n', capture_output=True, text=True)
-    if log:
+    live = bool(log) and os.environ.get('BM_LIVE')            # BM_LIVE=1: the router's progress lines go straight to stderr
+    pr = subprocess.run([_BIN], input='\n'.join(L) + '\n', stdout=subprocess.PIPE, stderr=None if live else subprocess.PIPE, text=True)
+    if log and not live:
         for line in pr.stderr.splitlines():
             log(line)
     out = pr.stdout.split('\n')
     if not out or not out[0].startswith('OK'):
-        reason = out[0][5:] if out and out[0].startswith('FAIL') else 'router crashed: ' + pr.stderr[-200:]
+        reason = out[0][5:] if out and out[0].startswith('FAIL') else 'router crashed: ' + (pr.stderr or '')[-200:]
         cut = out.index('TILES') if 'TILES' in out else len(out)
         bad = [int(x) for x in out[2:cut] if x.strip()] if len(out) > 2 else []
         res = dict(reason=reason)
-        res['use'] = {(int(a), int(b)): int(c) for a, b, c in (ln.split() for ln in out[cut + 1:] if ln.strip())}
+        pcut = out.index('PATHS') if 'PATHS' in out else len(out)
+        res['use'] = {(int(a), int(b)): int(c) for a, b, c in (ln.split() for ln in out[cut + 1:pcut] if ln.strip())}
+        if pcut < len(out):                      # the belts as they lay at the end
+            i, by_net, snk = pcut + 1, {}, {}
+            while i < len(out) and out[i].strip():
+                n, ex, ey, ed, cnt = map(int, out[i].split())
+                i += 1
+                by_net[n] = {(int(x), int(y)): c + d for x, y, c, d in (out[k].split() for k in range(i, i + cnt))}
+                snk[n] = ((ex, ey), ed, n)
+                i += cnt
+            res['by_net'], res['ends'] = by_net, snk
         if reason == 'still clashing':
             res['nets'] = bad
         return False, res, time.time() - t0
@@ -218,6 +229,9 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
                     prev[q, e] = ((p, d), {p: 'B%d' % e})
                     heapq.heappush(heap, (nc + h(q), nc, q, e))
             clash = 0.0                                             # an entrance on p (facing d), exit k ahead
+            if (p, d) not in prev and n in join.values():           # a belt others side-load onto starts with a plain belt
+                if any(free(step(p, e)) and tile_cost(step(p, e), n) is not None for e in range(4) if e != opposite(d)):
+                    continue                                        # (a hop has no side to load onto) unless boxed in
             for k in range(1, reach + 1):
                 r = step(p, d, k)
                 if not inside(r) or (p, d) in no_ug or (r, d) in fixed_ug:

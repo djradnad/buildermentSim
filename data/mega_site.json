@@ -200,6 +200,11 @@
    2
   ],
   [
+   107,
+   -301,
+   1
+  ],
+  [
    108,
    -90,
    2
@@ -249,5 +254,6 @@
    -186,
    2
   ]
- ]
+ ],
+ "plants_note": "48 nuclear plants of the seed solver blueprint saqqbp (rot as stored in a save = blueprint rot turned 180); john's save had 47, the one at [107, -301] was missing there"
 }

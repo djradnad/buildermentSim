@@ -16,10 +16,21 @@ const fed0 = w.feeds.map(f => f.n);
 const probeSeg = (L.probes || []).map(p => w.segs.find(g => g.nodes.some(n => n.x === p[0] && n.y === p[1])));
 const probe0 = probeSeg.map(g => g ? (g.ins || 0) : 0);
 const sink0 = new Map([...w.sinks].map(([g, m]) => [g, { ...m }]));
-for (let i = 0; i < H; i++) w.tick();
+const idle = w.machines.map(() => ({}));               // measured ticks each machine stood still, by what it was missing
+for (let i = 0; i < H; i++) {
+  w.tick();
+  for (let k = 0; k < w.machines.length; k++) {
+    const m = w.machines[k];
+    if (m.prog >= 0) continue;
+    const miss = m.rec.in.filter(q => m.have[q.item] < q.amount);
+    if (!miss.length) idle[k].output = (idle[k].output || 0) + 1;
+    for (const q of miss) idle[k][q.item] = (idle[k][q.item] || 0) + 1;
+  }
+}
 const mins = H / 3600;
 const machines = w.machines.map((m, i) => ({ x: m.b.x, y: m.b.y, id: m.b.id, recipe: m.b.recipe, perMin: (m.made - made0[i]) / mins,
-  out: m.out, lack: m.rec.in.filter(q => m.have[q.item] < q.amount).map(q => q.item) }));
+  out: m.out, lack: m.rec.in.filter(q => m.have[q.item] < q.amount).map(q => q.item),
+  idle: Object.fromEntries(Object.entries(idle[i]).map(([k, v]) => [k, +(v / H).toFixed(4)])) }));
 const sinks = {};
 for (const [g, m] of w.sinks) {
   const last = g.nodes[g.nodes.length - 1], b0 = sink0.get(g) || {};
