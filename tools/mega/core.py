@@ -78,7 +78,7 @@ def make(rn, rec, crafts, far=False):
     heavy = max(i['amount'] for i in rec['in']) * rate1
     if rec['id'] in STANDIN:
         return standin(rn, rec, crafts)
-    if rec['building'] == 'factory_machine_shop' and heavy <= 90:
+    if rec['building'] == 'factory_machine_shop' and heavy <= 90 and not any((rn, i['item']) in TWO_ARM for i in rec['in']):
         blocks = max(1, min(3, int(480 / (2 * heavy)), int(480 / (4 * rate1 * outa))))
         while blocks > 1 and 2 * blocks * math.ceil(n / (2 * blocks)) - n >= 2:
             blocks -= 1                                   # fewer spare machines
@@ -91,7 +91,7 @@ def make(rn, rec, crafts, far=False):
         return m
     mg = max(1, int(480 / heavy + 1e-9))
     groups = math.ceil(n / mg)
-    arms = [math.ceil(i['amount'] * rate1 / 90 - 1e-9) for i in rec['in']]
+    arms = [max(math.ceil(i['amount'] * rate1 / 90 - 1e-9), 2 if (rn, i['item']) in TWO_ARM else 1) for i in rec['in']]
     if max(arms) == 2:                                    # a second arm on those lanes, taking from the entrance
         per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
         light = arms.index(1) if len(arms) == 2 and 1 in arms else None
@@ -113,7 +113,97 @@ def primary_index(nets):
     return max(i for i, n in enumerate(nets) if n[2] is not None)
 
 
+def gather(first, rest, need, cap_join=None):
+    """first + joiners from rest (largest that fit one belt) -> (streams, total); the joiners together stay under cap_join"""
+    chosen, tot, rest, joined = [first], first[2], list(rest), 0.0
+    while tot < need - 1e-6 and rest:
+        fit = [s_ for s_ in rest if tot + s_[2] <= 480 + 1e-6 and (cap_join is None or joined + s_[2] < cap_join)]
+        if not fit:
+            break
+        other = next((s_ for s_ in fit if tot + s_[2] >= need - 1e-6), fit[-1])
+        rest.remove(other)
+        chosen.append(other)
+        tot += other[2]
+        joined += other[2]
+    return chosen, tot
+
+
+def feed_options(pool, need):
+    """clean ways to feed a lane from the streams of its item: one stream, a thin leftover as the main stream with
+    smaller joiners, or collectors / thick leftovers joined"""
+    pool = sorted(pool, key=lambda s_: s_[2])
+    opts, seen = [], set()
+
+    def add(c, t):
+        k = tuple(sorted((round(s_[2], 2), s_[3]) for s_ in c))
+        if t >= need - 0.01 and k not in seen:
+            seen.add(k)
+            opts.append(c)
+    for s_ in pool:
+        if s_[2] >= need - 1e-6:
+            add([s_], s_[2])
+    strong = [s_ for s_ in pool if not s_[3]]
+    for w in sorted((s_ for s_ in pool if s_[3]), key=lambda s_: -s_[2]):
+        add(*gather(w, strong, need, cap_join=w[2]))
+    for k in range(len(strong) - 1, -1, -1):
+        add(*gather(strong[k], strong[:k] + strong[k + 1:], need))
+    return opts
+
+
+def plan_item(lanes, pool, leftover, limit=200000):
+    """order the lanes of one item and choose each one's streams so that every lane is fed cleanly (search).
+    lanes: [(need, module, key)]; leftover(lane, total) -> the stream that flows on, or None; -> [(lane, streams)] or None"""
+    count = [0]
+
+    def dfs(pool, rest, acc):
+        if not rest:
+            return acc
+        count[0] += 1
+        if count[0] > limit:
+            return None
+        tried = set()
+        for k, lane in enumerate(rest):
+            sig = (round(lane[0], 3), lane[1])
+            if sig in tried:
+                continue
+            tried.add(sig)
+            for ch in feed_options(pool, lane[0]):
+                tot = sum(s_[2] for s_ in ch)
+                new = [s_ for s_ in pool if not any(s_ is c for c in ch)]
+                lf = leftover(lane, tot)
+                if lf is not None:
+                    new.append(lf)
+                elif tot - lane[0] > 0.5:
+                    continue                                 # more than the lane uses and no way on: lost supply
+                r = dfs(new, rest[:k] + rest[k + 1:], acc + [(lane, ch)])
+                if r is not None:
+                    return r
+        return None
+    return dfs(list(pool), sorted(lanes, key=lambda t: -t[0]), [])
+
+
+FLOW = {}                       # (module, out key) -> planned items per minute on that belt, filled by build()
+
+
+TWO_ARM = set()                 # (recipe name, item): lanes that get a second arm per machine so a thin leftover can pass on
+LEAKY = set()
+
+
 def build():
+    """the core's modules and belts; lanes whose thin leftover cannot be wired cleanly get a second arm, then again"""
+    for k in range(6):
+        LEAKY.clear()
+        out = _build()
+        new = LEAKY - TWO_ARM
+        if not new:
+            return out
+        print('  second arm for: %s' % ', '.join('%s in %s' % (it, rn) for rn, it in sorted(new)))
+        TWO_ARM.update(new)
+    return out
+
+
+def _build():
+    FLOW.clear()
     rs = recipes()
     mods, nets, names = [], [], []
     made_in_core = {rec['out'][0]['item'] for rec, c in rs.values() if rec['building'] in CORE}
@@ -132,10 +222,40 @@ def build():
     streams = {}                # item -> list of [module, out key, rate]
     for i, m in enumerate(mods):
         for key, rate in m.out_rates.items():
-            streams.setdefault(m.out_item, []).append([i, key, rate])
+            streams.setdefault(m.out_item, []).append([i, key, rate, False])
     open_in = []                # inputs fed from outside the core
     lanes = [(need, i, key) for i, m in enumerate(mods) for key, need in m.need.items()]
-    todo = sorted(lanes, key=lambda t: -t[0])
+    def flows_on(lane, tot):
+        """the stream that leaves a lane fed with tot: [module, thru key, rate, thin?] or None"""
+        need, i, (g, item) = lane
+        left = tot - need
+        thru = ('thru', g, item)
+        if thru not in mods[i].outs and ('thru', g + 1, item) in mods[i].outs and (g + 1, item) not in mods[i].need:
+            thru = ('thru', g + 1, item)                    # a chained pair: the lane ends on the lower group
+        if thru not in mods[i].outs or left <= 0.5:
+            return None
+        rec_i = rs[names[i]][0]
+        amt = [q['amount'] for q in rec_i['in'] if q['item'] == item][0] * 60.0 / rec_i['seconds'] * 3
+        per_arm = amt / max(math.ceil(amt / 90 - 1e-9), 2 if (names[i], item) in TWO_ARM else 1)   # what the last arm on this lane must catch per minute
+        # a tier 4 arm is busy 1/90 min per item: from a moving belt it catches 1 / (1/passing + 1/90)
+        enough = float('inf') if per_arm >= 89.9 else 1 / (1 / per_arm - 1 / 90.0) - per_arm
+        return [i, thru, left, left < enough]
+    forced = {}                 # lane -> its streams, for the items where a clean wiring was found by search
+    order = []
+    standin_items = {key[-1] for m in mods if getattr(m, 'standin', False) for key in m.need}
+    for item in sorted(streams):
+        if item in standin_items:
+            continue
+        mine = [t for t in lanes if t[2][1] == item]
+        plan = plan_item(mine, streams[item], flows_on) if mine else None
+        if plan is None:
+            if mine:
+                print('  no clean wiring found for %s, falling back to the greedy one' % item)
+            continue
+        for lane, ch in plan:
+            forced[(lane[1], lane[2])] = [(c[0], c[1]) for c in ch]
+            order.append(lane)
+    todo = order + [t for t in sorted(lanes, key=lambda t: -t[0]) if (t[1], t[2]) not in forced]
     waited = 0                  # lanes put back in a row (a full round of them = no clean way left)
     while todo:
         need, i, (g, item) = todo.pop(0)
@@ -157,6 +277,7 @@ def build():
                     ports.append(((xt, -1), 2))
                 m.ins[('p', k, item)] = ports[k]
                 nets.append((pick[0], pick[1], i, ('p', k, item)))
+                FLOW[(pick[0], pick[1])] = pick[2]
                 tot -= pick[2]
                 k += 1
             if tot > 0.5:
@@ -169,28 +290,47 @@ def build():
             continue
         pool.sort(key=lambda s: s[2])
         pick = next((s for s in pool if s[2] >= need - 1e-6), None)
-        if pick is None and not pool:
+        want_ids = forced.get((i, (g, item)))
+        if want_ids:
+            chosen = [next(s_ for s_ in pool if (s_[0], s_[1]) == w_) for w_ in want_ids]
+            for c in chosen:
+                pool.remove(c)
+            pick = list(chosen[0][:2]) + [sum(c[2] for c in chosen), [(c[0], c[1]) for c in chosen[1:]]]
+        elif pick is None and not pool:
             print('  nothing left: %s for %s wants %.1f' % (item, mods[i].name, need))
             open_in.append((i, (g, item), need))
             continue
-        if pick is None:        # join belts until there is enough; a belt carries 480, so the joined total must fit
-            chosen, tot, rest = [pool[-1]], pool[-1][2], pool[:-1]
-            while tot < need - 1e-6 and rest:
-                fit = [s_ for s_ in rest if tot + s_[2] <= 480 + 1e-6]
-                if not fit:
+        elif pick is None:      # join belts until there is enough; a belt carries 480, so the joined total must fit
+            strong = [s_ for s_ in pool if not s_[3]]
+            best = None
+            for w in sorted((s_ for s_ in pool if s_[3]), key=lambda s_: -s_[2]):
+                # a thin leftover (its last arm upstream only keeps up when this lane backs up into it) must be the
+                # main stream here: merges alternate, so the smaller side never queues
+                c, t = gather(w, strong, need, cap_join=w[2])
+                if t >= need - 0.01:
+                    best = (c, t)
                     break
-                other = next((s_ for s_ in fit if tot + s_[2] >= need - 1e-6), fit[-1])
-                rest.remove(other)
-                chosen.append(other)
-                tot += other[2]
-            if tot < need - 0.01 and waited < len(todo):
+            if best is None and strong:
+                c, t = gather(strong[-1], strong[:-1], need)
+                if t >= need - 0.01:
+                    best = (c, t)
+            if best is None and waited < len(todo):
                 todo.append((need, i, (g, item)))                   # later lanes leave leftovers that may fit
                 waited += 1
                 continue
-            while tot < need - 1e-6 and rest:                        # no clean way: over a full belt, say so
-                other = rest.pop()
-                chosen.append(other)
-                tot += other[2]
+            if best is None:                                         # no clean way left: say what is wrong with it
+                best = gather(pool[-1], pool[:-1], need)
+                chosen, tot = best
+                rest = [s_ for s_ in pool if s_ not in chosen]
+                while tot < need - 1e-6 and rest:
+                    other = rest.pop()
+                    chosen.append(other)
+                    tot += other[2]
+                best = (chosen, tot)
+                if any(s_[3] for s_ in chosen):
+                    print('  LEAKY: %s for %s joins a thin leftover as a side stream' % (item, mods[i].name))
+                    LEAKY.update((names[s_[0]], item) for s_ in chosen if s_[3])
+            chosen, tot = best
             if tot > 480.5:
                 print('  OVERFULL: %s for %s joins %.1f/min on one belt' % (item, mods[i].name, tot))
             if tot < need - 0.01:
@@ -200,16 +340,18 @@ def build():
             pick = list(chosen[0][:2]) + [tot, [(c[0], c[1]) for c in chosen[1:]]]
         else:
             pool.remove(pick)
+            pick = list(pick[:3]) + [[]]
         waited = 0
         nets.append((pick[0], pick[1], i, (g, item)))
-        for (jm, jk) in (pick[3] if len(pick) > 3 else []):
+        FLOW[(pick[0], pick[1])] = pick[2]              # what this belt carries on arrival (its joins included)
+        for (jm, jk) in pick[3]:
             nets.append((jm, jk, None, len(nets) - 1 - 0 * len(nets) if False else primary_index(nets)))
-        left = pick[2] - need
+        lf = flows_on((need, i, (g, item)), pick[2])
+        if lf is not None:
+            pool.append(lf)
         thru = ('thru', g, item)
         if thru not in mods[i].outs and ('thru', g + 1, item) in mods[i].outs and (g + 1, item) not in mods[i].need:
-            thru = ('thru', g + 1, item)                    # a chained pair: the lane ends on the lower group
-        if thru in mods[i].outs and left > 0.5:
-            pool.append([i, thru, left])
+            thru = ('thru', g + 1, item)
         mods[i].fed = getattr(mods[i], 'fed', set()) | {thru}
     used = {(a, ka) for a, ka, b, kb in nets}
     spare = {}
@@ -494,6 +636,8 @@ def frame_diag(path, minutes=40, warmup=60):
     """re-check and re-sim a routed frame layout (pickle of frame_main): border problems, each module against the plan,
     and every source that could not push its full rate"""
     tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
+    if not FLOW:
+        build()
     lay = cl.Layout(tm, nets)
     lay.off = off
     for b_ in lay.check(res):
@@ -501,12 +645,13 @@ def frame_diag(path, minutes=40, warmup=60):
     ends = [lay.pos(e, ge) for (s_, d, gs, e, de, ge) in lay.nets]
     made, got = lay.sim(res, minutes=minutes, warmup=warmup, probes=ends)
     rep = lay.rep
+    json.dump(rep, open(os.path.expanduser(path) + '.rep.json', 'w'))
     for i, (a_, ka, b_, kb) in enumerate(nets):             # what really arrives on every belt between modules
         if b_ is None or tm[a_].feed or getattr(tm[b_], 'standin', False):
             continue
-        need = tm[b_].need.get(kb, 0)
+        need = FLOW.get((a_, ka), tm[b_].need.get(kb, 0))     # planned: this lane's share plus what flows on
         flow = rep['probes'][i]
-        if flow is not None and flow < 0.97 * need:
+        if flow is not None and flow < 0.985 * need:
             print('belt %-22s %-14s -> %-22s %-26s carries %6.1f of %6.1f' % (tm[a_].name, ka, tm[b_].name, kb, flow, need))
     for k, v in sorted(got.items()):
         print('sink %-34s %s' % (k, {a: round(b, 1) for a, b in v.items()}))
