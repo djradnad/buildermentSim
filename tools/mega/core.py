@@ -185,6 +185,7 @@ def plan_item(lanes, pool, leftover, limit=200000):
 FLOW = {}                       # (module, out key) -> planned items per minute on that belt, filled by build()
 
 
+THIN_MARGIN = float(os.environ.get('BM_THIN', 1.0))   # leftover below this many arm takes counts as thin
 TWO_ARM = set()                 # (recipe name, item): lanes that get a second arm per machine so a thin leftover can pass on
 LEAKY = set()
 
@@ -239,6 +240,10 @@ def _build():
         per_arm = amt / max(math.ceil(amt / 90 - 1e-9), 2 if (names[i], item) in TWO_ARM else 1)   # what the last arm on this lane must catch per minute
         # a tier 4 arm is busy 1/90 min per item: from a moving belt it catches 1 / (1/passing + 1/90)
         enough = float('inf') if per_arm >= 89.9 else 1 / (1 / per_arm - 1 / 90.0) - per_arm
+        # that holds for an evenly spaced belt; a belt already picked over by the arms before it comes in bunches and
+        # the last arm of a module without spare machines then waits (seen: Turbocharger at 216 of 216, Gyroscope
+        # leftover 0.53 of an arm's take, last machine idle 17% in one routing and 1% in another): keep a margin
+        enough = max(enough, THIN_MARGIN * per_arm)
         return [i, thru, left, left < enough]
     forced = {}                 # lane -> its streams, for the items where a clean wiring was found by search
     order = []
@@ -623,7 +628,7 @@ def frame_main(seconds=90, rounds=10, seed0=0):
         print(tag + ': ROUTED %dx%d with %d route pieces, %d border problems' % (PW, PH, res['pieces'], len(bad)), flush=True)
         for b_ in bad[:20]:
             print('      check: ' + b_, flush=True)
-        frame_diag(out + '_%d.pkl' % (r + 1))
+        frame_diag(out + "_%d.pkl" % (r + 1), 60, 300)        # settled numbers: short sims show start-up effects
         if best is None or max(PW, PH) < best:
             best = max(PW, PH)
             pickle.dump((off2, res, r + 1), open(out + '.pkl', 'wb'))
@@ -669,16 +674,25 @@ def frame_diag(path, minutes=40, warmup=60):
         t[1] += nominal
         t[2] += 1
         if mm['perMin'] < 0.9 * nominal:                    # why slow, from the state at the end
-            why = 'output backed up' if mm['out'] >= 2 * rec['out'][0]['amount'] else 'waits for ' + ' + '.join(mm['lack']) if mm['lack'] else 'busy'
+            idle = mm.get('idle') or {}                     # share of the measured time it stood still, by cause
+            if idle:
+                k_ = max(idle, key=idle.get)
+                why = 'output backed up' if k_ == 'output' else 'waits for ' + k_
+            else:
+                why = 'output backed up' if mm['out'] >= 2 * rec['out'][0]['amount'] else 'waits for ' + ' + '.join(mm['lack']) if mm['lack'] else 'busy'
             t[3][why] = t[3].get(why, 0) + 1
     want = {rn.replace(' ', '_'): crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
+    low = []
     for g, (made, nominal, n, why) in sorted(per.items(), key=lambda t: t[1][0] / t[1][1]):
         print('%-28s %3d machines make %8.1f/min, plan %8.1f, full speed %8.1f  %s' % (
             tm[g].name, n, made, want.get(tm[g].name, 0), nominal, ', '.join('%d %s' % (v, k) for k, v in sorted(why.items(), key=lambda t: -t[1]))))
+        if want.get(tm[g].name) and made < 0.997 * want[tm[g].name]:
+            low.append('%s %.1f%%' % (tm[g].name, 100 * made / want[tm[g].name]))
     at = {}
     for g, m in enumerate(tm):
         if m.feed:
             at[(m.feed[0][0] + off[g][0], m.feed[0][1] + off[g][1])] = g
+    print('VERDICT %s: %s' % (os.path.basename(path), 'every module at plan' if not low else 'under plan: ' + ', '.join(low)))
     print('%d of %d sources attached' % (rep['feeds'], rep['wanted']))
     for f in rep['fedRates']:
         g = at.get(tuple(f['at']))
