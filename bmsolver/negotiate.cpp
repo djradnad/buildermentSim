@@ -90,6 +90,8 @@ int main() {
     vector<int> p1d(S), p2d(S);
     vector<int> gdir(WH, -1);
     int cur = 0;
+    vector<char> joined(N, 0);
+    for (int n = 0; n < N; n++) if (join[n] >= 0) joined[join[n]] = 1;
 
     auto astar = [&](int n, bool strict, vector<Piece> &out, bool &crossed) -> bool {
         cur++;
@@ -158,6 +160,15 @@ int main() {
                 }
             }
             double clash = 0;
+            if (joined[n] && prevS[st] < 0) {           // a belt others side-load onto starts with a plain belt, not a
+                bool canBelt = false;                   // hop (a hop has no side to load onto), unless it is boxed in
+                for (int e = 0; e < 4; e++) {
+                    if (e == opp(d)) continue;
+                    int q = stepT(p, e);
+                    if (freeT(q) && tileCost(q, n) >= 0) canBelt = true;
+                }
+                if (canBelt) continue;
+            }
             for (int k = 1; k <= REACH; k++) {
                 int r = stepT(p, d, k);
                 if (r < 0 || noUg[p * 4 + d] || fixedUg[r * 4 + d]) break;
@@ -262,16 +273,29 @@ int main() {
         for (int n = 0; n < N; n++) if (join[n] >= 0 && ts.count(join[n])) ts.insert(n);
         todo.assign(ts.begin(), ts.end());
         stable_sort(todo.begin(), todo.end(), [&](int a, int b) { return (join[a] >= 0) < (join[b] >= 0); });
+        set<int> lost;
         for (int n : todo) {
             rip(n);
             vector<Piece> pc;
             bool crossed = false;
             bool ok = astar(n, false, pc, crossed);
             if (ok && crossed) ok = astar(n, true, pc, crossed);
-            if (!ok) { printf("FAIL net %d has no route at all\n0\n", n); return 0; }
+            if (!ok && join[n] >= 0 && it + 1 < ROUNDS) {     // the belt it loads onto moved out of reach: both go again
+                lost.insert(n); lost.insert(join[n]);       // next round, and the trunk is nudged off its present path
+                for (auto &kv : paths[join[n]]) hist[kv.first] += 1.0;
+                continue;
+            }
+            if (!ok) {
+                if (LOG) {
+                    fprintf(stderr, "net %d: no route in round %d, join %d, start %d,%d d%d\n", n, it + 1, join[n], sT[n] % W, sT[n] / W, sD[n]);
+                    if (join[n] >= 0) for (auto &kv : paths[join[n]]) fprintf(stderr, "  onto %d,%d %c%d\n", kv.first % W, kv.first / W, kv.second.first, kv.second.second);
+                }
+                printf("FAIL net %d has no route at all\n0\n", n); return 0;
+            }
             add(n, pc);
         }
         bad = conflicts();
+        bad.insert(lost.begin(), lost.end());
         if (LOG) fprintf(stderr, "round %d: %d nets rerouted, %d still clash (%.1f s)\n", it + 1, (int)todo.size(), (int)bad.size(), secs());
         if (bad.empty()) {
             printf("OK %d %.3f\n", it + 1, secs());

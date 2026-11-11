@@ -185,6 +185,7 @@ def plan_item(lanes, pool, leftover, limit=200000):
 FLOW = {}                       # (module, out key) -> planned items per minute on that belt, filled by build()
 
 
+TIGHT = float(os.environ.get('BM_TIGHT', 0.98))   # a module using more than this share of its machines has no room to catch up
 THIN_MARGIN = float(os.environ.get('BM_THIN', 1.0))   # leftover below this many arm takes counts as thin
 TWO_ARM = set()                 # (recipe name, item): lanes that get a second arm per machine so a thin leftover can pass on
 LEAKY = set()
@@ -242,8 +243,13 @@ def _build():
         enough = float('inf') if per_arm >= 89.9 else 1 / (1 / per_arm - 1 / 90.0) - per_arm
         # that holds for an evenly spaced belt; a belt already picked over by the arms before it comes in bunches and
         # the last arm of a module without spare machines then waits (seen: Turbocharger at 216 of 216, Gyroscope
-        # leftover 0.53 of an arm's take, last machine idle 17% in one routing and 1% in another): keep a margin
-        enough = max(enough, THIN_MARGIN * per_arm)
+        # leftover 0.53 of an arm's take, last machine idle 17% in one routing and 1% in another): keep a margin there.
+        # Only there: applied to every module the margin rewired Electromagnet so that the ALT module's first
+        # collectors (its machines have 5% spare) pushed out the standard recipe's share and Battery fell to 98%.
+        crafts = rs[names[i]][1]
+        rate1 = 60.0 / rec_i['seconds'] * 3
+        if crafts / (math.ceil(crafts / rate1 - 1e-6) * rate1) > TIGHT:
+            enough = max(enough, THIN_MARGIN * per_arm)
         return [i, thru, left, left < enough]
     forced = {}                 # lane -> its streams, for the items where a clean wiring was found by search
     order = []

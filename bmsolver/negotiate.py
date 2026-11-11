@@ -218,6 +218,9 @@ def route(W, H, nets, blocked=(), sources=(), sinks=(), reach=UG_REACH, rounds=6
                     prev[q, e] = ((p, d), {p: 'B%d' % e})
                     heapq.heappush(heap, (nc + h(q), nc, q, e))
             clash = 0.0                                             # an entrance on p (facing d), exit k ahead
+            if (p, d) not in prev and n in join.values():           # a belt others side-load onto starts with a plain belt
+                if any(free(step(p, e)) and tile_cost(step(p, e), n) is not None for e in range(4) if e != opposite(d)):
+                    continue                                        # (a hop has no side to load onto) unless boxed in
             for k in range(1, reach + 1):
                 r = step(p, d, k)
                 if not inside(r) or (p, d) in no_ug or (r, d) in fixed_ug:
