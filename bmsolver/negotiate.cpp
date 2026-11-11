@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <map>
 #include <cstdio>
 #include <queue>
 #include <set>
@@ -90,6 +91,7 @@ int main() {
     vector<int> p1d(S), p2d(S);
     vector<int> gdir(WH, -1);
     int cur = 0;
+    map<int, vector<int>> goalField;
     vector<char> joined(N, 0);
     for (int n = 0; n < N; n++) if (join[n] >= 0) joined[join[n]] = 1;
 
@@ -115,8 +117,23 @@ int main() {
         vector<int> gts;
         for (auto &g : G) if (gdir[g.first] < 0) { gdir[g.first] = g.second; gts.push_back(g.first); }
         bool isJoin = join[n] >= 0;
+        const vector<int> *field = nullptr;         // many interchangeable goals: distance to the nearest, tabled once
+        if (!isJoin && gts.size() > 8 && gts.size() == G.size()) {
+            auto &f = goalField[team[n]];
+            if (f.empty()) {
+                f.assign(WH, 1 << 30);
+                vector<int> q;
+                for (int t : gts) { f[t] = 0; q.push_back(t); }
+                for (size_t i = 0; i < q.size(); i++) {
+                    int t = q[i];
+                    for (int e = 0; e < 4; e++) { int r = stepT(t, e); if (r >= 0 && f[r] > f[t] + 1) { f[r] = f[t] + 1; q.push_back(r); } }
+                }
+            }
+            field = &f;
+        }
         auto h = [&](int p) -> double {
             if (isJoin) return 0;
+            if (field) return (*field)[p];
             int x = p % W, y = p / W, b = 1 << 30;
             for (int t : gts) b = min(b, abs(x - t % W) + abs(y - t / W));
             return b;
