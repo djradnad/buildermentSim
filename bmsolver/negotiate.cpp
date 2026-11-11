@@ -71,7 +71,9 @@ int main() {
     vector<char> hasPath(N, 0);
     vector<int> endedT(N, -1), endedD(N, -1);
     double pres = 0.5;
+    bool hardMode = false;
     const double PMAX = getenv("BM_PMAX") ? atof(getenv("BM_PMAX")) : 100;
+    const int POLISH = getenv("BM_POLISH") ? atoi(getenv("BM_POLISH")) : 4;
     const double HISTUG = getenv("BM_HISTUG") ? atof(getenv("BM_HISTUG")) : 0.5;
 
     auto freeT = [&](int t) { return t >= 0 && !blocked[t]; };
@@ -80,6 +82,7 @@ int main() {
         if (resType[p] == 2 && resId[p] != team[n]) return -1;
         int others = 0;
         for (int m : use[p]) if (m != n) others++;
+        if (hardMode) return others ? -1 : 1 + base[p];  // polishing: the other belts are walls, no memory of old jams
         return (1 + base[p] + hist[p]) * (1 + pres * others);
     };
 
@@ -216,7 +219,9 @@ int main() {
                         }
                     }
                 }
-                for (int m : ugs[r * 4 + d]) if (m != n) { clash += 4 * (1 + pres); break; }
+                bool under = false;
+                for (int m : ugs[r * 4 + d]) if (m != n) { clash += 4 * (1 + pres); under = true; break; }
+                if (under && hardMode) break;
             }
         }
         out.clear();
@@ -315,6 +320,62 @@ int main() {
         bad.insert(lost.begin(), lost.end());
         if (LOG) fprintf(stderr, "round %d: %d nets rerouted, %d still clash (%.1f s)\n", it + 1, (int)todo.size(), (int)bad.size(), secs());
         if (bad.empty()) {
+            // Polish: negotiation leaves detours where a jam once was.  Take each belt (with the belts that load onto
+            // it) out, route it again with everything else as a wall, keep it when it got cheaper.
+            int polished = 0;
+            if (POLISH > 0) {
+                hardMode = true;
+                auto metric = [&](int n) {
+                    double c = 0;
+                    for (auto &kv : paths[n]) {
+                        c += 1;
+                        if (kv.second.first == 'I') c += HOP;
+                        if (kv.second.first == 'B' || kv.second.first == 'I') {
+                            int b = stepT(kv.first, opp(kv.second.second));
+                            auto f = b >= 0 ? paths[n].find(b) : paths[n].end();
+                            if (f == paths[n].end() || f->second.second != kv.second.second) c += TURN;
+                        }
+                    }
+                    return c;
+                };
+                for (int pass = 0; pass < POLISH; pass++) {
+                    int gains = 0;
+                    for (int n = 0; n < N; n++) {
+                        if (join[n] >= 0) continue;
+                        if (TIMEOUT > 0 && secs() > TIMEOUT * 1.5) break;
+                        vector<int> mem{n};
+                        for (int m = 0; m < N; m++) if (join[m] == n) mem.push_back(m);
+                        double before = 0;
+                        vector<unordered_map<int, pair<char, int>>> keep;
+                        vector<int> kT, kD;
+                        for (int m : mem) { before += metric(m); keep.push_back(paths[m]); kT.push_back(endedT[m]); kD.push_back(endedD[m]); }
+                        for (int m : mem) rip(m);
+                        bool good = true;
+                        double after = 0;
+                        for (int m : mem) {
+                            vector<Piece> pc;
+                            bool crossed = false;
+                            bool ok = astar(m, false, pc, crossed);
+                            if (ok && crossed) ok = astar(m, true, pc, crossed);
+                            if (!ok) { good = false; break; }
+                            add(m, pc);
+                            after += metric(m);
+                        }
+                        if (good && after < before - 1e-9 && conflicts().empty()) { gains++; continue; }
+                        for (int m : mem) rip(m);
+                        for (size_t k = 0; k < mem.size(); k++) {
+                            vector<Piece> pc;
+                            for (auto &kv : keep[k]) pc.push_back({kv.first, kv.second.first, kv.second.second});
+                            add(mem[k], pc);
+                            endedT[mem[k]] = kT[k]; endedD[mem[k]] = kD[k];
+                        }
+                    }
+                    polished += gains;
+                    if (LOG) fprintf(stderr, "polish pass %d: %d belts shortened (%.1f s)\n", pass + 1, gains, secs());
+                    if (!gains) break;
+                }
+                hardMode = false;
+            }
             printf("OK %d %.3f\n", it + 1, secs());
             for (int n = 0; n < N; n++) {
                 printf("%d %d %d %d %d\n", n, endedT[n] % W, endedT[n] / W, endedD[n], (int)paths[n].size());
