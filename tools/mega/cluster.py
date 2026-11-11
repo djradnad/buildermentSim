@@ -188,6 +188,33 @@ def cap(mod, key):
     mod.cells.add(step((x, y), d, 3))                  # keep the tile past the dead end empty
 
 
+def cap_all(mod, keys):
+    """dead-end unused flow-through exits the way john does: ONE belt after each exit (the last arm needs it);
+    two neighbouring ones turn into each other, so nothing can spill and no empty tile is needed; a lone one
+    keeps the tile past it empty"""
+    after = {}
+    for key in keys:
+        (x, y), d = mod.outs.pop(key)
+        after[key] = (step((x, y), d), d)
+    left = sorted(after, key=lambda k: after[k][0])
+    while left:
+        k = left.pop(0)
+        p, d = after[k]
+        mate = next((q for q in left if after[q][1] == d and abs(after[q][0][0] - p[0]) + abs(after[q][0][1] - p[1]) == 1
+                     and step(after[q][0], d) != p and step(p, d) != after[q][0]), None)
+        mod.cells.add(p)
+        if mate is None:
+            mod.rows.append([B, p[0], p[1], d, 0, -1, 0])
+            mod.cells.add(step(p, d))                        # keep the tile past the dead end empty
+            continue
+        left.remove(mate)
+        q = after[mate][0]
+        to_q = [e for e in range(4) if step(p, e) == q][0]
+        mod.rows.append([B, p[0], p[1], to_q, 0, -1, 0])
+        mod.rows.append([B, q[0], q[1], (to_q + 2) % 4, 0, -1, 0])
+        mod.cells.add(q)
+
+
 def source_mod(item, rate):
     m = Mod('src ' + item, [[B, 0, 0, 3, 0, -1, 0], [B, 1, 0, 3, 0, -1, 0]])
     m.outs['out'] = ((1, 0), 3)

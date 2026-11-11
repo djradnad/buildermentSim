@@ -214,9 +214,11 @@ def build():
     used = {(a, ka) for a, ka, b, kb in nets}
     spare = {}
     for i, m in enumerate(mods):
+        if not getattr(m, 'standin', False):
+            cl.cap_all(m, [k for k in m.outs if (i, k) not in used and k[0] == 'thru'])
         for key in [k for k in m.outs if (i, k) not in used]:
             if key[0] == 'thru' and not getattr(m, 'standin', False):
-                cl.cap(m, key)
+                pass
             elif key[0] == 'out' or key == 'out':
                 spare.setdefault(getattr(m, 'out_item', 'merge'), []).append((i, key))
                 t, d = m.outs[key]                                  # leaves the core: a sink for the sim, nothing next to it
@@ -542,6 +544,44 @@ def frame_diag(path, minutes=40, warmup=60):
             print('source %-22s gives %6.1f of %6.1f -> %s' % (f['kind'], f['perMin'], f['want'], dest))
 
 
+def modcheck(minutes=60, warmup=30):
+    """every core module alone in the game sim, each input lane fed exactly its plan share, used flow-through exits
+    and collectors open: does it make its plan rate?  The check that a module (with its dead-end caps) is sound."""
+    import subprocess
+    import tempfile
+    mods, nets, open_in, spare = build()
+    want = {rn: crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
+    bad = 0
+    for m in mods:
+        if getattr(m, 'standin', False):
+            continue
+        bs = [dict(id=r[0], x=r[1], y=r[2], o=r[3], tier=r[4] + 1, recipe=r[5] if r[5] > 0 else 0) for r in m.rows]
+        feeds, sinks = [], []
+        for key, (t, d) in m.ins.items():
+            if key not in m.need:
+                continue
+            a = step(t, (d + 2) % 4)
+            bs += [dict(id=B, x=a[0], y=a[1], o=d, tier=4, recipe=0), dict(id=B, x=t[0], y=t[1], o=d, tier=4, recipe=0)]
+            feeds.append(dict(at=list(a), kind=key[-1], perMin=m.need[key], buffer=10))
+        for key, (t, d) in m.outs.items():
+            a, b_ = step(t, d), step(t, d, 2)
+            bs.append(dict(id=B, x=a[0], y=a[1], o=d, tier=4, recipe=0))
+            if key[0] == 'thru':
+                continue                                     # the lane carries only this module's share here: a dead end
+            bs.append(dict(id=B, x=b_[0], y=b_[1], o=d, tier=4, recipe=0))
+            sinks.append(list(b_))
+        sinks += [list(t) for t in m.sinks]
+        with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
+            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks), f)
+        rep = json.loads(subprocess.run(['node', 'tools/simlayout.mjs', f.name], capture_output=True, text=True, check=True).stdout)
+        os.unlink(f.name)
+        made = sum(mm['perMin'] for mm in rep['machines'])
+        ok = made >= want[m.name] * 0.999
+        bad += not ok
+        print('%-26s %3d machines make %8.2f/min, plan %8.2f  %s' % (m.name, len(rep['machines']), made, want[m.name], 'ok' if ok else 'SHORT %.1f%%' % (100 * made / want[m.name])), flush=True)
+    print('%d modules short' % bad)
+
+
 def squeeze_main(minutes=100, src='~/data/core_gen.pkl'):
     """pull the modules of a routed core toward the middle one at a time, re-routing everything after each move;
     a move stays when the core still routes.  Saves ~/data/core_sq.{pkl,json,png} after every gain."""
@@ -621,8 +661,11 @@ if __name__ == '__main__':
     if sys.argv[1] == 'frame':
         frame_main(*[float(a) for a in sys.argv[2:5]])
         sys.exit()
+    if sys.argv[1] == 'modcheck':
+        modcheck(*[float(a) for a in sys.argv[2:4]])
+        sys.exit()
     if sys.argv[1] == 'diag':
-        frame_diag(sys.argv[2])
+        frame_diag(sys.argv[2], *[float(a) for a in sys.argv[3:5]])
         sys.exit()
     if sys.argv[1] == 'squeeze':
         squeeze_main(*[float(a) for a in sys.argv[2:3]])
