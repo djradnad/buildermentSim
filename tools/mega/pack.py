@@ -7,13 +7,15 @@ import random
 import time
 
 
-def geometry(lay, ch, per_port, cap):
+def geometry(lay, ch, per_port, cap, extra=()):
     """per module: bounding box of its cells and the channel on each side (left, top, right, bottom)"""
     out = []
     ports = [[] for _ in range(lay.n)]
     for (s, d, gs, e, de, ge) in lay.nets:
         ports[gs].append(s)
         ports[ge].append(e)
+    for g, t in extra:                                  # belts that come from outside the core
+        ports[g].append(t)
     for g, cells in enumerate(lay.cells):
         xs = [c[0] for c in cells]
         ys = [c[1] for c in cells]
@@ -61,10 +63,10 @@ def skyline(order, W, H, width):
     return pos, top
 
 
-def place(lay, ch=1, per_port=0.5, cap=4, width=100, seconds=60, seed=1, wl_w=0.02, turn=True, log=None):
+def place(lay, ch=1, per_port=0.5, cap=4, width=100, seconds=60, seed=1, wl_w=0.02, turn=True, log=None, extra=()):
     """-> (offsets, turned flags, height, belt length); a turned module must be transposed before use"""
     rnd = random.Random(seed)
-    G = geometry(lay, ch, per_port, cap)
+    G = geometry(lay, ch, per_port, cap, extra)
     n = lay.n
     nets = [(s, gs, e, ge) for (s, d, gs, e, de, ge) in lay.nets]
 

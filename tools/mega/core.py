@@ -194,7 +194,7 @@ def build():
     return mods, nets, open_in, spare
 
 
-def main(seconds=120, rounds=1):
+def main(seconds=120, rounds=1, ring=0):
     """keeps trying packings (width, channel rule, seed) and routing them; every routed one that beats the best
     so far is saved to ~/data/core_gen.{pkl,png,json}"""
     import pack
@@ -219,20 +219,24 @@ def main(seconds=120, rounds=1):
     rnd = random.Random(1)
     t0 = time.time()
     for r in range(int(rounds)):
-        per_port, cap, ch = rnd.choice([(0.34, 3, 3), (0.25, 2, 3), (0.34, 3, 2), (0.25, 2, 2), (0.0, 0, 3), (0.0, 0, 4), (0.5, 3, 2)])
+        per_port, cap, ch = rnd.choice([(0.34, 4, 3), (0.5, 5, 3), (0.5, 6, 2), (0.34, 4, 4), (0.5, 8, 3)])
         width = side + rnd.randrange(8, 34)
-        off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1, wl_w=rnd.choice([0.02, 0.04, 0.06]))
+        extra = [(i, mods[i].ins[key][0]) for (i, key, need) in open_in] if ring else ()
+        off, flip, top, wl = pack.place(base, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=r + 1, wl_w=rnd.choice([0.02, 0.04, 0.06]), extra=extra)
         tm = [cl.transpose(m) if f else m for m, f in zip(mods, flip)]
-        lay = cl.Layout(tm, nets)
+        nets_r = nets
+        if ring:
+            tm, nets_r, off = add_ring(tm, nets, open_in, off)
+        lay = cl.Layout(tm, nets_r)
         xs = [c[0] + o[0] for cells, o in zip(lay.cells, off) for c in cells]
         ys = [c[1] + o[1] for cells, o in zip(lay.cells, off) for c in cells]
         W, H = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
         tag = 'try %d (%.0f min): channel %d + %.2f per port (max %d), %dx%d, belt length %d, %d turned' % (
             r + 1, (time.time() - t0) / 60, ch, per_port, cap, W, H, wl, sum(flip))
-        if best and max(W, H) >= best:
+        if best and max(W, H) >= best and not ring:
             print(tag + ': not smaller than the best, skipped', flush=True)
             continue
-        res = lay.route(off, timeout=150)
+        res = lay.route(off, timeout=900 if ring else 150)
         if res is None:
             print(tag + ': did not route', flush=True)
             continue
@@ -245,6 +249,11 @@ def main(seconds=120, rounds=1):
         json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
         PW, PH = cl.picture(lay, res, out + '.png')
         print(tag + ': ROUTED %dx%d with %d route pieces%s' % (PW, PH, res['pieces'], '' if not bad else ' (check failed)'), flush=True)
+        if ring:
+            made, got = lay.sim(res, minutes=40, warmup=60)
+            want = {rec['id']: crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
+            for rid, v in sorted(made.items(), key=lambda t: t[1] / want[t[0]]):
+                print('    %-24s sim %8.1f/min, plan %8.1f (%.0f%%)' % (cl.RECIPES[rid]['out'][0]['item'], v, want[rid], 100 * v / want[rid]), flush=True)
     print('done, best side %s' % best, flush=True)
 
 
@@ -288,6 +297,45 @@ def anneal_main(seconds=600, rounds=6):
         PW, PH = cl.picture(lay, res, out + '.png')
         print(tag + ': ROUTED %dx%d with %d route pieces%s' % (PW, PH, res['pieces'], '' if not bad else ' (check failed: %s)' % bad[0]), flush=True)
     print('done, best side %s' % best, flush=True)
+
+
+def border_source(item, rate, d):
+    """two belts pointing d (into the core) with a sim feed on the first"""
+    dx, dy = cl.DIRS[d]
+    m = cl.Mod('ring ' + item, [[B, 0, 0, d, 0, -1, 0], [B, dx, dy, d, 0, -1, 0]])
+    m.outs['out'] = ((dx, dy), d)
+    m.feed = ((0, 0), item, rate)
+    return m
+
+
+def add_ring(tm, nets, open_in, off):
+    """every input that is fed from outside the core gets a source on the nearest side of the core's box
+    -> (modules, nets, offsets) with the sources appended"""
+    xs = [c[0] + o[0] for m, o in zip(tm, off) for c in m.cells]
+    ys = [c[1] + o[1] for m, o in zip(tm, off) for c in m.cells]
+    x0, y0, x1, y1 = min(xs) - 3, min(ys) - 3, max(xs) + 3, max(ys) + 3
+    mods2, nets2, off2 = list(tm), list(nets), list(off)
+    taken = set()
+    for (i, key, need) in open_in:
+        (t, d) = tm[i].ins[key]
+        px, py = t[0] + off[i][0], t[1] + off[i][1]
+        side = min((px - x0, 3), (x1 - px, 1), (py - y0, 2), (y1 - py, 0))[1]     # direction the source pushes
+        k = 0
+        while True:
+            for sgn in (1, -1):
+                c = (px if side in (0, 2) else py) + sgn * k
+                if (side, c) not in taken:
+                    break
+            else:
+                k += 1
+                continue
+            break
+        taken.add((side, c))
+        pos = {3: (x0 - 2, c), 1: (x1 + 2, c), 2: (c, y0 - 2), 0: (c, y1 + 2)}[side]
+        mods2.append(border_source(key[-1], need, side))
+        off2.append(pos)
+        nets2.append((len(mods2) - 1, 'out', i, key))
+    return mods2, nets2, off2
 
 
 def squeeze_main(minutes=100, src='~/data/core_gen.pkl'):
@@ -372,4 +420,4 @@ if __name__ == '__main__':
     if sys.argv[1] == 'anneal':
         anneal_main(*[float(a) for a in sys.argv[2:4]])
     else:
-        main(*[float(a) for a in sys.argv[1:3]])
+        main(*[float(a) for a in sys.argv[1:4]])
