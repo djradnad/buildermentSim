@@ -34,6 +34,7 @@ class Mod:
         self.outs = {}         # key -> (tile where the product appears, direction it arrives)
         self.feed = None       # (tile, item, per minute) for the sim
         self.sink = None       # tile for the sim
+        self.sinks = []        # more sink tiles (outputs that leave the layout)
 
 
 def recipe_mod(name, recipe, n, groups=1, rows=1, share=False, far=False):
@@ -135,6 +136,7 @@ def transpose(mod):
         m.feed = ((mod.feed[0][1], mod.feed[0][0]),) + tuple(mod.feed[1:])
     if mod.sink:
         m.sink = (mod.sink[1], mod.sink[0])
+    m.sinks = [(t[1], t[0]) for t in getattr(mod, 'sinks', [])]
     return m
 
 
@@ -161,6 +163,7 @@ def flip_v(mod):
         m.feed = ((mod.feed[0][0], -mod.feed[0][1]),) + tuple(mod.feed[1:])
     if mod.sink:
         m.sink = (mod.sink[0], -mod.sink[1])
+    m.sinks = [(t[0], -t[1]) for t in getattr(mod, 'sinks', [])]
     return m
 
 
@@ -296,6 +299,18 @@ class Layout(cc.State):
             if m.sink:
                 sinks.append([m.sink[0] + o[0], m.sink[1] + o[1]])
                 names['%d,%d' % (m.sink[0] + o[0], m.sink[1] + o[1])] = m.name
+            for k, t in enumerate(getattr(m, 'sinks', [])):
+                sinks.append([t[0] + o[0], t[1] + o[1]])
+                names['%d,%d' % (t[0] + o[0], t[1] + o[1])] = '%s out %d' % (m.name, k)
+        for i, (s, d, gs, e, de, ge) in enumerate(self.nets):  # stand-in blocks: take what arrives, give what the plan says
+            if i not in self.joins and getattr(self.mods[ge], 'standin', False):
+                b = self.pos(e, ge)
+                sinks.append(list(b))
+                names['%d,%d' % b] = '%s in %d,%d' % ((self.mods[ge].name,) + b)
+            m = self.mods[gs]
+            if getattr(m, 'standin', False):
+                rate = [m.out_rates[k] for k, (t, dd) in m.outs.items() if step(t, dd) == s][0]
+                feeds.append(dict(at=list(self.pos(s, gs)), kind=m.out_item, perMin=rate, buffer=10))
         if save:
             json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks), open(save, 'w'))
         with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:

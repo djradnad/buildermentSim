@@ -198,6 +198,10 @@ def build():
                 cl.cap(m, key)
             elif key[0] == 'out' or key == 'out':
                 spare.setdefault(getattr(m, 'out_item', 'merge'), []).append((i, key))
+                t, d = m.outs[key]                                  # leaves the core: a sink for the sim, nothing next to it
+                if not getattr(m, 'standin', False):
+                    m.sinks.append(t)
+                    m.cells.add(step(t, d))
     return mods, nets, open_in, spare
 
 
@@ -359,8 +363,8 @@ def frame_main(seconds=90, rounds=10, seed0=0):
     t0 = time.time()
     want = {rec['id']: crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
     for r in range(int(rounds)):
-        per_port, cap, ch = rnd.choice([(0.34, 3, 2), (0.34, 4, 3), (0.5, 4, 2), (0.25, 2, 2), (0.5, 5, 3)])
-        width = side + rnd.randrange(12, 40)
+        per_port, cap, ch = rnd.choice([(0.5, 5, 3), (0.5, 5, 3), (0.5, 4, 3), (0.34, 4, 3), (0.5, 6, 3), (0.5, 4, 2)])
+        width = side + rnd.randrange(10, 34)
         tm, off, top, wl = frame.place(mods, nets, open_in, ch=ch, per_port=per_port, cap=cap, width=width, seconds=seconds, seed=seed0 + r + 1,
                                        log=lambda s: print('  ' + s, flush=True))
         if tm is None:
@@ -392,16 +396,59 @@ def frame_main(seconds=90, rounds=10, seed0=0):
         lay.off = off2
         bad = lay.check(res)
         PW, PH = cl.picture(lay, res, out + '_%d.png' % (r + 1))
-        print(tag + ': ROUTED %dx%d with %d route pieces%s' % (PW, PH, res['pieces'], '' if not bad else ' (check: %s)' % bad[0]), flush=True)
-        made, got = lay.sim(res, minutes=40, warmup=60)
-        for rid, v in sorted(made.items(), key=lambda t: t[1] / want[t[0]]):
-            print('    %-24s sim %8.1f/min, plan %8.1f (%.0f%%)' % (cl.RECIPES[rid]['out'][0]['item'], v, want[rid], 100 * v / want[rid]), flush=True)
+        pickle.dump((tm2, nets2, off2, res), open(out + '_%d.pkl' % (r + 1), 'wb'))
+        print(tag + ': ROUTED %dx%d with %d route pieces, %d border problems' % (PW, PH, res['pieces'], len(bad)), flush=True)
+        for b_ in bad[:20]:
+            print('      check: ' + b_, flush=True)
+        frame_diag(out + '_%d.pkl' % (r + 1))
         if best is None or max(PW, PH) < best:
             best = max(PW, PH)
             pickle.dump((off2, res, r + 1), open(out + '.pkl', 'wb'))
             json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
             cl.picture(lay, res, out + '.png')
     print('done, best side %s' % best, flush=True)
+
+
+def frame_diag(path, minutes=40, warmup=60):
+    """re-check and re-sim a routed frame layout (pickle of frame_main): border problems, each module against the plan,
+    and every source that could not push its full rate"""
+    tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
+    lay = cl.Layout(tm, nets)
+    lay.off = off
+    for b_ in lay.check(res):
+        print('check: ' + b_)
+    made, got = lay.sim(res, minutes=minutes, warmup=warmup)
+    rep = lay.rep
+    for k, v in sorted(got.items()):
+        print('sink %-34s %s' % (k, {a: round(b, 1) for a, b in v.items()}))
+    owner = {}
+    for g, m in enumerate(tm):
+        for c in m.cells:
+            owner[(c[0] + off[g][0], c[1] + off[g][1])] = g
+    per = {}
+    for mm in rep['machines']:
+        g = owner.get((mm['x'], mm['y']))
+        rec = cl.RECIPES[mm['recipe']]
+        nominal = 60.0 / rec['seconds'] * 3 * rec['out'][0]['amount']
+        t = per.setdefault(g, [0, 0, 0])
+        t[0] += mm['perMin']
+        t[1] += nominal
+        t[2] += 1
+    want = {rn.replace(' ', '_'): crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
+    for g, (made, nominal, n) in sorted(per.items(), key=lambda t: t[1][0] / t[1][1]):
+        print('%-28s %3d machines make %8.1f/min, plan %8.1f, full speed %8.1f' % (tm[g].name, n, made, want.get(tm[g].name, 0), nominal))
+    at = {}
+    for g, m in enumerate(tm):
+        if m.feed:
+            at[(m.feed[0][0] + off[g][0], m.feed[0][1] + off[g][1])] = g
+    print('%d of %d sources attached' % (rep['feeds'], rep['wanted']))
+    for f in rep['fedRates']:
+        g = at.get(tuple(f['at']))
+        if g is None:
+            continue
+        if f['perMin'] < f['want'] * 0.98:
+            dest = [tm[b_].name if b_ is not None else 'join' for a_, ka, b_, kb in nets if a_ == g]
+            print('source %-22s gives %6.1f of %6.1f -> %s' % (f['kind'], f['perMin'], f['want'], dest))
 
 
 def squeeze_main(minutes=100, src='~/data/core_gen.pkl'):
@@ -482,6 +529,9 @@ def squeeze_main(minutes=100, src='~/data/core_gen.pkl'):
 if __name__ == '__main__':
     if sys.argv[1] == 'frame':
         frame_main(*[float(a) for a in sys.argv[2:5]])
+        sys.exit()
+    if sys.argv[1] == 'diag':
+        frame_diag(sys.argv[2])
         sys.exit()
     if sys.argv[1] == 'squeeze':
         squeeze_main(*[float(a) for a in sys.argv[2:3]])

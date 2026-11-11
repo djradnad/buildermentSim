@@ -897,7 +897,7 @@ export class Factory extends World {
     }
     for (const f of opts.feeds || []) {
       const g = this.segs.find(s => s.nodes[0].x === f.at[0] && s.nodes[0].y === f.at[1]);
-      if (g) this.feeds.push(new Feed(g, f.kind, f.perMin ?? 480));
+      if (g) { const fd = new Feed(g, f.kind, f.perMin ?? 480); fd.at = f.at; this.feeds.push(fd); }
     }
     this.labsTakeAll = opts.labsTakeAll !== false;
     // arms take from any building with the 0x572c container, extractors included (traced)
