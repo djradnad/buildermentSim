@@ -47,7 +47,7 @@ def ring_side(mod, keys):
 def place(mods, nets, open_in, ch=2, per_port=0.34, cap=3, width=110, seconds=60, seed=1, wl_w=0.03, log=None, fixed=(), hole=None):
     """-> (chosen modules, offsets, height, belt length)
     fixed: [(module, in key, (x, y))] belts that come from a fixed tile outside (the ring's exits), x, y counted from
-    the corner of the hole (w, h) in which the packing will be centred"""
+    the corner of the hole (w, h); the packing goes into the hole's bottom right corner"""
     rnd = random.Random(seed)
     n = len(mods)
     ring_keys = [[] for _ in range(n)]
@@ -120,7 +120,7 @@ def place(mods, nets, open_in, ch=2, per_port=0.34, cap=3, width=110, seconds=60
             a, b = pt(ga, v[ga], sa), pt(gb, v[gb], sb)
             wl += abs(pos[ga][0] + a[0] - pos[gb][0] - b[0]) + abs(pos[ga][1] + a[1] - pos[gb][1] - b[1])
         if fixed:
-            ox, oy = (hole[0] - width) // 2, (hole[1] - top) // 2
+            ox, oy = hole[0] - width - 3, hole[1] - top - 3      # packed into the bottom right corner of the hole
             for g, key, (fx, fy) in fixed:
                 b = var[g][v[g]][0].ins[key][0]
                 wl += abs(pos[g][0] + b[0] + ox - fx) + abs(pos[g][1] + b[1] + oy - fy)

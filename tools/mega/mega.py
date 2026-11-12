@@ -108,10 +108,11 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
         ys = [c[1] + o[1] for m, o in zip(tm, off) for c in m.cells]
         cw, chh = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
         tag = 'try %d (%.0f min): core %dx%d in hole %dx%d' % (r + 1, (time.time() - t0) / 60, cw, chh, hw, hh)
-        if cw > hw - 4 or chh > hh - 4:
+        if cw > hw - 6 or chh > hh - 6:
             print(tag + ': does not fit', flush=True)
             continue
-        sx, sy = hx + (hw - cw) // 2 - min(xs), hy + (hh - chh) // 2 - min(ys)
+        # bottom right corner of the hole: most ring belts come from the stack on top and the steel column on the left
+        sx, sy = hx + hw - cw - 3 - min(xs), hy + hh - chh - 3 - min(ys)
         tm2 = list(tm) + [mods[R]]
         off2 = [(o[0] + sx, o[1] + sy) for o in off] + [(0, 0)]
         lay = cl.Layout(tm2, nets)
