@@ -116,7 +116,7 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
         tm2 = list(tm) + [mods[R]]
         off2 = [(o[0] + sx, o[1] + sy) for o in off] + [(0, 0)]
         lay = cl.Layout(tm2, nets)
-        lay.rounds = 300
+        lay.rounds = int(os.environ.get("BM_ROUNDS", 1000))
         res = lay.route(off2, timeout=float(os.environ.get('BM_RTIME', 1200)))
         if res is None:
             f = getattr(lay, 'fail', None)
