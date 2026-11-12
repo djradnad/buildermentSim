@@ -9,16 +9,25 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           cd site/tools && python - <<'P'
-          import json
+          import json, gzip, urllib.request
           import blueprints as b
           key = lambda rs: sorted(tuple(r[:6]) for r in rs)
           for e in json.load(open('../../modules.json')):
               rows = e['rows']
               data = b.build(e['name'], b.game_rows(rows))
-              _, back = b.decode(b._post('/readBlp', data))
-              if key(back) != key(rows):
-                  print('XX', e['name'], 'file decodes differently', key(back)[:4], key(rows)[:4]); continue
-              code = b.upload(data)
+              print(e['name'], 'file bytes', len(data))
+              if len(data) > 1_500_000:
+                  body = gzip.compress(data)
+                  req = urllib.request.Request(b.WORKER + '/uploadBlp', data=body, method='POST', headers={
+                      'Content-Type': 'text/plain', 'X-Content-Encoding': 'gzip',
+                      'User-Agent': 'Mozilla/5.0 (buildermentsim catalogue tool)'})
+                  res = json.loads(urllib.request.urlopen(req, timeout=120).read().decode())
+                  code = res.get('id') or res.get('blpId') or res.get('code')
+              else:
+                  _, back = b.decode(b._post('/readBlp', data))
+                  if key(back) != key(rows):
+                      print('XX', e['name'], 'file decodes differently'); continue
+                  code = b.upload(data)
               got = b.download(code)
-              print('CODE', e['name'], code, 'verified' if key(got) == key(rows) else 'REDOWNLOAD DIFFERS')
+              print('CODE', e['name'], code, 'verified' if key(got) == key(rows) else 'REDOWNLOAD DIFFERS %d vs %d' % (len(got), len(rows)))
           P
