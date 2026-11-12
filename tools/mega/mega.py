@@ -55,7 +55,7 @@ def reroute(path, W=230, H=224):
         dx = max(n[0] - o[0] for n, o in zip(new, off[:R]))
         dy = max(n[1] - o[1] for n, o in zip(new, off[:R]))
         new = [(n[0] - dx, n[1] - dy) for n in new]
-        if min(c[0] + o[0] for m, o in zip(tm[:R], new) for c in m.cells) < hx + 3 or min(c[1] + o[1] for m, o in zip(tm[:R], new) for c in m.cells) < hy + 3:
+        if min(c[0] + o[0] for m, o in zip(tm[:R], new) for c in m.cells) < hx + 1 or min(c[1] + o[1] for m, o in zip(tm[:R], new) for c in m.cells) < hy + 1:
             print('the hole is full', flush=True)
             break
         print('%d belts clash, opened the core by %d,%d (%d)' % (len(f.get('nets', [])), dx, dy, fix + 1), flush=True)
