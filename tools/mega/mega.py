@@ -40,12 +40,28 @@ def reroute(path, W=230, H=224):
     tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
     T = json.load(open(os.path.expanduser('~/data/ring_typed_%dx%d.json' % (int(W), int(H)))))
     tm[-1].cells.update(dead_ends(T))
-    lay = cl.Layout(tm, nets)
-    lay.rounds = int(os.environ.get("BM_ROUNDS", 600))
-    res = lay.route(off, timeout=float(os.environ.get('BM_RTIME', 1800)))
-    if res is None:
+    R = len(tm) - 1
+    hx, hy, hw, hh = T['hole']
+    for fix in range(FIXES + 1):
+        lay = cl.Layout(tm, nets)
+        lay.rounds = int(os.environ.get("BM_ROUNDS", 400))
+        res = lay.route(off, timeout=float(os.environ.get('BM_RTIME', 1200)))
         f = getattr(lay, 'fail', None)
-        print('did not route (%s)' % (len(f.get('nets', [])) if f and 'nets' in f else f))
+        if res is not None or not f or 'use' not in f or fix == FIXES:
+            break
+        new = core.widen(tm[:R], off[:R], f)
+        if new is None:
+            break
+        dx = max(n[0] - o[0] for n, o in zip(new, off[:R]))
+        dy = max(n[1] - o[1] for n, o in zip(new, off[:R]))
+        new = [(n[0] - dx, n[1] - dy) for n in new]
+        if min(c[0] + o[0] for m, o in zip(tm[:R], new) for c in m.cells) < hx + 3 or min(c[1] + o[1] for m, o in zip(tm[:R], new) for c in m.cells) < hy + 3:
+            print('the hole is full', flush=True)
+            break
+        print('%d belts clash, opened the core by %d,%d (%d)' % (len(f.get('nets', [])), dx, dy, fix + 1), flush=True)
+        off = new + [(0, 0)]
+    if res is None:
+        print('did not route')
         return
     lay.off = off
     bad = lay.check(res)
