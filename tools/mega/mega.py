@@ -35,6 +35,88 @@ def dead_ends(T):
     return {step(p, d) for p, d in jmod.OUTS if (p[0], p[1], d) not in typed}
 
 
+def repair(path, W=230, H=224):
+    """keep a routed layout and route again only the belts that run in front of a ring belt end that is not an exit
+    (everything else stays where it is and is an obstacle)"""
+    from bmsolver import negotiate
+    from bmsolver.pieces import UG_REACH, KIND_OF_ID
+    tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
+    T = json.load(open(os.path.expanduser('~/data/ring_typed_%dx%d.json' % (int(W), int(H)))))
+    dead = dead_ends(T)
+    ox, oy = res['origin']
+    absn = {k: {(x + ox, y + oy): c for (x, y), c in v.items()} for k, v in res['by_net'].items()}
+    rip = {k for k, v in absn.items() if any(t in dead for t in v)}
+    lay = cl.Layout(tm, nets)
+    grew = True
+    while grew:                                             # belts that join a ripped belt, and the belt a ripped one joins
+        grew = False
+        for i, j in lay.joins.items():
+            if (i in rip) != (j in rip):
+                rip |= {i, j}
+                grew = True
+    print('%d belts pass a dead lane end, %d to route again' % (len({k for k, v in absn.items() if any(t in dead for t in v)}), len(rip)), flush=True)
+    tm[-1].cells.update(dead)
+    lay = cl.Layout(tm, nets)
+    occ = {}
+    for g in range(lay.n):
+        for c in lay.cells[g]:
+            occ[lay.pos(c, g, off)] = g
+    keep = {}
+    for k, v in absn.items():
+        if k not in rip:
+            keep.update(v)
+    pts = list(occ) + list(keep)
+    x0, y0 = min(p[0] for p in pts) - 2, min(p[1] for p in pts) - 2
+    x1, y1 = max(p[0] for p in pts) + 2, max(p[1] for p in pts) + 2
+    sh = lambda p: (p[0] - x0, p[1] - y0)
+    blocked = {sh(p) for p in occ} | {sh(p) for p in keep}
+    pos_ug = {lay.pos((x, y), g, off): c for (x, y, g), c in lay.ug}
+    pos_ug.update({p: c for p, c in keep.items() if c[0] in 'IO'})
+    fixed_ug, no_ug = set(), set()
+    for p, c in pos_ug.items():
+        fixed_ug.add((sh(p), int(c[1])))
+        if c[0] == 'I':
+            d = int(c[1])
+            for k in range(1, UG_REACH + 1):
+                q = step(p, d, k)
+                if pos_ug.get(q) == 'O%d' % d:
+                    break
+                no_ug.add((sh(q), d))
+    order = sorted(rip)
+    idx = {k: i for i, k in enumerate(order)}
+    sources, sinks = [], []
+    for k in order:
+        (s_, d, gs, e, de, ge) = lay.nets[k]
+        sources.append((sh(lay.pos(s_, gs, off)), d, idx[k]))
+        if k not in lay.joins:
+            sinks.append((sh(lay.pos(e, ge, off)), de, idx[k]))
+    ok, r2, secs = negotiate.route(x1 - x0 + 1, y1 - y0 + 1, len(order), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug,
+                                   join={idx[i]: idx[j] for i, j in lay.joins.items() if i in rip}, open_cost=0.2, timeout=900, rounds=400,
+                                   turn_cost=0.05)
+    if not ok:
+        print('did not route: %s' % (r2.get('reason') or '%d belts clash' % len(r2.get('nets', []))))
+        return
+    for k in order:
+        absn[k] = {(x + x0, y + y0): c for (x, y), c in r2['by_net'][idx[k]].items()}
+    tiles = {}
+    for k, v in absn.items():
+        for p, c in v.items():
+            q = (p[0] - x0, p[1] - y0)
+            assert tiles.get(q, c) == c, ('two belts on one tile', p)   # a joining belt shares its last tile
+            tiles[q] = c
+    res = dict(tiles=tiles, by_net={k: {(p[0] - x0, p[1] - y0): c for p, c in v.items()} for k, v in absn.items()},
+               pieces=len(tiles), origin=(x0, y0), sinks=res['sinks'], rounds=res['rounds'], placed=[])
+    lay.off = off
+    bad = lay.check(res)
+    out = os.path.expanduser(path)[:-4] + 'f'
+    PW, PH = cl.picture(lay, res, out + '.png')
+    pickle.dump((tm, nets, off, res), open(out + '.pkl', 'wb'))
+    json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
+    print('ROUTED %dx%d with %d route pieces, %d border problems -> %s.pkl' % (PW, PH, len(tiles), len(bad), out))
+    for b_ in bad[:20]:
+        print('   check: ' + b_)
+
+
 def reroute(path, W=230, H=224):
     """route a saved layout again (same module places) with the current ring rules"""
     tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
@@ -244,7 +326,9 @@ def diag(path, minutes=60, warmup=120):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == 'reroute':
+    if len(sys.argv) > 1 and sys.argv[1] == 'repair':
+        repair(*sys.argv[2:5])
+    elif len(sys.argv) > 1 and sys.argv[1] == 'reroute':
         reroute(*sys.argv[2:5])
     elif len(sys.argv) > 1 and sys.argv[1] == 'diag':
         diag(*sys.argv[2:5])
