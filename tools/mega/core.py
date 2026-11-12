@@ -26,6 +26,7 @@ EXTRA = ('Tungsten_Carbide_ALT', 'Coupler', 'Condenser_Lens')   # ring recipes j
 JOHN = {'Condenser_Lens': ('nbyv2n', 160.0)}   # his module and what one copy makes per minute
 GLUE_IN_DUPLICATOR = True
 JOIN_MAX = 480                  # joined belts: evenly spaced streams merge without loss up to a full belt (sim: 320+160, 288+192)
+FULL_BELTS = True
 RING = None                     # mega.py: the ring as one fixed module whose exit belts are the streams of the ring items       # john's duplicator build makes its own particle glue from matter compressors
 
 
@@ -180,8 +181,21 @@ def make(rn, rec, crafts, far=False):
         light = arms.index(1) if len(arms) == 2 and 1 in arms else None
         if light is not None and 2 * max(per) * rec['in'][light]['amount'] * rate1 > 480:
             light = None
+        full = None
+        hv = max(rec['in'], key=lambda i: i['amount'])
+        if RING is not None and FULL_BELTS and mg <= 4 and hv['item'] in {it for k, it, r in RING.ring_streams} and hv['amount'] * crafts > 480:
+            # full belts: one machine more per lane than a belt feeds, so every lane but the last eats a whole ring
+            # belt and ends there (no thin leftovers to collect and join); only the last lane passes its rest on
+            tot = hv['amount'] * crafts
+            G = math.ceil(tot / 480 - 1e-9)
+            last = math.ceil((tot - 480 * (G - 1)) / (hv['amount'] * rate1) - 1e-9)
+            per = [mg + 1] * (G - 1) + [max(1, last)]
+            full = [480.0 / tot] * (G - 1) + [(tot - 480.0 * (G - 1)) / tot]
+            light = None
         m = cl.paired_mod(rn, rec['id'], per, left=tuple(i for i, a in enumerate(arms) if a == 2), far=far, chain=None if far else light)
         m.out_rates = {('out', k): c * rate1 * outa for k, c in enumerate(m.outm)}
+        if full:
+            m.share = full                                # _build: each lane group's share of the plan
         return m
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
     rows = 2 if max(per) >= 8 and not far else 1
@@ -293,7 +307,9 @@ def plan_ring(item, mine, belts, standins, flows_on):
                 print('  short: no ring belt left for %s (%s), %.1f missing' % (item, who[0], need))
                 break
             fit = [c for c in free if c['rem'] >= need - 0.01]
-            c = min(fit, key=lambda c: c['rem']) if fit else max(free, key=lambda c: c['rem'])
+            part = [c for c in free if c['rem'] < 479.5 and c['rem'] <= need + 0.01]
+            # a stop that swallows several belts takes the part-filled ones whole: the full belts stay for the full lanes
+            c = max(part, key=lambda c: c['rem']) if part and who[0] == 'standin' else min(fit, key=lambda c: c['rem']) if fit else max(free, key=lambda c: c['rem'])
             take = min(need, c['rem'])
             c['term'] = (who, take)
             c['rem'] -= take
@@ -390,6 +406,14 @@ def _build():
                 want = crafts * rec['out'][0]['amount']
                 m.need = {k: v * f for k, v in m.need.items()}
                 m.out_rates = {k: v * want / full for k, v in m.out_rates.items()}
+                if getattr(m, 'share', None):               # full-belt lane groups: the plan split by belts, not by machines
+                    for ing in rec['in']:
+                        tot_i = ing['amount'] * crafts
+                        for g, sh in enumerate(m.share):
+                            m.need[(g, ing['item'])] = tot_i * sh
+                    if len(m.out_rates) * 2 >= len(m.share) and len(m.out_rates) == (len(m.share) + 1) // 2:
+                        for k in range(len(m.out_rates)):   # a collector between each pair of groups
+                            m.out_rates[('out', k)] = want * sum(m.share[2 * k:2 * k + 2])
             mods.append(m)
             names.append(rn)
     if RING is not None:
