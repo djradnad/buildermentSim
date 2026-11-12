@@ -22,6 +22,10 @@ import jmod
 from bmsolver.pieces import DIRS, step
 
 
+# channel per belt on a module side, its cap, base channel: roomy first, the shrink step tightens it
+ROOM = [tuple(float(v) if '.' in v else int(v) for v in os.environ['BM_ROOM'].split(','))] if os.environ.get('BM_ROOM') else [(0.8, 8, 5), (0.7, 7, 6), (1.0, 8, 4)]
+
+
 def make_ring(W, H):
     T = json.load(open(os.path.expanduser('~/data/ring_typed_%dx%d.json' % (W, H))))
     rows = [list(r) for r in T['rows']]
@@ -93,7 +97,7 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
             fixed.append((b, kb, (t[0] - hx, t[1] - hy)))
     t0 = time.time()
     for r in range(tries):
-        per_port, cap, ch = rnd.choice([(0.5, 5, 3), (0.5, 4, 3), (0.34, 4, 3), (0.5, 6, 3), (0.5, 4, 2)])
+        per_port, cap, ch = rnd.choice(ROOM)
         width = hw - rnd.randrange(8, 30)
         tm, off, top, wl = frame.place(mods[:R], cnets, fed, ch=ch, per_port=per_port, cap=cap, width=width, seconds=float(seconds), seed=seed0 + r + 1, fixed=fixed, hole=(hw, hh),
                                        log=lambda s: print('  ' + s, flush=True))
@@ -112,7 +116,7 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
         off2 = [(o[0] + sx, o[1] + sy) for o in off] + [(0, 0)]
         lay = cl.Layout(tm2, nets)
         lay.rounds = 300
-        res = lay.route(off2, timeout=1800)
+        res = lay.route(off2, timeout=float(os.environ.get('BM_RTIME', 1200)))
         if res is None:
             f = getattr(lay, 'fail', None)
             print(tag + ': did not route (%s)' % ('%d belts still clash' % len(f.get('nets', [])) if f and 'nets' in f else f.get('reason') if f else 'a port is blocked'), flush=True)
