@@ -273,6 +273,34 @@ def uncross(tm, nets, off):
     return nets
 
 
+FINISH = int(os.environ.get('BM_FINISH', 16))
+
+
+def finish(lay, tm, nets, off, f, out):
+    """a routing that ended with a few belts still clashing: keep all the others where they lie and route the
+    clashing ones (then also their neighbours) again -> True when it worked (saved as out.pkl)"""
+    x0, y0 = f['origin']
+    if set(f['by_net']) != set(range(len(lay.nets))):
+        return False
+    absn = {k: {(x + x0, y + y0): c for (x, y), c in v.items()} for k, v in f['by_net'].items()}
+    red = [(x + x0, y + y0) for (x, y), k in f['use'].items() if k > 1]
+    rip = set()
+    for k in f['nets']:
+        rip |= family(lay, k)
+    for rad in (0, 2, 4, 7):
+        if rad:
+            for k, v in absn.items():
+                if k not in rip and any(abs(t[0] - e[0]) + abs(t[1] - e[1]) <= rad for t in v for e in red):
+                    rip |= family(lay, k)
+        print('    finishing: %d belts routed again' % len(rip), flush=True)
+        new = route_some(lay, off, absn, rip, rounds=300, timeout=400)
+        if new is not None:
+            absn.update(new)
+            save(lay, tm, nets, off, absn, dict(sinks=list(f.get('ends', {}).values()), rounds=0), out)
+            return True
+    return False
+
+
 def open_core(tm, off, f, hole):
     """core.widen inside the hole: the core sits in the bottom right corner, so it grows up and left; when one
     direction has no room left the jam is opened in the other. -> new core offsets or None"""
@@ -286,7 +314,7 @@ def open_core(tm, off, f, hole):
         new = [(n[0] - dx, n[1] - dy) for n in new]
         lx = min(c[0] + o[0] for m, o in zip(tm, new) for c in m.cells)
         ly = min(c[1] + o[1] for m, o in zip(tm, new) for c in m.cells)
-        if lx >= hx + 1 and ly >= hy + 1:
+        if lx >= hx + 4 and ly >= hy + 4:                      # keep a channel in front of the ring exits
             return new, dx, dy
     return None
 
@@ -385,11 +413,16 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
         tm2 = list(tm) + [mods[R]]
         off2 = [(o[0] + sx, o[1] + sy) for o in off] + [(0, 0)]
         nets = uncross(tm2, nets, off2)
+        done = False
         for fix in range(FIXES + 1):                          # route; where it jams, open the core there and go again
             lay = cl.Layout(tm2, nets)
             lay.rounds = int(os.environ.get("BM_ROUNDS", 300))
             res = lay.route(off2, timeout=float(os.environ.get('BM_RTIME', 900)))
             f = getattr(lay, 'fail', None)
+            if res is None and f and 'by_net' in f and 0 < len(f.get('nets', [])) <= FINISH:
+                if finish(lay, tm2, nets, off2, f, out + '_%d' % (r + 1)):     # a few belts left: route only those again
+                    done = True
+                    break
             if res is not None or not f or 'use' not in f or fix == FIXES:
                 break
             cl.fail_picture(lay, off2, out + '_%d_jam.png' % (r + 1))
@@ -400,6 +433,9 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
             new, dx, dy = got
             print('    %d belts clash, opened the core by %d,%d at the jam (%d)' % (len(f.get('nets', [])), dx, dy, fix + 1), flush=True)
             off2 = new + [(0, 0)]
+        if done:
+            print(tag + ': ROUTED after finishing the last belts', flush=True)
+            continue
         if res is None:
             f = getattr(lay, 'fail', None)
             print(tag + ': did not route (%s)' % ('%d belts still clash' % len(f.get('nets', [])) if f and 'nets' in f else f.get('reason') if f else 'a port is blocked'), flush=True)
