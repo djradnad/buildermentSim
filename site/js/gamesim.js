@@ -441,9 +441,8 @@ function segTick(s, M, w) {
     if (t.free > 239) { t.insert(left, kind); s.remove(left); t.chosen = mergeNext(t); }
   } else if (t.sink) {
     if (t.perMin !== undefined) {                 // a sink that takes at most perMin (a stand-in consumer)
-      t.acc = Math.min(t.acc + t.perMin / 3600, 2);
-      if (t.acc < 1) return;
-      t.acc -= 1;
+      if (w.tickNo < t.acc) return;               // acc = the tick from which the next item may go
+      t.acc = Math.max(t.acc, w.tickNo - 7200 / t.perMin) + 3600 / t.perMin;
     }
     w.sinkCount(s, kind);
     s.remove(left);
