@@ -26,6 +26,7 @@ EXTRA = ('Tungsten_Carbide_ALT', 'Coupler', 'Condenser_Lens')   # ring recipes j
 JOHN = {'Condenser_Lens': ('nbyv2n', 160.0)}   # his module and what one copy makes per minute
 JOHN_SHARE = {'Condenser_Lens': [470.0 / 740, 270.0 / 740]}   # glass is tight: one copy takes a belt almost whole
 GLUE_IN_DUPLICATOR = True
+SMALL_FIRST = os.environ.get("BM_SMALLFIRST", "1") == "1"   # small consumers first on a chain: the last stop bears every upstream shortfall
 JOIN_MAX = 480                  # joined belts: evenly spaced streams merge without loss up to a full belt (sim: 320+160, 288+192)
 FULL_BELTS = True
 RING = None                     # mega.py: the ring as one fixed module whose exit belts are the streams of the ring items       # john's duplicator build makes its own particle glue from matter compressors
@@ -279,7 +280,7 @@ def plan_item(lanes, pool, leftover, limit=200000):
                 if r is not None:
                     return r
         return None
-    return dfs(list(pool), sorted(lanes, key=lambda t: -t[0]), [])
+    return dfs(list(pool), sorted(lanes, key=lambda t: t[0] if SMALL_FIRST else -t[0]), [])
 
 
 FLOW = {}                       # (module, out key) -> planned items per minute on that belt, filled by build()
