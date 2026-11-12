@@ -181,7 +181,7 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
             new = [(n[0] - dx, n[1] - dy) for n in new]      # the core sits in the bottom right corner: grow up and left
             lx = min(c[0] + o[0] for m, o in zip(tm2[:R], new) for c in m.cells)
             ly = min(c[1] + o[1] for m, o in zip(tm2[:R], new) for c in m.cells)
-            if lx < hx + 3 or ly < hy + 3:
+            if lx < hx + 1 or ly < hy + 1:
                 print('    the hole is full, cannot open the core further', flush=True)
                 break
             print('    %d belts clash, opened the core by %d,%d at the jam (%d)' % (len(f.get('nets', [])), dx, dy, fix + 1), flush=True)
