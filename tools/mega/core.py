@@ -766,7 +766,7 @@ def add_ring(tm, nets, open_in, off):
     return mods2, nets2, off2
 
 
-def widen(tm, off, fail, by=2):
+def widen(tm, off, fail, by=2, axis=None):
     """open the layout where a failed routing jammed: the tiles wanted by several belts mark the spot; every module
     that starts past it moves `by` tiles away (right for a jam in an upright channel, down for a flat one).
     -> new offsets for the modules of tm, or None when there is no jam to read"""
@@ -780,7 +780,7 @@ def widen(tm, off, fail, by=2):
     iqr = lambda v: v[(3 * len(v)) // 4] - v[len(v) // 4]
     upright = iqr(ys) >= iqr(xs)                             # the jam runs north-south: make the channel wider
     old = [tuple(o) for o in off]
-    for up in (upright, not upright):                        # the other direction when this one moves nothing
+    for up in ((upright, not upright) if axis is None else (axis == 0,)):   # the other direction when this one moves nothing
         k = 0 if up else 1
         for c in ((mid(xs) if up else mid(ys)) + dc for dc in (0, -2, 2, -5, 5, -9, 9)):
             new = []

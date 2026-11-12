@@ -49,15 +49,11 @@ def reroute(path, W=230, H=224):
         f = getattr(lay, 'fail', None)
         if res is not None or not f or 'use' not in f or fix == FIXES:
             break
-        new = core.widen(tm[:R], off[:R], f)
-        if new is None:
-            break
-        dx = max(n[0] - o[0] for n, o in zip(new, off[:R]))
-        dy = max(n[1] - o[1] for n, o in zip(new, off[:R]))
-        new = [(n[0] - dx, n[1] - dy) for n in new]
-        if min(c[0] + o[0] for m, o in zip(tm[:R], new) for c in m.cells) < hx + 1 or min(c[1] + o[1] for m, o in zip(tm[:R], new) for c in m.cells) < hy + 1:
+        got = open_core(tm[:R], off[:R], f, T['hole'])
+        if got is None:
             print('the hole is full', flush=True)
             break
+        new, dx, dy = got
         print('%d belts clash, opened the core by %d,%d (%d)' % (len(f.get('nets', [])), dx, dy, fix + 1), flush=True)
         off = new + [(0, 0)]
     if res is None:
@@ -72,6 +68,24 @@ def reroute(path, W=230, H=224):
     print('ROUTED %dx%d with %d route pieces, %d border problems -> %s.pkl' % (PW, PH, res['pieces'], len(bad)))
     for b_ in bad[:20]:
         print('   check: ' + b_)
+
+
+def open_core(tm, off, f, hole):
+    """core.widen inside the hole: the core sits in the bottom right corner, so it grows up and left; when one
+    direction has no room left the jam is opened in the other. -> new core offsets or None"""
+    hx, hy, hw, hh = hole
+    for axis in (None, 0, 1):
+        new = core.widen(tm, off, f, axis=axis)
+        if new is None:
+            continue
+        dx = max(n[0] - o[0] for n, o in zip(new, off))
+        dy = max(n[1] - o[1] for n, o in zip(new, off))
+        new = [(n[0] - dx, n[1] - dy) for n in new]
+        lx = min(c[0] + o[0] for m, o in zip(tm, new) for c in m.cells)
+        ly = min(c[1] + o[1] for m, o in zip(tm, new) for c in m.cells)
+        if lx >= hx + 1 and ly >= hy + 1:
+            return new, dx, dy
+    return None
 
 
 def make_ring(W, H):
@@ -172,18 +186,11 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
             if res is not None or not f or 'use' not in f or fix == FIXES:
                 break
             cl.fail_picture(lay, off2, out + '_%d_jam.png' % (r + 1))
-            new = core.widen(tm2[:R], off2[:R], f)
-            if new is None:
-                print('    no way to open the core at this jam', flush=True)
-                break
-            dx = max(n[0] - o[0] for n, o in zip(new, off2[:R]))
-            dy = max(n[1] - o[1] for n, o in zip(new, off2[:R]))
-            new = [(n[0] - dx, n[1] - dy) for n in new]      # the core sits in the bottom right corner: grow up and left
-            lx = min(c[0] + o[0] for m, o in zip(tm2[:R], new) for c in m.cells)
-            ly = min(c[1] + o[1] for m, o in zip(tm2[:R], new) for c in m.cells)
-            if lx < hx + 1 or ly < hy + 1:
+            got = open_core(tm2[:R], off2[:R], f, hole)
+            if got is None:
                 print('    the hole is full, cannot open the core further', flush=True)
                 break
+            new, dx, dy = got
             print('    %d belts clash, opened the core by %d,%d at the jam (%d)' % (len(f.get('nets', [])), dx, dy, fix + 1), flush=True)
             off2 = new + [(0, 0)]
         if res is None:
