@@ -82,6 +82,40 @@ def size(rows):
     return b[1] - b[0] + 1, b[3] - b[2] + 1
 
 
+def insert_period(rows, at, period, times=1, axis=0):
+    """repeat the slice [at, at + period) along x (axis 0) or y (axis 1) `times` more times.
+    The slice must equal the next one tile for tile and no building may straddle its borders."""
+    ax = 1 + axis
+
+    def sig(lo):
+        out = set()
+        for r in rows:
+            cs = cells_of(r)
+            if all(lo <= c[axis] < lo + period for c in cs):
+                out.add((r[0], r[ax] - lo, r[3 - ax if False else (2 if axis == 0 else 1)], r[3], r[4], r[5]))
+            elif any(lo <= c[axis] < lo + period for c in cs):
+                raise ValueError('building straddles the slice at %d: %s' % (lo, r))
+        return out
+    a, b = sig(at), sig(at + period)
+    if a != b:
+        raise ValueError('slices differ at %d (+%d): %d tiles' % (at, period, len(a ^ b)))
+    out = []
+    for r in rows:
+        lo = min(c[axis] for c in cells_of(r))
+        if lo >= at + period:
+            r = list(r)
+            r[ax] += period * times
+            out.append(r)
+        else:
+            out.append(list(r))
+            if lo >= at:
+                for k in range(1, times + 1):
+                    c = list(r)
+                    c[ax] += period * k
+                    out.append(c)
+    return out
+
+
 def steel_block():
     """john's yxy4vn sized to the plan by repeating his own periods: 3 more rod periods (5 columns each: forge
     pairs with a rod workshop column), 1 more graphite / carbon fiber period (5 rows), and the gap between the
@@ -151,37 +185,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-def insert_period(rows, at, period, times=1, axis=0):
-    """repeat the slice [at, at + period) along x (axis 0) or y (axis 1) `times` more times.
-    The slice must equal the next one tile for tile and no building may straddle its borders."""
-    ax = 1 + axis
-
-    def sig(lo):
-        out = set()
-        for r in rows:
-            cs = cells_of(r)
-            if all(lo <= c[axis] < lo + period for c in cs):
-                out.add((r[0], r[ax] - lo, r[3 - ax if False else (2 if axis == 0 else 1)], r[3], r[4], r[5]))
-            elif any(lo <= c[axis] < lo + period for c in cs):
-                raise ValueError('building straddles the slice at %d: %s' % (lo, r))
-        return out
-    a, b = sig(at), sig(at + period)
-    if a != b:
-        raise ValueError('slices differ at %d (+%d): %d tiles' % (at, period, len(a ^ b)))
-    out = []
-    for r in rows:
-        lo = min(c[axis] for c in cells_of(r))
-        if lo >= at + period:
-            r = list(r)
-            r[ax] += period * times
-            out.append(r)
-        else:
-            out.append(list(r))
-            if lo >= at:
-                for k in range(1, times + 1):
-                    c = list(r)
-                    c[ax] += period * k
-                    out.append(c)
-    return out
