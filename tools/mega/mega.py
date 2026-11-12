@@ -242,6 +242,37 @@ def reroute(path, W=230, H=224):
         print('   check: ' + b_)
 
 
+def uncross(tm, nets, off):
+    """ring belts of one kind and rate are interchangeable: hand them to their consumers so that the summed distance
+    is smallest (the wiring picked them before anything was placed)"""
+    import numpy as np
+    from scipy.optimize import linear_sum_assignment
+    R = len(tm) - 1
+    lay = cl.Layout(tm, nets)
+    info = {key: (item, round(rate, 1)) for key, item, rate in tm[R].ring_streams}
+    groups = {}
+    for i, (a, ka, b, kb) in enumerate(nets):
+        if a == R and b is not None and ka in info:
+            groups.setdefault(info[ka], []).append(i)
+    nets = list(nets)
+    was = now = 0
+    for g in groups.values():
+        if len(g) < 2:
+            continue
+        keys = [nets[i][1] for i in g]
+        src = [step(*tm[R].outs[k]) for k in keys]
+        dst = [lay.pos(lay.nets[i][3], lay.nets[i][5], off) for i in g]
+        cost = np.array([[abs(s_[0] - d[0]) + abs(s_[1] - d[1]) for s_ in src] for d in dst])
+        ri, ci = linear_sum_assignment(cost)
+        was += sum(cost[j][j] for j in range(len(g)))
+        now += cost[ri, ci].sum()
+        for j, c in zip(ri, ci):
+            a, ka, b, kb = nets[g[j]]
+            nets[g[j]] = (a, keys[c], b, kb)
+    print('  ring belts handed out again by distance: %d -> %d tiles' % (was, now), flush=True)
+    return nets
+
+
 def open_core(tm, off, f, hole):
     """core.widen inside the hole: the core sits in the bottom right corner, so it grows up and left; when one
     direction has no room left the jam is opened in the other. -> new core offsets or None"""
@@ -353,6 +384,7 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
         sx, sy = hx + hw - cw - 3 - min(xs), hy + hh - chh - 3 - min(ys)
         tm2 = list(tm) + [mods[R]]
         off2 = [(o[0] + sx, o[1] + sy) for o in off] + [(0, 0)]
+        nets = uncross(tm2, nets, off2)
         for fix in range(FIXES + 1):                          # route; where it jams, open the core there and go again
             lay = cl.Layout(tm2, nets)
             lay.rounds = int(os.environ.get("BM_ROUNDS", 300))
