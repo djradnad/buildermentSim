@@ -8,7 +8,7 @@ Particle Glue) and are stand-in blocks of the size of john's builds until they g
     python tools/mega/core.py [seconds]
 """
 import json
-import math
+import math, itertools
 import os
 import pickle
 import sys
@@ -24,6 +24,7 @@ CORE = ('factory_manufacturer', 'factory_industrial', 'factory_machine_shop')
 STANDIN = {2035: (33, 8), 2041: (14, 13)}     # recipe -> (w, h)
 EXTRA = ('Tungsten_Carbide_ALT', 'Coupler', 'Condenser_Lens')   # ring recipes john's ring has no place for: placed with the core
 JOHN = {'Condenser_Lens': ('nbyv2n', 160.0)}   # his module and what one copy makes per minute
+JOHN_SHARE = {'Condenser_Lens': [470.0 / 740, 270.0 / 740]}   # glass is tight: one copy takes a belt almost whole
 GLUE_IN_DUPLICATOR = True
 JOIN_MAX = 480                  # joined belts: evenly spaced streams merge without loss up to a full belt (sim: 320+160, 288+192)
 FULL_BELTS = True
@@ -85,6 +86,8 @@ def john_mod(rn, rec, crafts):
     outs = list(jmod.OUTS)
     want = crafts * rec['out'][0]['amount']
     k = math.ceil(want / each - 1e-6)
+    share = JOHN_SHARE.get(rn, [1.0 / k] * k)                # the copies need not share evenly: one can empty a full belt
+    assert len(share) == k and abs(sum(share) - 1) < 1e-6 and max(share) * want <= each + 1e-6
     ax = 0 if ins[0][1] in (0, 2) else 1                     # lanes come in from below or above: copies side by side
     vs = [c[ax] for r in base for c in ([(r[1], r[2])] if r[0] in cl.KIND_OF_ID or r[0] == 3012 else cl.rc.footprint(r))]
     pitch = max(vs) - min(vs) + 2
@@ -96,10 +99,10 @@ def john_mod(rn, rec, crafts):
             if item.get(i) is None:
                 continue
             m.ins[(g, item[i])] = (step(sh(p, g), (d + 2) % 4), d)
-            m.need[(g, item[i])] = [q['amount'] for q in rec['in'] if q['item'] == item[i]][0] * crafts / k
+            m.need[(g, item[i])] = [q['amount'] for q in rec['in'] if q['item'] == item[i]][0] * crafts * share[g]
         (p, d) = outs[0]
         m.outs[('out', g)] = (sh(p, g), d)
-        m.out_rates[('out', g)] = want / k
+        m.out_rates[('out', g)] = want * share[g]
     m.out_item = rec['out'][0]['item']
     return m
 
@@ -327,19 +330,17 @@ def plan_ring(item, mine, belts, standins, flows_on):
         else:                                               # join tails (at most one of them may have an end stop)
             use, tot, termed = [], 0.0, 0
             live = [c for c in chains if c['rem'] >= 0.5]
-            pairs = [(a['rem'] + b['rem'], ia, ib) for ia, a in enumerate(live) for ib, b in enumerate(live) if ia < ib
-                     and need - 0.01 <= a['rem'] + b['rem'] <= JOIN_MAX and not (a['term'] and b['term'])]
-            if pairs:                                       # two tails that together still fit one belt
-                tot, ia, ib = min(pairs)
-                use = [live[ia], live[ib]]
-            else:                                           # three
-                tri = [(a['rem'] + b['rem'] + c['rem'], ia, ib, ic) for ia, a in enumerate(live) for ib, b in enumerate(live)
-                       for ic, c in enumerate(live) if ia < ib < ic and need - 0.01 <= a['rem'] + b['rem'] + c['rem'] <= JOIN_MAX
-                       and (a['term'] is not None) + (b['term'] is not None) + (c['term'] is not None) <= 1]
-                if tri:
-                    tot, ia, ib, ic = min(tri)
-                    use = [live[ia], live[ib], live[ic]]
-                    pairs = tri
+            load = lambda c: c['rem'] + (c['term'][1] if c['term'] else 0)     # what the belt really carries
+            pairs = None
+            for kk in (2, 3, 4):                            # the fewest tails that together still fit one belt
+                opts = [(sum(c['rem'] for c in cs), i_) for i_, cs in enumerate(itertools.combinations(live, kk))
+                        if need - 0.01 <= sum(c['rem'] for c in cs) and sum(load(c) for c in cs) <= JOIN_MAX
+                        and sum(c['term'] is not None for c in cs) <= 1]
+                if opts:
+                    tot, i_ = min(opts)
+                    use = list(list(itertools.combinations(live, kk))[i_])
+                    pairs = opts
+                    break
             for c in sorted(chains, key=lambda c: -c['rem']) if not pairs else ():
                 if c['rem'] < 0.5 or (c['term'] and termed):
                     continue
