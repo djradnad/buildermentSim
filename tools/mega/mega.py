@@ -27,6 +27,37 @@ FIXES = 14
 ROOM = [tuple(float(v) if '.' in v else int(v) for v in os.environ['BM_ROOM'].split(','))] if os.environ.get('BM_ROOM') else [(0.8, 8, 5), (0.7, 7, 6), (1.0, 8, 4)]
 
 
+def dead_ends(T):
+    """the tile in front of every ring belt end that is not a typed exit (lane ends, leftover raw): kept free of
+    route pieces, the belt simply ends there and backs up"""
+    jmod.reach([list(r) for r in T['rows']])
+    typed = {(e[0], e[1], e[2]) for e in T['exits']}
+    return {step(p, d) for p, d in jmod.OUTS if (p[0], p[1], d) not in typed}
+
+
+def reroute(path, W=230, H=224):
+    """route a saved layout again (same module places) with the current ring rules"""
+    tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
+    T = json.load(open(os.path.expanduser('~/data/ring_typed_%dx%d.json' % (int(W), int(H)))))
+    tm[-1].cells.update(dead_ends(T))
+    lay = cl.Layout(tm, nets)
+    lay.rounds = int(os.environ.get("BM_ROUNDS", 600))
+    res = lay.route(off, timeout=float(os.environ.get('BM_RTIME', 1800)))
+    if res is None:
+        f = getattr(lay, 'fail', None)
+        print('did not route (%s)' % (len(f.get('nets', [])) if f and 'nets' in f else f))
+        return
+    lay.off = off
+    bad = lay.check(res)
+    out = os.path.expanduser(path)[:-4] + 'r'
+    PW, PH = cl.picture(lay, res, out + '.png')
+    pickle.dump((tm, nets, off, res), open(out + '.pkl', 'wb'))
+    json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
+    print('ROUTED %dx%d with %d route pieces, %d border problems -> %s.pkl' % (PW, PH, res['pieces'], len(bad)))
+    for b_ in bad[:20]:
+        print('   check: ' + b_)
+
+
 def make_ring(W, H):
     T = json.load(open(os.path.expanduser('~/data/ring_typed_%dx%d.json' % (W, H))))
     rows = [list(r) for r in T['rows']]
@@ -51,6 +82,7 @@ def make_ring(W, H):
     m = cl.Mod('ring', rows)
     m.feeds = feeds
     m.need, m.out_rates, m.ring_streams = {}, {}, []
+    m.cells.update(dead_ends(T))
     for k, (x, y, d, item, rate) in enumerate(T['exits']):
         if step((x, y), d) in m.cells:
             print('ring exit %s %s is blocked' % ((x, y), item))
@@ -189,7 +221,9 @@ def diag(path, minutes=60, warmup=120):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == 'diag':
+    if len(sys.argv) > 1 and sys.argv[1] == 'reroute':
+        reroute(*sys.argv[2:5])
+    elif len(sys.argv) > 1 and sys.argv[1] == 'diag':
         diag(*sys.argv[2:5])
     else:
         main(*sys.argv[1:6])
