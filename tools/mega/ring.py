@@ -125,6 +125,13 @@ def steel_block():
     rows = insert_period(rows, -22, 5, 1, axis=1)
     rows = [r for r in rows if not (r[0] == 3000 and r[1] == 70 and r[2] == -27)]
     rows.append([3000, 55, -27, 1, 0, -1, 0])
+    # the top rod workshop of every column hands its rods to an arm that drops on the lane's first hop entrance; an
+    # arm can only drop there when something is hooked up to the hop (john 2026-11-12), so a belt goes in front of it
+    arms = {(r[1], r[2]) for r in rows if r[0] == ARM and r[3] == 0}
+    used = {c for r in rows for c in cells_of(r)}
+    for r in list(rows):
+        if r[0] == 3002 and r[3] == 2 and (r[1], r[2] + 1) in arms and (r[1], r[2] - 1) not in used:
+            rows.append([3000, r[1], r[2] - 1, 2, 0, -1, 0])
     return rows
 
 
