@@ -52,9 +52,7 @@ def reach(rows):
     global OUTS
     kind = {(r[1], r[2]): r[0] for r in rows if r[0] in KIND_OF_ID}
     OUTS = [((x + x0, y + y0), d) for x, y, d in m['outputs']
-            if kind[(x + x0, y + y0)] != 3001 or step((x + x0, y + y0), d)[0] not in range(x0, x0 + m['w'])
-            or step((x + x0, y + y0), d)[1] not in range(y0, y0 + m['h'])]
-    # a splitter side facing an empty tile inside the block is not an exit; one facing out of the block is
+            if kind[(x + x0, y + y0)] != 3001]              # a splitter side facing an empty tile is never an exit
     belts = {(r[1], r[2]): KIND_OF_ID[r[0]] + str(r[3]) for r in rows if r[0] in KIND_OF_ID}
     solid = set()
     for r in rows:
