@@ -375,6 +375,10 @@ def _route(self, off, timeout=60):
     W, H = x1 - x0 + 1, y1 - y0 + 1
     sh = lambda p: (p[0] - x0, p[1] - y0)
     blocked = {sh(p) for p in occ}
+    clip = getattr(self, 'clip', None)                       # (x0, y0, x1, y1): no belt outside this area
+    if clip:
+        blocked |= {sh((x, y)) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)
+                    if not (clip[0] <= x <= clip[2] and clip[1] <= y <= clip[3])}
     pos_ug = {}
     for (x, y, g), c in self.ug:
         pos_ug[self.pos((x, y), g, off)] = c

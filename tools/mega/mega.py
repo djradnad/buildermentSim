@@ -55,6 +55,10 @@ def route_some(lay, off, absn, rip, rounds=400, timeout=900):
     x1, y1 = max(p[0] for p in occ) + 4, max(p[1] for p in occ) + 4
     sh = lambda p: (p[0] - x0, p[1] - y0)
     blocked = {sh(p) for p in occ} | {sh(p) for p in keep}
+    clip = getattr(lay, 'clip', None)
+    if clip:
+        blocked |= {sh((x, y)) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)
+                    if not (clip[0] <= x <= clip[2] and clip[1] <= y <= clip[3])}
     pos_ug = dict(lay._ug)
     pos_ug.update({p: c for p, c in keep.items() if c[0] in 'IO'})
     fixed_ug, no_ug = set(), set()
@@ -416,6 +420,7 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
         done = False
         for fix in range(FIXES + 1):                          # route; where it jams, open the core there and go again
             lay = cl.Layout(tm2, nets)
+            lay.clip = (0, 0, W - 1, H - 1)                    # every belt stays inside the marked area
             lay.rounds = int(os.environ.get("BM_ROUNDS", 300))
             res = lay.route(off2, timeout=float(os.environ.get('BM_RTIME', 900)))
             f = getattr(lay, 'fail', None)
