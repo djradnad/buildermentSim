@@ -162,8 +162,18 @@ def sim(rows, ins, item, minutes=60, warmup=40, rate=480, closed=()):
         q1, q2 = (p[0] + dx, p[1] + dy), (p[0] + 2 * dx, p[1] + 2 * dy)
         if q1 in used:
             continue
-        if q2 in used:                                      # a one-tile gap: drain at the exit itself, never bridge the gap
-            sinks.append(list(p))
+        if q2 in used:                                      # a one-tile gap: never bridge it, lead the belt out sideways
+            for dd in ((d + 1) % 4, (d + 3) % 4):
+                ex, ey = DIRS[dd]
+                a, b = (q1[0] + ex, q1[1] + ey), (q1[0] + 2 * ex, q1[1] + 2 * ey)
+                if a not in used and b not in used:
+                    for q, o in ((q1, dd), (a, dd), (b, dd)):
+                        bs.append(dict(id=B, x=q[0], y=q[1], o=o, tier=1, recipe=0))
+                        used.add(q)
+                    sinks.append(list(b))
+                    break
+            else:
+                sinks.append(list(p))
             continue
         for q in (q1, q2):
             bs.append(dict(id=B, x=q[0], y=q[1], o=d, tier=1, recipe=0))
