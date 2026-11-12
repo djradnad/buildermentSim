@@ -9,7 +9,7 @@
 The blocks are placed around a hole for the core. Writes the rows, a picture, the hole size and a game-sim run
 of the whole ring with every typed input lane fed.
 
-    python3 tools/mega/ring.py [hole width] [hole height] [sim minutes]
+    python3 tools/mega/ring.py [width] [height] [sim minutes]
 """
 import json
 import os
@@ -61,25 +61,53 @@ def place(rows, x, y):
     return [[r[0], r[1] - xa + x, r[2] - ya + y] + list(r[3:]) for r in rows]
 
 
-def build(hole_w=140, hole_h=140):
-    steel = jmod.load('yxy4vn')
-    xa, xb, ya, yb = box(steel)
-    stack = flip_v(jmod.load('data/ring/north_stair.json'))    # copper + iron staircase, plan-sized (tools/mega/stair.py)
-    glass = flip_v(jmod.load('data/ring/east_stair.json'))     # sand/glass + tungsten ore staircase
+TR = {0: 1, 1: 0, 2: 3, 3: 2}
+
+
+def transpose(rows):
+    """mirrored on the diagonal (x and y swapped)"""
+    out = []
+    for r in rows:
+        if r[0] in KIND_OF_ID or r[0] == ARM:
+            out.append([r[0], r[2], r[1], TR[r[3]]] + list(r[4:]))
+        else:
+            fp = rc.footprint(r)
+            mx, my = min(c[0] for c in fp), min(c[1] for c in fp)
+            out.append(lanemod.machine_row(r[0], my, mx, TR[r[3]], r[5], r[4] + 1)[:6] + [r[6] if len(r) > 6 else 0])
+    return out
+
+
+def size(rows):
+    b = box(rows)
+    return b[1] - b[0] + 1, b[3] - b[2] + 1
+
+
+def build(W=200, H=200):
+    """john's k3xv5h arrangement in a W x H square, with his yxy4vn steel order:
+    left    steel column (yxy4vn band turned upright: rods on top, ALT steel, std steel + graphite at the bottom corner)
+    bottom  graphite + carbon fiber strip (yxy4vn column, now running right from that corner)
+    right   concrete / frames / planks (srb44l) down to the bottom edge: logs come in from below, stone from the right
+    top     tiled stack (copper, iron); the sand/glass + tungsten stack stands upright in the top right corner"""
+    steel = flip_v(transpose(jmod.load('yxy4vn')))
+    stack = jmod.load('data/ring/north_stair.json')
+    glass = transpose(flip_v(jmod.load('data/ring/east_stair.json')))
     conc = jmod.load('srb44l')
-    # yxy4vn: band rows ya..-28, column x xa..-63; the hole starts right of the column and under the band
-    hx, hy = -62, -27
-    rows = [list(r) for r in steel]
-    rows += place(conc, max(xb + 1, hx + hole_w), ya)
-    gw = box(glass)[1] - box(glass)[0] + 1
-    rows += place(glass, xa, hy + hole_h)
-    rows += place(stack, xa + gw + 1, hy + hole_h)
-    return rows, (hx, hy, hole_w, hole_h)
+    sw, sh = size(steel)
+    kw, kh = size(stack)
+    gw, gh = size(glass)
+    cw, ch = size(conc)
+    band = 24                                              # thickness of the steel column incl. its belts
+    rows = place(steel, 0, H - sh)
+    rows += place(stack, band, 0)
+    rows += place(glass, W - gw, 0)
+    rows += place(conc, W - cw, H - ch)
+    hole = (band, kh, W - cw - band, H - kh - 24)
+    return rows, hole
 
 
 def main():
-    hw = int(sys.argv[1]) if len(sys.argv) > 1 else 140
-    hh = int(sys.argv[2]) if len(sys.argv) > 2 else 140
+    hw = int(sys.argv[1]) if len(sys.argv) > 1 else 200
+    hh = int(sys.argv[2]) if len(sys.argv) > 2 else 200
     minutes = int(sys.argv[3]) if len(sys.argv) > 3 else 0
     rows, hole = build(hw, hh)
     seen = {}
