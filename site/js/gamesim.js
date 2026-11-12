@@ -440,6 +440,11 @@ function segTick(s, M, w) {
   } else if (t instanceof Seg) {
     if (t.free > 239) { t.insert(left, kind); s.remove(left); t.chosen = mergeNext(t); }
   } else if (t.sink) {
+    if (t.perMin !== undefined) {                 // a sink that takes at most perMin (a stand-in consumer)
+      t.acc = Math.min(t.acc + t.perMin / 3600, 2);
+      if (t.acc < 1) return;
+      t.acc -= 1;
+    }
     w.sinkCount(s, kind);
     s.remove(left);
   } else if (w.accept(t.bld, kind)) {
@@ -895,7 +900,11 @@ export class Factory extends World {
       const last = g.nodes[g.nodes.length - 1];
       if (g.target !== null || last.outputs.length) continue;
       // a listed sink also counts when the run ends on an underground exit (a hop that surfaces on the last tile)
-      if (sinkAt.has(key(last.x, last.y))) { g.target = { sink: true }; continue; }
+      if (sinkAt.has(key(last.x, last.y))) {
+        const lim = (opts.sinkRates || {})[last.x + ',' + last.y];     // tools: {"x,y": perMin} caps that sink
+        g.target = lim === undefined ? { sink: true } : { sink: true, perMin: lim, acc: 0 };
+        continue;
+      }
       if (last.kind !== 0 || last.sub !== 0) continue;
       if (opts.openEndsSink || (last.owner && last.owner.added === 'out')) g.target = { sink: true };
     }

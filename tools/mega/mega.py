@@ -300,6 +300,11 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
 
 def diag(path, minutes=60, warmup=120):
     tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
+    W, H = [int(v) for v in os.path.basename(path).split('_')[1].split('x')]
+    fresh = {m.name: m for m in build(W, H)[0]}               # plan data the saved modules may lack
+    for m in tm:
+        if hasattr(fresh.get(m.name), 'port_take'):
+            m.port_take = fresh[m.name].port_take
     lay = cl.Layout(tm, nets)
     lay.off = off
     made, got = lay.sim(res, minutes=float(minutes), warmup=float(warmup))

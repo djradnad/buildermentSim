@@ -243,6 +243,7 @@ class Layout(cc.State):
     def __init__(self, mods, nets):
         """nets: (module index, out key, module index, in key)"""
         self.mods = mods
+        self.raw_nets = list(nets)
         self.n = len(mods)
         self.cells = [sorted(m.cells) for m in mods]
         self.off = [(0, 0)] * self.n
@@ -318,7 +319,7 @@ class Layout(cc.State):
     def sim(self, res, minutes=60, warmup=40, save=None, probes=()):
         rows = self.game_rows(res)
         bs = [dict(id=r[0], x=r[1], y=r[2], o=r[3], tier=r[4] + 1, recipe=r[5] if r[5] > 0 else 0) for r in rows]
-        feeds, sinks, names = [], [], {}
+        feeds, sinks, names, rates = [], [], {}, {}
         for g, m in enumerate(self.mods):
             o = self.off[g]
             if m.feed:
@@ -337,14 +338,17 @@ class Layout(cc.State):
                 b = self.pos(e, ge)
                 sinks.append(list(b))
                 names['%d,%d' % b] = '%s in %d,%d' % ((self.mods[ge].name,) + b)
+                take = getattr(self.mods[ge], 'port_take', {}).get(self.raw_nets[i][3])
+                if take is not None:
+                    rates['%d,%d' % b] = take               # a stand-in takes its plan share, not all that comes
             m = self.mods[gs]
             if getattr(m, 'standin', False):
                 rate = [m.out_rates[k] for k, (t, dd) in m.outs.items() if step(t, dd) == s][0]
                 feeds.append(dict(at=list(self.pos(s, gs)), kind=m.out_item, perMin=rate, buffer=10))
         if save:
-            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, probes=[list(p) for p in probes]), open(save, 'w'))
+            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, sinkRates=rates, probes=[list(p) for p in probes]), open(save, 'w'))
         with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
-            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, probes=[list(p) for p in probes]), f)
+            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, sinkRates=rates, probes=[list(p) for p in probes]), f)
         try:
             rep = json.loads(subprocess.run(['node', 'tools/simlayout.mjs', f.name], capture_output=True, text=True, check=True).stdout)
         finally:

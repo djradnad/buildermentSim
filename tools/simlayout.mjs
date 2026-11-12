@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import { Factory } from '../site/js/gamesim.js';
 const L = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const bs = L.buildings.map(b => ({ tier: 1, recipe: 0, filter: 0, ...b }));
-const w = new Factory(bs, { feeds: L.feeds, sinks: L.sinks });
+const w = new Factory(bs, { feeds: L.feeds, sinks: L.sinks, sinkRates: L.sinkRates });
 const warm = (L.warmup ?? 10) * 3600, H = (L.minutes ?? 30) * 3600;
 for (let i = 0; i < warm; i++) w.tick();
 const made0 = w.machines.map(m => m.made);

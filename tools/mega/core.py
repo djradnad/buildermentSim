@@ -507,6 +507,8 @@ def _build():
                     xt = 1 + 2 * len([1 for t_, d_ in m.ins.values() if d_ == 2])
                     ports.append(((xt, -1), 2))
                 m.ins[('p', k, item)] = ports[k]
+                m.port_take = getattr(m, 'port_take', {})
+                m.port_take[('p', k, item)] = min(pick[2], max(tot, 0))   # the sim's stand-in sink takes this much
                 nets.append((pick[0], pick[1], i, ('p', k, item)))
                 FLOW[(pick[0], pick[1])] = pick[2]
                 tot -= pick[2]
