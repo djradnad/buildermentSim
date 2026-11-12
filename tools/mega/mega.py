@@ -79,6 +79,10 @@ def route_some(lay, off, absn, rip, rounds=400, timeout=900):
                                    join={idx[i]: idx[j] for i, j in lay.joins.items() if i in rip}, open_cost=0.2, timeout=timeout,
                                    rounds=rounds, turn_cost=0.05)
     if not ok:
+        print('   reason: %s %s' % (r2.get('reason'), r2.get('nets')), flush=True)
+        jam = {(t[0] + x0, t[1] + y0): n for t, n in r2.get('use', {}).items() if n > 1}
+        print('   jam tiles: %s' % sorted(jam.items(), key=lambda kv: -kv[1])[:30], flush=True)
+        print('   belts: %s' % [(k, lay.pos(lay.nets[k][0], lay.nets[k][2], off)) for k in order], flush=True)
         return None
     return {k: {(x + x0, y + y0): c for (x, y), c in r2['by_net'][idx[k]].items()} for k in order}
 
@@ -138,6 +142,16 @@ def repair(path, W=230, H=224):
             rip |= family(lay, k)
     print('%d belts to route again' % len(rip), flush=True)
     new = route_some(lay, off, absn, rip)
+    first = set(rip)
+    for rad in (4, 8, 12, 18):                               # walled in by the belts left in place: free the ones
+        if new is not None:                                  # around the ends of the belts to route again
+            break
+        ends = [lay.pos(lay.nets[k][0], lay.nets[k][2], off) for k in first] + [lay.pos(lay.nets[k][3], lay.nets[k][5], off) for k in first]
+        for k, v in absn.items():
+            if k not in rip and any(abs(t[0] - e[0]) + abs(t[1] - e[1]) <= rad for t in v for e in ends):
+                rip |= family(lay, k)
+        print('opening up: %d belts to route again' % len(rip), flush=True)
+        new = route_some(lay, off, absn, rip)
     if new is None:
         print('did not route')
         return
@@ -176,10 +190,16 @@ def tidy(path, passes=2):
 
 
 def arm_tiles(m):
-    """free tiles an arm of the module takes from or drops on: a belt routed there would be robbed (or fed)"""
+    """free tiles an arm of the module takes from or drops on, and free tiles beside a splitter's open sides: a belt
+    routed there would be robbed or fed (a splitter pours onto any belt that passes its side)"""
     occ = set(m.cells)
     out = set()
     for r in m.rows:
+        if r[0] == 3001 and m.name == 'ring':            # core modules were checked alone; their splitter sides are ports
+            for d in range(4):
+                t = step((r[1], r[2]), d)
+                if d != (r[3] + 2) % 4 and t not in occ:
+                    out.add(t)
         if r[0] == 3012:
             for t in (step((r[1], r[2]), r[3]), step((r[1], r[2]), (r[3] + 2) % 4)):
                 if t not in occ:
