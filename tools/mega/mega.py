@@ -22,6 +22,7 @@ import jmod
 from bmsolver.pieces import DIRS, step
 
 
+FIXES = 14
 # channel per belt on a module side, its cap, base channel: roomy first, the shrink step tightens it
 ROOM = [tuple(float(v) if '.' in v else int(v) for v in os.environ['BM_ROOM'].split(','))] if os.environ.get('BM_ROOM') else [(0.8, 8, 5), (0.7, 7, 6), (1.0, 8, 4)]
 
@@ -115,9 +116,28 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
         sx, sy = hx + hw - cw - 3 - min(xs), hy + hh - chh - 3 - min(ys)
         tm2 = list(tm) + [mods[R]]
         off2 = [(o[0] + sx, o[1] + sy) for o in off] + [(0, 0)]
-        lay = cl.Layout(tm2, nets)
-        lay.rounds = int(os.environ.get("BM_ROUNDS", 1000))
-        res = lay.route(off2, timeout=float(os.environ.get('BM_RTIME', 1200)))
+        for fix in range(FIXES + 1):                          # route; where it jams, open the core there and go again
+            lay = cl.Layout(tm2, nets)
+            lay.rounds = int(os.environ.get("BM_ROUNDS", 300))
+            res = lay.route(off2, timeout=float(os.environ.get('BM_RTIME', 900)))
+            f = getattr(lay, 'fail', None)
+            if res is not None or not f or 'use' not in f or fix == FIXES:
+                break
+            cl.fail_picture(lay, off2, out + '_%d_jam.png' % (r + 1))
+            new = core.widen(tm2[:R], off2[:R], f)
+            if new is None:
+                print('    no way to open the core at this jam', flush=True)
+                break
+            dx = max(n[0] - o[0] for n, o in zip(new, off2[:R]))
+            dy = max(n[1] - o[1] for n, o in zip(new, off2[:R]))
+            new = [(n[0] - dx, n[1] - dy) for n in new]      # the core sits in the bottom right corner: grow up and left
+            lx = min(c[0] + o[0] for m, o in zip(tm2[:R], new) for c in m.cells)
+            ly = min(c[1] + o[1] for m, o in zip(tm2[:R], new) for c in m.cells)
+            if lx < hx + 3 or ly < hy + 3:
+                print('    the hole is full, cannot open the core further', flush=True)
+                break
+            print('    %d belts clash, opened the core by %d,%d at the jam (%d)' % (len(f.get('nets', [])), dx, dy, fix + 1), flush=True)
+            off2 = new + [(0, 0)]
         if res is None:
             f = getattr(lay, 'fail', None)
             print(tag + ': did not route (%s)' % ('%d belts still clash' % len(f.get('nets', [])) if f and 'nets' in f else f.get('reason') if f else 'a port is blocked'), flush=True)
