@@ -37,11 +37,12 @@ class Mod:
         self.sinks = []        # more sink tiles (outputs that leave the layout)
 
 
-def recipe_mod(name, recipe, n, groups=1, rows=1, share=False, far=False):
+def recipe_mod(name, recipe, n, groups=1, rows=1, share=False, far=False, per=None):
     rec = RECIPES[recipe]
-    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
+    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007, 'factory_forge': 3009}[rec['building']]
     L = len(rec['in'])
-    per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
+    per = per or [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
+    groups = len(per)
     fam = lanemod.stack([lanemod.build(bid, recipe, m, rows, L, share=share, far=far and rows == 1) for m in per])
     mod = Mod(name, [list(r) for r in fam['rows']])
     mod.rec, mod.groups, mod.per = rec, groups, per
@@ -89,7 +90,7 @@ def shop_mod(name, recipe, n, blocks, serp=1):
 def paired_mod(name, recipe, per, left=(), far=False, chain=None):
     """single-row groups stacked in collector-sharing pairs; left = ingredient indices that get a second arm"""
     rec = RECIPES[recipe]
-    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
+    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007, 'factory_forge': 3009}[rec['building']]
     L = len(rec['in'])
     fam = lanemod.paired(bid, recipe, per, L, left=left, far=far, chain=chain)
     mod = Mod(name, [list(r) for r in fam['rows']])
@@ -322,6 +323,8 @@ class Layout(cc.State):
             o = self.off[g]
             if m.feed:
                 t, item, rate = m.feed
+                feeds.append(dict(at=[t[0] + o[0], t[1] + o[1]], kind=item, perMin=rate, buffer=10))
+            for t, item, rate in getattr(m, 'feeds', ()):
                 feeds.append(dict(at=[t[0] + o[0], t[1] + o[1]], kind=item, perMin=rate, buffer=10))
             if m.sink:
                 sinks.append([m.sink[0] + o[0], m.sink[1] + o[1]])

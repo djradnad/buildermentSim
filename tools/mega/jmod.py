@@ -135,6 +135,20 @@ def assign(rows):
     return ins, machines, item
 
 
+def pours_into(rows, q):
+    """does a belt, hop exit or splitter of the module push items onto the free tile q"""
+    for r in rows:
+        k = KIND_OF_ID.get(r[0])
+        if not k or abs(r[1] - q[0]) + abs(r[2] - q[1]) != 1:
+            continue
+        t = (r[1], r[2])
+        if k in 'BO' and step(t, r[3]) == q:
+            return True
+        if k == 'S' and step(t, opposite(r[3])) != q:
+            return True
+    return False
+
+
 def sim(rows, ins, item, minutes=60, warmup=40, rate=480, closed=()):
     bs = [dict(id=r[0], x=r[1], y=r[2], o=r[3], tier=r[4] + 1, recipe=r[5] if r[5] > 0 else 0) for r in rows]
     used = set()
@@ -148,7 +162,7 @@ def sim(rows, ins, item, minutes=60, warmup=40, rate=480, closed=()):
         at = p
         for n in (1, 2):
             q = (p[0] - n * dx, p[1] - n * dy)
-            if q in used:
+            if q in used or pours_into(rows, q):            # e.g. beside a splitter's open side: the lane comes in by hop there
                 break
             bs.append(dict(id=B, x=q[0], y=q[1], o=d, tier=1, recipe=0))
             used.add(q)

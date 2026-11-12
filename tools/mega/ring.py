@@ -21,7 +21,7 @@ import bppic
 import jmod
 import lanemod
 import reroute_core as rc
-from bmsolver.pieces import KIND_OF_ID
+from bmsolver.pieces import KIND_OF_ID, DIRS
 
 FV = {0: 2, 2: 0, 1: 1, 3: 3}
 ARM = 3012
@@ -128,6 +128,38 @@ def steel_block():
     return rows
 
 
+def graphite_out(units=4):
+    """graphite for the core (1.28 belts): my hop-lane forge units (4 forges, 160/min from a coal and a log belt),
+    upright with the lanes entering at the bottom edge and each collector leaving at the top"""
+    import core
+    import rawmod
+    rec = core.recipes()['Graphite'][0]
+    out = []
+    for k in range(units):
+        rows = [list(r) for r in rawmod.forge(rec['id'], 4, rec)['rows']]
+        for r in rows:
+            if r[0] == 3000 and r[2] == 2:
+                r[3] = 3                                     # collector runs away from the lane entrances
+        out += place(flip_v(transpose(rows)), 3 * k, 0)
+    return out
+
+
+def uranium_out(units=2):
+    """enriched uranium: 4 furnaces per uranium ore belt, fed by arms from the passing belt (rawmod.arms), upright
+    like the graphite units"""
+    import core
+    import rawmod
+    rec = core.recipes()['Enriched_Uranium'][0]
+    out = []
+    for k in range(units):
+        rows = [list(r) for r in rawmod.arms(3006, rec['id'], 4)['rows']]
+        for r in rows:
+            if r[0] == 3000 and r[2] == 3:
+                r[3] = 3
+        out += place(flip_v(transpose(rows)), 5 * k, 0)
+    return out
+
+
 def build(W=200, H=200):
     """john's k3xv5h arrangement in a W x H square, with his yxy4vn steel order:
     left    steel column (yxy4vn band turned upright: rods on top, ALT steel, std steel + graphite at the bottom corner)
@@ -148,6 +180,10 @@ def build(W=200, H=200):
     rows += place(stack, band, 0)
     rows += place(glass, W - gw, 0)
     rows += place(conc, W - cw, H - ch)
+    gr = graphite_out()
+    rows += place(gr, W - cw - size(gr)[0] - 1, H - size(gr)[1])
+    ur = uranium_out()
+    rows += place(ur, W - cw - size(gr)[0] - size(ur)[0] - 3, H - size(ur)[1])
     hole = (band, kh, W - cw - band, H - kh - 24)
     return rows, hole
 
@@ -182,6 +218,37 @@ def main():
             for k, v in s.items():
                 out[k] += v
         print('leaves: ' + ', '.join('%s %.0f/min (%.2f belts)' % (k, v, v / 480) for k, v in sorted(out.items())))
+        raw = set(item.values())
+        ex = []
+        for p, d in jmod.OUTS:
+            q1 = (p[0] + DIRS[d][0], p[1] + DIRS[d][1])
+            cand = [(p[0] + n * DIRS[d][0], p[1] + n * DIRS[d][1]) for n in (2, 1, 0)]
+            cand += [(q1[0] + 2 * DIRS[dd][0], q1[1] + 2 * DIRS[dd][1]) for dd in ((d + 1) % 4, (d + 3) % 4)]   # led out sideways
+            for c in cand:
+                got = rep['sinks'].get('%d,%d' % c)
+                if got is not None:
+                    for k, v in got.items():
+                        if k not in raw and v > 0.5:
+                            ex.append([p[0], p[1], d, k, round(v, 1)])
+                    break
+        fed = collections.defaultdict(float)
+        for f in rep['fedRates']:
+            fed[f['kind']] += f['perMin']
+        print('taken: ' + ', '.join('%s %.2f belts' % (k, v / 480) for k, v in sorted(fed.items())))
+        by = collections.defaultdict(lambda: [0, 0.0])
+        for m in rep['machines']:
+            r = rec.get(m['recipe'])
+            if r:
+                n = r['out'][0]['item'] + (' ALT' if r.get('alt') else '')
+                by[n][0] += 1
+                by[n][1] += m['perMin'] * r['out'][0]['amount']
+        for n, (c, v) in sorted(by.items()):
+            print('   %-18s %4d machines make %8.1f/min' % (n, c, v))
+        json.dump({'rows': rows, 'hole': hole, 'exits': ex,
+                   'inputs': [[p[0], p[1], d, item[i]] for i, (p, d, k) in enumerate(ins) if item.get(i)]},
+                  open(os.path.expanduser('~/data/ring_typed_%dx%d.json' % (hw, hh)), 'w'))
+        for e in sorted(ex, key=lambda e: (e[3], e[0], e[1])):
+            print('   exit', e)
 
 
 if __name__ == '__main__':
