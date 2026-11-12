@@ -159,16 +159,16 @@ def sim(rows, ins, item, minutes=60, warmup=40, rate=480, closed=()):
         if (p, d) in closed:
             continue
         dx, dy = DIRS[d]
-        at = None
-        for n in (1, 2):
-            q = (p[0] + n * dx, p[1] + n * dy)
-            if q in used:
-                break
+        q1, q2 = (p[0] + dx, p[1] + dy), (p[0] + 2 * dx, p[1] + 2 * dy)
+        if q1 in used:
+            continue
+        if q2 in used:                                      # a one-tile gap: drain at the exit itself, never bridge the gap
+            sinks.append(list(p))
+            continue
+        for q in (q1, q2):
             bs.append(dict(id=B, x=q[0], y=q[1], o=d, tier=1, recipe=0))
             used.add(q)
-            at = q
-        if at:
-            sinks.append(list(at))
+        sinks.append(list(q2))
     with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
         json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks), f)
     return json.loads(subprocess.run(['node', 'tools/simlayout.mjs', f.name], capture_output=True, text=True, check=True).stdout)
@@ -183,10 +183,10 @@ def report(code, swap=None, minutes=60, warmup=40):
     closed = set()                                          # exits that only let unused input through: dead ends
     for p, d in OUTS:
         dx, dy = DIRS[d]
-        for n in (2, 1):
+        for n in (2, 1, 0):
             got = rep['sinks'].get('%d,%d' % (p[0] + n * dx, p[1] + n * dy))
             if got is not None:
-                if not got or all(k in raw for k in got):
+                if got and all(k in raw for k in got):
                     closed.add((p, d))
                 break
     rep = sim(rows, ins, item, minutes, warmup, closed=closed)
