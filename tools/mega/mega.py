@@ -127,6 +127,10 @@ def repair(path, W=230, H=224):
     ox, oy = res['origin']
     absn = {k: {(x + ox, y + oy): c for (x, y), c in v.items()} for k, v in res['by_net'].items()}
     tm[-1].cells.update(dead)
+    for m, o in zip(tm, off):
+        at = arm_tiles(m)
+        m.cells.update(at)
+        dead |= {(t[0] + o[0], t[1] + o[1]) for t in at}
     lay = cl.Layout(tm, nets)
     rip = set()
     for k, v in absn.items():
@@ -169,6 +173,18 @@ def tidy(path, passes=2):
         save(lay, tm, nets, off, absn, res, out)
         if after > 0.98 * before:
             break
+
+
+def arm_tiles(m):
+    """free tiles an arm of the module takes from or drops on: a belt routed there would be robbed (or fed)"""
+    occ = set(m.cells)
+    out = set()
+    for r in m.rows:
+        if r[0] == 3012:
+            for t in (step((r[1], r[2]), r[3]), step((r[1], r[2]), (r[3] + 2) % 4)):
+                if t not in occ:
+                    out.add(t)
+    return out
 
 
 def reroute(path, W=230, H=224):
@@ -249,6 +265,7 @@ def make_ring(W, H):
     m.feeds = feeds
     m.need, m.out_rates, m.ring_streams = {}, {}, []
     m.cells.update(dead_ends(T))
+    m.cells.update(arm_tiles(m))
     for k, (x, y, d, item, rate) in enumerate(T['exits']):
         if step((x, y), d) in m.cells:
             print('ring exit %s %s is blocked' % ((x, y), item))
@@ -264,6 +281,8 @@ def build(W, H):
     mods, nets, open_in, spare = core.build()
     R = len(mods) - 1
     assert mods[R] is ring
+    for m in mods[:R]:
+        m.cells.update(arm_tiles(m))
     return mods, nets, open_in, spare, hole
 
 
@@ -361,8 +380,23 @@ def diag(path, minutes=60, warmup=120):
             m.port_take = fresh[m.name].port_take
     lay = cl.Layout(tm, nets)
     lay.off = off
-    made, got = lay.sim(res, minutes=float(minutes), warmup=float(warmup))
+    ends = [lay.pos(e, ge) for (s_, d, gs, e, de, ge) in lay.nets]
+    made, got = lay.sim(res, minutes=float(minutes), warmup=float(warmup), probes=ends)
     rep = lay.rep
+    owner = {}
+    for g, m in enumerate(tm):
+        for c in m.cells:
+            owner[(c[0] + off[g][0], c[1] + off[g][1])] = m.name
+    for mx in rep.get('mixed', [])[:60]:                     # a belt run holding two kinds: where a lane got a foreign item
+        print('mixed belt %s..%s (%s): %s' % (tuple(mx['from']), tuple(mx['to']), owner.get(tuple(mx['from']), 'route'), mx['kinds']))
+    print('%d belt runs hold more than one kind' % len(rep.get('mixed', [])))
+    for i, (a_, ka, b_, kb) in enumerate(nets):
+        if b_ is None:
+            continue
+        need = core.FLOW.get((a_, ka), tm[b_].need.get(kb, 0) if hasattr(tm[b_], 'need') else 0)
+        flow = rep['probes'][i]
+        if flow is not None and need and flow < 0.9 * need:
+            print('belt %-22s %-14s -> %-22s %-26s carries %6.1f of %6.1f, holds %s' % (tm[a_].name, ka, tm[b_].name, kb, flow, need, rep['probeKinds'][i]))
     json.dump(rep, open(os.path.expanduser(path) + '.rep.json', 'w'))
     low = []
     for rn, (rec, crafts) in sorted(core.recipes().items()):
