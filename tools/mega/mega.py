@@ -35,42 +35,27 @@ def dead_ends(T):
     return {step(p, d) for p, d in jmod.OUTS if (p[0], p[1], d) not in typed}
 
 
-def repair(path, W=230, H=224):
-    """keep a routed layout and route again only the belts that run in front of a ring belt end that is not an exit
-    (everything else stays where it is and is an obstacle)"""
+def route_some(lay, off, absn, rip, rounds=400, timeout=900):
+    """route the belts in rip again with every other belt (absn: net -> {tile: piece}, absolute) left in place as an
+    obstacle -> {net: {tile: piece}} or None"""
     from bmsolver import negotiate
-    from bmsolver.pieces import UG_REACH, KIND_OF_ID
-    tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
-    T = json.load(open(os.path.expanduser('~/data/ring_typed_%dx%d.json' % (int(W), int(H)))))
-    dead = dead_ends(T)
-    ox, oy = res['origin']
-    absn = {k: {(x + ox, y + oy): c for (x, y), c in v.items()} for k, v in res['by_net'].items()}
-    rip = {k for k, v in absn.items() if any(t in dead for t in v)}
-    lay = cl.Layout(tm, nets)
-    grew = True
-    while grew:                                             # belts that join a ripped belt, and the belt a ripped one joins
-        grew = False
-        for i, j in lay.joins.items():
-            if (i in rip) != (j in rip):
-                rip |= {i, j}
-                grew = True
-    print('%d belts pass a dead lane end, %d to route again' % (len({k for k, v in absn.items() if any(t in dead for t in v)}), len(rip)), flush=True)
-    tm[-1].cells.update(dead)
-    lay = cl.Layout(tm, nets)
-    occ = {}
-    for g in range(lay.n):
-        for c in lay.cells[g]:
-            occ[lay.pos(c, g, off)] = g
+    from bmsolver.pieces import UG_REACH
+    if not hasattr(lay, '_occ'):
+        lay._occ = {}
+        for g in range(lay.n):
+            for c in lay.cells[g]:
+                lay._occ[lay.pos(c, g, off)] = g
+        lay._ug = {lay.pos((x, y), g, off): c for (x, y, g), c in lay.ug}
+    occ = lay._occ
     keep = {}
     for k, v in absn.items():
         if k not in rip:
             keep.update(v)
-    pts = list(occ) + list(keep)
-    x0, y0 = min(p[0] for p in pts) - 2, min(p[1] for p in pts) - 2
-    x1, y1 = max(p[0] for p in pts) + 2, max(p[1] for p in pts) + 2
+    x0, y0 = min(p[0] for p in occ) - 4, min(p[1] for p in occ) - 4
+    x1, y1 = max(p[0] for p in occ) + 4, max(p[1] for p in occ) + 4
     sh = lambda p: (p[0] - x0, p[1] - y0)
     blocked = {sh(p) for p in occ} | {sh(p) for p in keep}
-    pos_ug = {lay.pos((x, y), g, off): c for (x, y, g), c in lay.ug}
+    pos_ug = dict(lay._ug)
     pos_ug.update({p: c for p, c in keep.items() if c[0] in 'IO'})
     fixed_ug, no_ug = set(), set()
     for p, c in pos_ug.items():
@@ -91,13 +76,30 @@ def repair(path, W=230, H=224):
         if k not in lay.joins:
             sinks.append((sh(lay.pos(e, ge, off)), de, idx[k]))
     ok, r2, secs = negotiate.route(x1 - x0 + 1, y1 - y0 + 1, len(order), blocked, sources, sinks, fixed_ug=fixed_ug, no_ug=no_ug,
-                                   join={idx[i]: idx[j] for i, j in lay.joins.items() if i in rip}, open_cost=0.2, timeout=900, rounds=400,
-                                   turn_cost=0.05)
+                                   join={idx[i]: idx[j] for i, j in lay.joins.items() if i in rip}, open_cost=0.2, timeout=timeout,
+                                   rounds=rounds, turn_cost=0.05)
     if not ok:
-        print('did not route: %s' % (r2.get('reason') or '%d belts clash' % len(r2.get('nets', []))))
-        return
-    for k in order:
-        absn[k] = {(x + x0, y + y0): c for (x, y), c in r2['by_net'][idx[k]].items()}
+        return None
+    return {k: {(x + x0, y + y0): c for (x, y), c in r2['by_net'][idx[k]].items()} for k in order}
+
+
+def family(lay, k):
+    """a belt with the belts that join it and the belt it joins"""
+    rip = {k}
+    grew = True
+    while grew:
+        grew = False
+        for i, j in lay.joins.items():
+            if (i in rip) != (j in rip):
+                rip |= {i, j}
+                grew = True
+    return rip
+
+
+def save(lay, tm, nets, off, absn, old, out):
+    xs = [p[0] for v in absn.values() for p in v] + [p[0] for p in lay._occ]
+    ys = [p[1] for v in absn.values() for p in v] + [p[1] for p in lay._occ]
+    x0, y0 = min(xs) - 2, min(ys) - 2
     tiles = {}
     for k, v in absn.items():
         for p, c in v.items():
@@ -105,16 +107,68 @@ def repair(path, W=230, H=224):
             assert tiles.get(q, c) == c, ('two belts on one tile', p)   # a joining belt shares its last tile
             tiles[q] = c
     res = dict(tiles=tiles, by_net={k: {(p[0] - x0, p[1] - y0): c for p, c in v.items()} for k, v in absn.items()},
-               pieces=len(tiles), origin=(x0, y0), sinks=res['sinks'], rounds=res['rounds'], placed=[])
+               pieces=len(tiles), origin=(x0, y0), sinks=old['sinks'], rounds=old['rounds'], placed=[])
     lay.off = off
     bad = lay.check(res)
-    out = os.path.expanduser(path)[:-4] + 'f'
     PW, PH = cl.picture(lay, res, out + '.png')
     pickle.dump((tm, nets, off, res), open(out + '.pkl', 'wb'))
     json.dump({'rows': lay.game_rows(res)}, open(out + '.json', 'w'))
-    print('ROUTED %dx%d with %d route pieces, %d border problems -> %s.pkl' % (PW, PH, len(tiles), len(bad), out))
+    print('saved %dx%d with %d route pieces, %d border problems -> %s.pkl' % (PW, PH, len(tiles), len(bad), out), flush=True)
     for b_ in bad[:20]:
         print('   check: ' + b_)
+
+
+def repair(path, W=230, H=224):
+    """keep a routed layout and route again only the belts that run in front of a ring belt end that is not an exit
+    (everything else stays where it is and is an obstacle)"""
+    tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
+    T = json.load(open(os.path.expanduser('~/data/ring_typed_%dx%d.json' % (int(W), int(H)))))
+    dead = dead_ends(T)
+    ox, oy = res['origin']
+    absn = {k: {(x + ox, y + oy): c for (x, y), c in v.items()} for k, v in res['by_net'].items()}
+    tm[-1].cells.update(dead)
+    lay = cl.Layout(tm, nets)
+    rip = set()
+    for k, v in absn.items():
+        if any(t in dead for t in v):
+            rip |= family(lay, k)
+    print('%d belts to route again' % len(rip), flush=True)
+    new = route_some(lay, off, absn, rip)
+    if new is None:
+        print('did not route')
+        return
+    absn.update(new)
+    save(lay, tm, nets, off, absn, res, os.path.expanduser(path)[:-4] + 'f')
+
+
+def tidy(path, passes=2):
+    """shorten a routed layout: every belt (with the belts joined to it) is routed again on its own, all others in
+    place; kept when it got shorter. The negotiated routing leaves long detours from its crowded rounds."""
+    tm, nets, off, res = pickle.load(open(os.path.expanduser(path), 'rb'))
+    ox, oy = res['origin']
+    absn = {k: {(x + ox, y + oy): c for (x, y), c in v.items()} for k, v in res['by_net'].items()}
+    lay = cl.Layout(tm, nets)
+    out = os.path.expanduser(path)[:-4] + 't'
+    t0 = time.time()
+    for ps in range(int(passes)):
+        done, won = set(), 0
+        before = len({p for v in absn.values() for p in v})
+        for k in sorted(absn, key=lambda k: -len(absn[k])):
+            if k in done:
+                continue
+            rip = family(lay, k)
+            done |= rip
+            new = route_some(lay, off, absn, rip, rounds=60, timeout=60)
+            if new is None:
+                continue
+            if sum(len(v) for v in new.values()) < sum(len(absn[i]) for i in rip):
+                absn.update(new)
+                won += 1
+        after = len({p for v in absn.values() for p in v})
+        print('pass %d (%.0f min): %d belts shortened, route pieces %d -> %d' % (ps + 1, (time.time() - t0) / 60, won, before, after), flush=True)
+        save(lay, tm, nets, off, absn, res, out)
+        if after > 0.98 * before:
+            break
 
 
 def reroute(path, W=230, H=224):
@@ -331,7 +385,9 @@ def diag(path, minutes=60, warmup=120):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == 'repair':
+    if len(sys.argv) > 1 and sys.argv[1] == 'tidy':
+        tidy(*sys.argv[2:4])
+    elif len(sys.argv) > 1 and sys.argv[1] == 'repair':
         repair(*sys.argv[2:5])
     elif len(sys.argv) > 1 and sys.argv[1] == 'reroute':
         reroute(*sys.argv[2:5])
