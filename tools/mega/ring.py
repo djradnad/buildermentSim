@@ -142,8 +142,9 @@ def build(W=200, H=200):
     kw, kh = size(stack)
     gw, gh = size(glass)
     cw, ch = size(conc)
-    band = 24                                              # thickness of the steel column incl. its belts
     rows = place(steel, 0, H - sh)
+    # the stack starts right of whatever part of the steel column reaches up into its rows
+    band = 1 + max([c[0] for r in rows for c in cells_of(r) if c[1] < kh] or [23])
     rows += place(stack, band, 0)
     rows += place(glass, W - gw, 0)
     rows += place(conc, W - cw, H - ch)
