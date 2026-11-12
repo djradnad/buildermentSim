@@ -82,13 +82,25 @@ def size(rows):
     return b[1] - b[0] + 1, b[3] - b[2] + 1
 
 
+def steel_block():
+    """john's yxy4vn sized to the plan by repeating his own periods: 3 more rod periods (5 columns each: forge
+    pairs with a rod workshop column), 1 more graphite / carbon fiber period (5 rows), and the gap between the
+    two rod belts moved so neither carries more than a belt (5 rod columns left, 6 right)"""
+    rows = jmod.load('yxy4vn')
+    rows = insert_period(rows, 63, 5, 3)
+    rows = insert_period(rows, -22, 5, 1, axis=1)
+    rows = [r for r in rows if not (r[0] == 3000 and r[1] == 70 and r[2] == -27)]
+    rows.append([3000, 55, -27, 1, 0, -1, 0])
+    return rows
+
+
 def build(W=200, H=200):
     """john's k3xv5h arrangement in a W x H square, with his yxy4vn steel order:
     left    steel column (yxy4vn band turned upright: rods on top, ALT steel, std steel + graphite at the bottom corner)
     bottom  graphite + carbon fiber strip (yxy4vn column, now running right from that corner)
     right   concrete / frames / planks (srb44l) down to the bottom edge: logs come in from below, stone from the right
     top     tiled stack (copper, iron); the sand/glass + tungsten stack stands upright in the top right corner"""
-    steel = flip_v(transpose(jmod.load('yxy4vn')))
+    steel = flip_v(transpose(steel_block()))
     stack = jmod.load('data/ring/north_stair.json')
     glass = transpose(flip_v(jmod.load('data/ring/east_stair.json')))
     conc = jmod.load('srb44l')
@@ -139,3 +151,37 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+def insert_period(rows, at, period, times=1, axis=0):
+    """repeat the slice [at, at + period) along x (axis 0) or y (axis 1) `times` more times.
+    The slice must equal the next one tile for tile and no building may straddle its borders."""
+    ax = 1 + axis
+
+    def sig(lo):
+        out = set()
+        for r in rows:
+            cs = cells_of(r)
+            if all(lo <= c[axis] < lo + period for c in cs):
+                out.add((r[0], r[ax] - lo, r[3 - ax if False else (2 if axis == 0 else 1)], r[3], r[4], r[5]))
+            elif any(lo <= c[axis] < lo + period for c in cs):
+                raise ValueError('building straddles the slice at %d: %s' % (lo, r))
+        return out
+    a, b = sig(at), sig(at + period)
+    if a != b:
+        raise ValueError('slices differ at %d (+%d): %d tiles' % (at, period, len(a ^ b)))
+    out = []
+    for r in rows:
+        lo = min(c[axis] for c in cells_of(r))
+        if lo >= at + period:
+            r = list(r)
+            r[ax] += period * times
+            out.append(r)
+        else:
+            out.append(list(r))
+            if lo >= at:
+                for k in range(1, times + 1):
+                    c = list(r)
+                    c[ax] += period * k
+                    out.append(c)
+    return out
