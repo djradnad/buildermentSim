@@ -25,7 +25,7 @@ STANDIN = {2035: (33, 8), 2041: (14, 13)}     # recipe -> (w, h)
 EXTRA = ('Tungsten_Carbide_ALT', 'Coupler', 'Condenser_Lens')   # ring recipes john's ring has no place for: placed with the core
 JOHN = {'Condenser_Lens': ('nbyv2n', 160.0)}   # his module and what one copy makes per minute
 GLUE_IN_DUPLICATOR = True
-JOIN_MAX = 449                  # two belts joined into one carry about this much (seen: 474 planned, 449 arrived)
+JOIN_MAX = 480                  # joined belts: evenly spaced streams merge without loss up to a full belt (sim: 320+160, 288+192)
 RING = None                     # mega.py: the ring as one fixed module whose exit belts are the streams of the ring items       # john's duplicator build makes its own particle glue from matter compressors
 
 
@@ -316,6 +316,14 @@ def plan_ring(item, mine, belts, standins, flows_on):
             if pairs:                                       # two tails that together still fit one belt
                 tot, ia, ib = min(pairs)
                 use = [live[ia], live[ib]]
+            else:                                           # three
+                tri = [(a['rem'] + b['rem'] + c['rem'], ia, ib, ic) for ia, a in enumerate(live) for ib, b in enumerate(live)
+                       for ic, c in enumerate(live) if ia < ib < ic and need - 0.01 <= a['rem'] + b['rem'] + c['rem'] <= JOIN_MAX
+                       and (a['term'] is not None) + (b['term'] is not None) + (c['term'] is not None) <= 1]
+                if tri:
+                    tot, ia, ib, ic = min(tri)
+                    use = [live[ia], live[ib], live[ic]]
+                    pairs = tri
             for c in sorted(chains, key=lambda c: -c['rem']) if not pairs else ():
                 if c['rem'] < 0.5 or (c['term'] and termed):
                     continue

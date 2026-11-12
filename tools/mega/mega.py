@@ -86,11 +86,16 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
     print('hole %dx%d at (%d, %d); %d core modules, %d belts (%d from the ring)' % (hw, hh, hx, hy, R, len(nets), len(nets) - len(cnets)), flush=True)
     out = os.path.expanduser('~/data/mega_%dx%d_s%d' % (W, H, seed0))
     rnd = random.Random(7 + seed0)
+    fixed = []
+    for a, ka, b, kb in nets:
+        if a == R and b is not None:
+            t, d = mods[R].outs[ka]
+            fixed.append((b, kb, (t[0] - hx, t[1] - hy)))
     t0 = time.time()
     for r in range(tries):
         per_port, cap, ch = rnd.choice([(0.5, 5, 3), (0.5, 4, 3), (0.34, 4, 3), (0.5, 6, 3), (0.5, 4, 2)])
         width = hw - rnd.randrange(8, 30)
-        tm, off, top, wl = frame.place(mods[:R], cnets, fed, ch=ch, per_port=per_port, cap=cap, width=width, seconds=float(seconds), seed=seed0 + r + 1,
+        tm, off, top, wl = frame.place(mods[:R], cnets, fed, ch=ch, per_port=per_port, cap=cap, width=width, seconds=float(seconds), seed=seed0 + r + 1, fixed=fixed, hole=(hw, hh),
                                        log=lambda s: print('  ' + s, flush=True))
         if tm is None:
             print('try %d: width %d does not hold the frame modules' % (r + 1, width), flush=True)
