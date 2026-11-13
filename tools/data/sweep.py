@@ -125,10 +125,21 @@ def main():
                 if not cs:
                     print('%d:%d %s done' % (n, n, mode), flush=True)
                     break
-                W, H = cs[0]
-                rec = run_box(n, W, H, sym, a)
-                if rec['status'] not in ('FEASIBLE', 'INFEASIBLE'):
-                    skip.add((W, H))
+                if not sym:
+                    batch = [cs[0]]
+                    recs = [run_box(n, *cs[0], sym, a)]
+                else:
+                    # a symmetric box has fixed ports, so one cube: run several boxes side by side instead
+                    import concurrent.futures as cf
+                    import copy
+                    b = copy.copy(a)
+                    b.procs = 1
+                    batch = cs[:a.procs]
+                    with cf.ProcessPoolExecutor(len(batch)) as ex:
+                        recs = list(ex.map(run_box, *zip(*[(n, W, H, sym, b) for W, H in batch])))
+                for (W, H), rec in zip(batch, recs):
+                    if rec['status'] not in ('FEASIBLE', 'INFEASIBLE'):
+                        skip.add((W, H))
 
 
 if __name__ == '__main__':
