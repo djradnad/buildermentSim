@@ -55,6 +55,7 @@ def box(name, f, w, h, timeout, done):
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0] in ('OPTIMAL', 'FEASIBLE')
     win = f.window(w, h)
+    win.sym_break = os.environ.get('BM_SYM', '1') == '1'
     t0 = time.time()
     r = model.solve(win, timeout=timeout, workers=4)
     ok = ''

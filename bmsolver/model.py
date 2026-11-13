@@ -286,6 +286,26 @@ class Model:
             lits = [m.NewBoolVar('opt') for _ in group]
             m.AddExactlyOne(lits)
             self.option_lits.append(lits)
+        if getattr(win, 'sym_break', False) and win.port_options:
+            # Free ports on a bare window: (1) groups with the same options are interchangeable, so their choices are
+            # ordered; (2) the window mirrored left-right or top-bottom is again a window of the same problem, so
+            # one port of the first such family may be asked into the top left quarter. Both hold together: mirror
+            # first, then number the family by position.
+            gs = win.port_options
+            fam = [0]
+            while fam[-1] + 1 < len(gs) and gs[fam[-1] + 1] == gs[0]:
+                fam.append(fam[-1] + 1)
+            g = 0
+            while g + 1 < len(gs):
+                if gs[g] == gs[g + 1]:
+                    la, lb = self.option_lits[g], self.option_lits[g + 1]
+                    for j in range(len(la)):
+                        m.AddBoolOr([la[j].Not()] + lb[j + 1:])       # the next one sits strictly later
+                g += 1
+            quarter = [self.option_lits[g_][j] for g_ in fam for j, opt in enumerate(gs[g_])
+                       if all(2 * t[0] <= win.W - 1 and 2 * t[1] <= win.H - 1 for (t, d_) in opt)]
+            m.AddBoolOr(quarter)
+        for lits, group in zip(self.option_lits, win.port_options):
             for lit, opt in zip(lits, group):
                 for key, (kind, vec) in opt.items():
                     optional.setdefault(key, []).append((lit, kind, vec))
