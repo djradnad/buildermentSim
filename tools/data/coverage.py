@@ -61,6 +61,11 @@ def load():
                 box[n, sym][W, H].add('F')
             elif r['status'] == 'UNKNOWN':
                 box[n, sym][W, H].add('?')
+    cat = os.path.join(os.path.dirname(__file__), '..', '..', 'site', 'catalogue.json')
+    if os.path.exists(cat):                     # every N:N on the site counts as found (checked there)
+        for d in json.load(open(cat))['designs']:
+            if d.get('kind') != 'split' and d['n'] == d['m']:
+                box[d['n'], d.get('mode') == 'sym'][d['W'], d['H']].add('F')
     for n, W, H, sym in KNOWN_FOUND:
         box[n, sym][W, H].add('F')
     return box
