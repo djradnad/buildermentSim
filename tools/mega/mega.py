@@ -278,6 +278,7 @@ def uncross(tm, nets, off):
 
 
 FINISH = int(os.environ.get('BM_FINISH', 16))
+CLIP = int(os.environ.get('BM_CLIP', 4))
 
 
 def finish(lay, tm, nets, off, f, out):
@@ -420,7 +421,7 @@ def main(W=230, H=224, seconds=60, tries=4, seed0=0):
         done = False
         for fix in range(FIXES + 1):                          # route; where it jams, open the core there and go again
             lay = cl.Layout(tm2, nets)
-            lay.clip = (0, 0, W - 1, H - 1)                    # every belt stays inside the marked area
+            lay.clip = (-CLIP, -CLIP, W - 1 + CLIP, H - 1 + CLIP)   # belts may leave the marked area by this much (machines never do)
             lay.rounds = int(os.environ.get("BM_ROUNDS", 300))
             res = lay.route(off2, timeout=float(os.environ.get('BM_RTIME', 900)))
             f = getattr(lay, 'fail', None)
