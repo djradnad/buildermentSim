@@ -142,7 +142,7 @@ def make(rn, rec, crafts, far=False):
     if rn == 'Coupler':
         return arms_mod(rn, rec, crafts)
     rate1 = 60.0 / rec['seconds'] * 3
-    n = math.ceil(crafts / rate1 - 1e-6)
+    n = math.ceil(crafts / rate1 / USE.get(rn, MAX_USE) - 1e-6)           # a module that must run 99% of the time never catches up
     outa = rec['out'][0]['amount']
     heavy = max(i['amount'] for i in rec['in']) * rate1
     if rec['id'] in STANDIN:
@@ -287,6 +287,8 @@ FLOW = {}                       # (module, out key) -> planned items per minute 
 
 
 DIRECT = os.environ.get('BM_DIRECT', '1') == '1'   # ring sources right at border-facing entrances
+MAX_USE = float(os.environ.get('BM_MAXUSE', 0.965))   # most a core module's machines may be busy at plan
+USE = {'Logic_Circuit_ALT': 1.0}    # 54 machines change its collectors to 257/min each and two of them overfill a Computer lane
 TIGHT = float(os.environ.get('BM_TIGHT', 0.98))   # a module using more than this share of its machines has no room to catch up
 THIN_MARGIN = float(os.environ.get('BM_THIN', 1.0))   # leftover below this many arm takes counts as thin
 TWO_ARM = set()                 # (recipe name, item): lanes that get a second arm per machine so a thin leftover can pass on

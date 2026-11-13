@@ -511,6 +511,30 @@ def diag(path, minutes=60, warmup=120):
     print('VERDICT %s: %s' % (os.path.basename(path), 'every recipe at plan' if not low else 'under plan: ' + ', '.join(low)))
 
 
+def why(path):
+    """from the saved sim report of diag: for every recipe under plan, the share of time its machines stand with a
+    full output and the share they wait for each ingredient. A recipe that waits for X while X's makers stand with
+    full outputs points at the belts between them; a recipe that only waits for a raw item is a real shortage."""
+    rep = json.load(open(os.path.expanduser(path) + '.rep.json'))
+    by = collections.defaultdict(list)
+    for mm in rep['machines']:
+        by[mm['recipe']].append(mm)
+    for rn, (rec, crafts) in sorted(core.recipes().items()):
+        ms = by.get(rec['id'])
+        if not ms:
+            continue
+        got_ = sum(m['perMin'] for m in ms)
+        want = crafts * rec['out'][0]['amount']
+        if got_ >= 0.997 * want:
+            continue
+        tot = collections.Counter()
+        for m in ms:
+            for k, v in m['idle'].items():
+                tot[k] += v / len(ms)
+        print('%-24s %5.1f%% of plan (%d machines, need %.1f%% busy): %s' % (rn, 100 * got_ / want, len(ms), 100 * want / max(got_, 1e-9) * (1 - sum(tot.values())) if False else 100 * want / (len(ms) * max(m['perMin'] for m in ms) + 1e-9),
+                                                             ', '.join('%s %.0f%%' % ('full output' if k == 'output' else 'waits for ' + k, 100 * v) for k, v in tot.most_common(5))))
+
+
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'tidy':
         tidy(*sys.argv[2:4])
@@ -518,6 +542,8 @@ if __name__ == '__main__':
         repair(*sys.argv[2:5])
     elif len(sys.argv) > 1 and sys.argv[1] == 'reroute':
         reroute(*sys.argv[2:5])
+    elif len(sys.argv) > 1 and sys.argv[1] == 'why':
+        why(sys.argv[2])
     elif len(sys.argv) > 1 and sys.argv[1] == 'diag':
         diag(*sys.argv[2:5])
     else:
