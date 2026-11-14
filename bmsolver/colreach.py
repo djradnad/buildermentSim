@@ -124,7 +124,8 @@ class Problem:
             if hw or he is not None or (e not in (NOACC, ACC0)):
                 return False
             if y in self.out_rows:
-                if w != ('W', self.out_vec):
+                want = self.out_vec[self.out_rows.index(y)] if isinstance(self.out_vec, list) else self.out_vec
+                if w != ('W', want):
                     return False
             elif w is not None and w[0] == 'W':
                 return False
@@ -463,7 +464,7 @@ def search(P, max_w=200, log=print, procs=1, ckpt=None, compact=False):
     # each mirror pair of borders is kept; compact runs only, since the layout links would need flipping too)
     sym = compact and sorted(H - 1 - y for y in P.in_rows) == sorted(P.in_rows) and \
         [H - 1 - y for y in P.in_rows] == P.in_rows[::-1] and sorted(H - 1 - y for y in P.out_rows) == sorted(P.out_rows) \
-        and P.out_vec == tuple(reversed(P.out_vec))
+        and not isinstance(P.out_vec, list) and P.out_vec == tuple(reversed(P.out_vec))
     front = [s0]
     t0 = time.time()
     w_lo = 1
