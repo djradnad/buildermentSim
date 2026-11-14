@@ -63,6 +63,24 @@ def edge_splitters(layout):
     return n
 
 
+def false_outputs(layout):
+    """Splitter faces that point out of the layout's output edge (out of the box, the way the outputs leave) where
+    there is no output: in game they read as more outputs (john 2026-11-14, 4:4 8x8 0rl6hp has 2, his 9x8 ngb3j1
+    none). Splitters facing out of the other edges don't count here (they are in edge_splitters)."""
+    g, pe = layout.design.tiles, port_edges(layout)
+    W, H = layout.design.size
+    out_dirs = {d for p, d in layout.outputs}
+    n = 0
+    for p, c in g.items():
+        if c[0] != 'S':
+            continue
+        for d in push_dirs(c):
+            x, y = step(p, d)
+            if d in out_dirs and not (0 <= x < W and 0 <= y < H) and (p, d) not in pe:
+                n += 1
+    return n
+
+
 def gold(design):
     return sum(GOLD[c[0]] for c in design.tiles.values())
 
