@@ -53,7 +53,7 @@ def tidy(g, n, W, H):
             if changed:
                 break
         if not changed:
-            g2 = pair_pass(g, n, W, H)
+            g2 = pair_pass(g, n, W, H) or chain_pass(g, n, W, H)
             if g2 is not None:
                 g, changed = g2, True
     return g
@@ -75,6 +75,36 @@ def pair_pass(g, n, W, H, reach=4):
                     g2 = dict(g); g2[p] = 'B' + a; g2[q] = 'B' + b
                     if ok(g2, n, W, H):
                         return g2
+    return None
+
+
+def chain_pass(g, n, W, H, cap=10):
+    """Chains of touching splitters where none splits (each only shields its neighbour from spill): any one alone
+    fails, so swap whole connected subsets (largest first) to belts in their own direction."""
+    from itertools import combinations
+    sp = {p for p, c in g.items() if c[0] == 'S'}
+    seen = set()
+    for p0 in sorted(sp):
+        if p0 in seen:
+            continue
+        comp, st = [], [p0]
+        seen.add(p0)
+        while st:
+            p = st.pop(); comp.append(p)
+            for dx, dy in DIRS.values():
+                q = (p[0] + dx, p[1] + dy)
+                if q in sp and q not in seen:
+                    seen.add(q); st.append(q)
+        if len(comp) < 3:
+            continue
+        comp = sorted(comp)[:cap]
+        for k in range(len(comp), 2, -1):
+            for sub in combinations(comp, k):
+                g2 = dict(g)
+                for p in sub:
+                    g2[p] = 'B' + g[p][1]
+                if ok(g2, n, W, H):
+                    return g2
     return None
 
 
