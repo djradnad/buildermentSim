@@ -41,6 +41,8 @@ class Window:
                                     # exactly one option of each group is used (free I/O positions)
         self.blocked = set()        # tiles that can't hold pieces
         self.walls = set()          # blocked tiles no underground hop may pass under (the default lets hops pass)
+        self.open_west = False      # the west edge is an open line (strip proofs): surface belts and hops may cross
+                                    # it either way with free flows (see bmsolver/strip.py)
         self.fixed = {}             # tile -> code (or None for empty) forced
         self.hint = {}              # tile -> code, a starting point for the search
         self.tun_in, self.tun_out, self.no_ug = {}, {}, set()
@@ -220,6 +222,7 @@ class Model:
                     m.Add(l == 0)               # no side inputs inside the column
 
         tin_vec, tout_links = {}, {}
+        self.open_tin, self.open_tout, self.open_surface = [], [], {}
         if win.allow_underground:
             feeds = {(q, d): [] for q in cells for d in range(4)}
             for p in cells:
@@ -230,13 +233,17 @@ class Model:
                         q = add(p, d, n)
                         between = nz([V(add(p, d, j), 'O', d) for j in range(1, n) if free(add(p, d, j))])
                         if not win.inside(q):
-                            if (q, d) in win.tun_out:   # an exit outside the window, kept as it is
+                            open_out = win.open_west and d == 1 and q[0] < 0
+                            if (q, d) in win.tun_out or open_out:   # an exit outside the window
                                 pk = m.NewBoolVar('')
                                 m.AddImplication(pk, ent)
                                 for b in between:
                                     m.AddImplication(pk, b.Not())
                                 m.AddBoolOr([ent.Not()] + between).OnlyEnforceIf(pk.Not())
-                                tout_links.setdefault((q, d), []).append(new_link(p, None, pk, 'tout'))
+                                if open_out:            # free flow; it crosses every line west of p
+                                    self.open_tout.append((new_link(p, None, pk, 'oout'), p))
+                                else:
+                                    tout_links.setdefault((q, d), []).append(new_link(p, None, pk, 'tout'))
                                 pairs.append(pk)
                             break
                         if not free(q):
@@ -255,6 +262,28 @@ class Model:
                         m.Add(sum(pairs) == 1).OnlyEnforceIf(ent)
                     else:
                         m.Add(ent == 0)
+            if win.open_west:
+                # hops from an entrance west of the window (at x = -mm) to the first east-facing exit in the row
+                for y in range(H):
+                    row = []
+                    for x in range(0, UG_REACH - 1):
+                        q = (x, y)
+                        if not free(q):
+                            if q in win.walls:
+                                break
+                            continue
+                        between = nz([V((j, y), 'O', 3) for j in range(x) if free((j, y))])
+                        for mm in range(1, UG_REACH - x + 1):
+                            pk = m.NewBoolVar('')
+                            m.AddImplication(pk, V(q, 'O', 3))
+                            for b in between:
+                                m.AddImplication(pk, b.Not())
+                            i = new_link(None, q, pk, 'oin')
+                            feeds[q, 3].append(i)
+                            self.open_tin.append((i, q, mm))
+                            row.append(pk)
+                    if row:
+                        m.Add(sum(row) <= 1)
             for (q0, d), vec in win.tun_in.items():
                 cand = []
                 for n in range(1, UG_REACH + 1):
@@ -320,6 +349,30 @@ class Model:
                 if free(add(p, d)):
                     continue
                 back = (d + 2) % 4        # items crossing inwards move in direction back
+                if win.open_west and d == 1 and p[0] == 0:
+                    # open line: a belt may leave or enter here with any flow (strip proofs)
+                    u_in, u_out = m.NewBoolVar(''), m.NewBoolVar('')
+                    m.Add(u_in + u_out <= 1)
+                    m.AddBoolOr(pushers(p, d)).OnlyEnforceIf(u_out)
+                    for v in nz([V(p, 'B', d), V(p, 'O', d)]):
+                        m.AddImplication(v, u_out)
+                    m.AddBoolOr(acceptors(p, back)).OnlyEnforceIf(u_in)
+                    fi = [m.NewIntVar(0, win.D, '') for _ in range(nc)]
+                    fo = [m.NewIntVar(0, win.D, '') for _ in range(nc)]
+                    for f in fi:
+                        m.Add(f == 0).OnlyEnforceIf(u_in.Not())
+                    for f in fo:
+                        m.Add(f == 0).OnlyEnforceIf(u_out.Not())
+                    m.Add(sum(fi) <= win.D)
+                    m.Add(sum(fo) <= win.D)
+                    m.Add(sum(fi) >= 1).OnlyEnforceIf(u_in)
+                    m.Add(sum(fo) >= 1).OnlyEnforceIf(u_out)
+                    inflow[p] = [a + f for a, f in zip(inflow[p], fi)]
+                    outflow[p] = [a + f for a, f in zip(outflow[p], fo)]
+                    splitter_edge[p, d] = u_out
+                    self.open_surface[p[1]] = (u_in, u_out, fi, fo)
+                    self.port_active[p, d] = u_out
+                    continue
                 spec = win.ports.get((p, d))
                 if (p, d) in optional:
                     opts = optional[p, d]
