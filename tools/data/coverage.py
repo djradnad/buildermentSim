@@ -95,7 +95,7 @@ def infer(d, sym):
 
 
 def mark(s):
-    for c in 'FPs?':
+    for c in 'FP?s':
         if c in s:
             return c
     return '.'
