@@ -53,6 +53,12 @@ def spec(name):
         a, b = nums
         return a + b, [('W', i) for i in range(a)] + [('N', i) for i in range(b)], \
             [('S', i) for i in range(a + b)]
+    if kind == 'riffle':                      # a1..ak b1..bk -> a1 b1 a2 b2 ... (perfect shuffle of two bundles)
+        k = nums[0]
+        return 2 * k, [('W', i) for i in range(2 * k)], [('E', 2 * i) for i in range(k)] + [('E', 2 * i + 1) for i in range(k)]
+    if kind == 'spread':                      # k adjacent belts leave on every other row (a gap between each)
+        k = nums[0]
+        return k, [('W', i) for i in range(k)], [('E', 2 * i) for i in range(k)]
     if kind == 'mrgx':                        # 2k half belts; belts i and i+k merge into output i (pairs apart)
         k = nums[0]
         return 2 * k, [('W', i) for i in range(2 * k)], [('E', i) for i in range(k)]
