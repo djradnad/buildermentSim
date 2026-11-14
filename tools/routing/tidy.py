@@ -52,7 +52,30 @@ def tidy(g, n, W, H):
                         break
             if changed:
                 break
+        if not changed:
+            g2 = pair_pass(g, n, W, H)
+            if g2 is not None:
+                g, changed = g2, True
     return g
+
+
+def opts(c):
+    return (c[1],) + tuple(str(d) for d in range(4) if str(d) != c[1])
+
+
+def pair_pass(g, n, W, H, reach=4):
+    """Splitters that only work as a pair (each alone fails the check): swap two nearby ones at once."""
+    sp = sorted(p for p, c in g.items() if c[0] == 'S')
+    for i, p in enumerate(sp):
+        for q in sp[i + 1:]:
+            if abs(p[0] - q[0]) + abs(p[1] - q[1]) > reach:
+                continue
+            for a in opts(g[p]):
+                for b in opts(g[q]):
+                    g2 = dict(g); g2[p] = 'B' + a; g2[q] = 'B' + b
+                    if ok(g2, n, W, H):
+                        return g2
+    return None
 
 
 def main():
