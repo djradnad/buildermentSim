@@ -53,6 +53,9 @@ def spec(name):
         a, b = nums
         return a + b, [('W', i) for i in range(a)] + [('N', i) for i in range(b)], \
             [('S', i) for i in range(a + b)]
+    if kind == 'sq':
+        k = nums[0]
+        return k, [('W', i) for i in range(k)], [('E', i) for i in range(k)]
     raise ValueError(name)
 
 
@@ -63,10 +66,16 @@ def tile(edge, k, W, H):
     return {'W': (0, k), 'E': (W - 1, k), 'N': (k, 0), 'S': (k, H - 1)}[edge]
 
 
-def window(name, W, H):
-    """bundles keep their belts side by side and in order on an edge, but may sit anywhere along it"""
+def window(name, W, H, L=0):
+    """bundles keep their belts side by side and in order on an edge, but may sit anywhere along it.
+    L > 0 (squeeze cases sq<k>_<h>): rows h.. are blocked over L middle columns (built over: hops may pass under)"""
     n, ins, outs = spec(name)
     w = Window(W, H, n, 1)
+    if L:
+        h = int(name.split('_')[1])
+        x0 = (W - L) // 2
+        w.blocked = {(x, y) for x in range(x0, x0 + L) for y in range(h, H)}
+        w.walls = set(w.blocked)            # a real narrow corridor: nothing passes under the closed rows
     w.max_splitters = 0
     groups = {}
     for i, (e, k) in enumerate(ins):
@@ -106,6 +115,8 @@ def trace(grid, win, options):
         p, seen = t, set()
         while p not in seen:
             seen.add(p)
+            if p not in grid or not grid[p]:
+                return False
             if p == outs[i][0] and outs[i][1] in push_dirs(grid[p]):
                 break
             if len(nxt.get(p, [])) != 1:
@@ -121,21 +132,21 @@ def status(name):
     return {l.split()[0]: l.split()[1:] for l in open(p)} if os.path.exists(p) else {}
 
 
-def box(name, W, H, timeout):
+def box(name, W, H, timeout, L=0):
     done = status(name)
-    key = '%dx%d' % (W, H)
+    key = '%dx%d' % (W, H) + ('L%d' % L if L else '')
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0]
-    win = window(name, W, H)
+    win = window(name, W, H, L)
     if win is None:
         return 'INFEASIBLE'
     t0 = time.time()
-    r = model.solve(win, timeout=timeout, workers=4)
+    r = model.solve(win, timeout=timeout, workers=int(os.environ.get('GADGET_WORKERS', 4)))
     ok = False
     if 'grid' in r:
         ok = trace(r['grid'], win, r['options'])
         with open(os.path.join(OUT, '%s.jsonl' % name), 'a') as fh:
-            fh.write(json.dumps(dict(case=name, W=W, H=H, traced=ok, pieces=r.get('pieces'), options=r['options'],
+            fh.write(json.dumps(dict(case=name, W=W, H=H, L=L, traced=ok, pieces=r.get('pieces'), options=r['options'],
                                      grid={'%d,%d' % p: c for p, c in r['grid'].items() if c})) + '\n')
     st = r['status'] if r['status'] in ('INFEASIBLE', 'UNKNOWN') else ('FOUND' if ok else 'BADTRACE')
     with open(os.path.join(OUT, '%s.status' % name), 'a') as fh:
@@ -169,6 +180,19 @@ def run(name, timeout):
             best = W
 
 
+def run_sq(name, timeout, Lmax=12, extra=8):
+    """squeeze: k belts straight through, with only h rows open over a middle stretch of L columns. For each L the
+    narrowest box (width W = L + ends); a long stretch with no box up to L + extra wide is reported as such."""
+    k = spec(name)[0]
+    for L in range(1, Lmax + 1):
+        for W in range(L + 2, L + extra + 1):
+            st = box(name, W, k, timeout, L)
+            if st in ('FOUND', 'BADTRACE', 'UNKNOWN'):
+                break
+        else:
+            print('%s L=%d: nothing up to width %d' % (name, L, L + extra), flush=True)
+
+
 def table():
     for f in sorted(os.listdir(OUT)):
         if f.endswith('.status'):
@@ -184,4 +208,4 @@ if __name__ == '__main__':
         table()
     else:
         for nm in sys.argv[1].split(','):
-            run(nm, float(sys.argv[2]))
+            (run_sq if nm.startswith('sq') else run)(nm, float(sys.argv[2]))

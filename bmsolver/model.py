@@ -40,6 +40,7 @@ class Window:
         self.port_options = []      # groups of optional port runs: [[{(tile, d): ('in'|'out', vec)}, ...], ...]
                                     # exactly one option of each group is used (free I/O positions)
         self.blocked = set()        # tiles that can't hold pieces
+        self.walls = set()          # blocked tiles no underground hop may pass under (the default lets hops pass)
         self.fixed = {}             # tile -> code (or None for empty) forced
         self.hint = {}              # tile -> code, a starting point for the search
         self.tun_in, self.tun_out, self.no_ug = {}, {}, set()
@@ -239,6 +240,8 @@ class Model:
                                 pairs.append(pk)
                             break
                         if not free(q):
+                            if q in win.walls:      # a wall: no hop passes under it
+                                break
                             continue
                         pk = m.NewBoolVar('')
                         m.AddImplication(pk, ent)
@@ -257,6 +260,8 @@ class Model:
                 for n in range(1, UG_REACH + 1):
                     q = add(q0, d, n)
                     if not free(q):
+                        if q in win.walls:
+                            break
                         continue
                     between = nz([V(add(q0, d, j), 'O', d) for j in range(1, n) if free(add(q0, d, j))])
                     pk = m.NewBoolVar('')

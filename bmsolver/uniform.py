@@ -40,9 +40,18 @@ def levels(M):
     return [(i, j) for i in range(a + 1) for j in range(b + 1)], (a, b)
 
 
-def build(win, N, M=None, pass_splitters=True, same_merge=False, cuts=False):
-    """Model(win, flows=False) plus a set and a share on every link and port term. N inputs, M outputs."""
+def build(win, N, M=None, pass_splitters=True, same_merge=False, cuts=False, loops=0):
+    """Model(win, flows=False) plus a set and a share on every link and port term. N inputs, M outputs.
+
+    loops=k: the network is an (N+k):(M+k) one where k of its outputs are fed back as its last k inputs inside the
+    window (john's 1/5 trick: 5:5 = 6:6 with one output looped). A loop point is a plain belt tile whose one input
+    carries a full output mixture (all lanes at 1/(M+k)) and which hands on lane j alone at share 1. Valid because
+    the loop lane, whatever it holds, is then shared equally by every output: each real output gets 1/M of every
+    real input. 5:5 and 7:7 become reachable this way."""
     M = M or N
+    NR = N
+    N, M = N + loops, M + loops
+    assert not (loops and win.symmetry == 'y'), 'loops with symmetry: not done'
     LV, target = levels(M)
     NL = len(LV)
     at = {v: k for k, v in enumerate(LV)}
@@ -81,7 +90,7 @@ def build(win, N, M=None, pass_splitters=True, same_merge=False, cuts=False):
             for i, (p, d) in enumerate(ks):
                 lane[p, id(lit)] = base + i
         base += n_in
-    assert base == N, 'the window has %d input lanes, the network %d' % (base, N)
+    assert base == NR, 'the window has %d input lanes, the network %d' % (base, NR)
 
     tin = {p: [('L', i) for i in mod.lin[p]] for p in mod.cells}
     tout = {p: [('L', i) for i in mod.lout[p]] for p in mod.cells}
@@ -156,6 +165,7 @@ def build(win, N, M=None, pass_splitters=True, same_merge=False, cuts=False):
                 m.Add(sum(amount(('L', k), i) for k in down) - sum(amount(('L', k), i) for k in up)
                       == (M if in_row[i] <= r else 0) - above)
 
+    loop_pts = []
     nact = lambda ts: sum(1 if act[t] is True else act[t] for t in ts)
     neg = lambda a: [] if a is True else [a.Not()]
     mod.sh, mod.mem, mod.act = sh, mem, act
@@ -197,6 +207,24 @@ def build(win, N, M=None, pass_splitters=True, same_merge=False, cuts=False):
                 m.Add(sum(mem[t][i] for t in I) == TM[i])     # inputs disjoint
         nin, nout = nact(I), nact(O)
         m.Add(nin <= 1).OnlyEnforceIf(is_sp)
+        R = [m.NewBoolVar('') for _ in range(loops)]     # loop point for lane NR + j
+        anyR = None
+        if loops:
+            anyR = m.NewBoolVar('')
+            m.Add(sum(R) == anyR)
+            loop_pts.append(R)
+            m.AddBoolOr([X[p, 'B%d' % o] for o in range(4) if (p, 'B%d' % o) in X]).OnlyEnforceIf(anyR)
+            m.Add(nin == 1).OnlyEnforceIf(anyR)
+            m.AddImplication(anyR, TS[at[target]])
+            for i in range(N):
+                m.AddImplication(anyR, TM[i])
+            for u in O:
+                na = neg(act[u])
+                for j in range(loops):
+                    for i in range(N):
+                        m.AddBoolOr(na + [R[j].Not(), mem[u][i] if i == NR + j else mem[u][i].Not()])
+                    m.AddBoolOr(na + [R[j].Not(), sh[u][0]])
+        gR = [anyR] if loops else []
         k2, k3 = m.NewBoolVar(''), m.NewBoolVar('')       # a splitter with 2 / 3 outputs
         m.AddImplication(k2, is_sp)
         m.AddImplication(k3, is_sp)
@@ -211,7 +239,7 @@ def build(win, N, M=None, pass_splitters=True, same_merge=False, cuts=False):
             if (i, j + 1) not in at:
                 m.AddImplication(k3, TS[x].Not())
         for u in O:
-            na = neg(act[u])
+            na = neg(act[u]) + gR
             for i in range(N):
                 m.AddBoolOr(na + [mem[u][i].Not(), TM[i]])
                 m.AddBoolOr(na + [mem[u][i], TM[i].Not()])
@@ -221,12 +249,14 @@ def build(win, N, M=None, pass_splitters=True, same_merge=False, cuts=False):
                     m.AddBoolOr(na + [k2.Not(), TS[x].Not(), sh[u][at[i + 1, j]]])
                 if (i, j + 1) in at:
                     m.AddBoolOr(na + [k3.Not(), TS[x].Not(), sh[u][at[i, j + 1]]])
+    for j in range(loops):
+        m.Add(sum(R[j] for R in loop_pts) == 1)
     return mod
 
 
-def solve(win, N, M=None, engine='cadical195', timeout=None, pass_splitters=True, same_merge=False, cuts=False):
+def solve(win, N, M=None, engine='cadical195', timeout=None, pass_splitters=True, same_merge=False, cuts=False, loops=0):
     t0 = time.time()
-    mod = build(win, N, M, pass_splitters, same_merge, cuts)
+    mod = build(win, N, M, pass_splitters, same_merge, cuts, loops)
     tb = time.time() - t0
     if engine == 'cpsat':
         from ortools.sat.python import cp_model
@@ -257,6 +287,7 @@ def main(argv=None):
     ap.add_argument('--timeout', type=float, default=None)
     ap.add_argument('--at', default=None, help='fixed first lane offsets "in,out" (default: free)')
     ap.add_argument('--sym', action='store_true')
+    ap.add_argument('--loops', type=int, default=0, help='outputs fed back inside (5:5 = 6:6 with 1 loop)')
     a = ap.parse_args(argv)
     M = a.m or a.n
     eng = os.path.expanduser(a.engine)
@@ -267,7 +298,7 @@ def main(argv=None):
             win = S.Spec([S.Group('E', a.n, at=ia)], [S.Group('W', M, at=oa)]).window(W, H, symmetry='y' if a.sym else None)
         else:
             win = S.Spec([S.Group('E', a.n)], [S.Group('W', M)]).window(W, H)
-        r = solve(win, a.n, M, eng, a.timeout)
+        r = solve(win, a.n, M, eng, a.timeout, loops=a.loops)
         ok = ''
         if 'grid' in r:
             ok = '%s pcs=%d' % (bench.verify(r['grid'], win, r.get('options')), sum(1 for c in r['grid'].values() if c))
