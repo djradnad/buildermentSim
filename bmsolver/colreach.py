@@ -193,7 +193,32 @@ class Problem:
         gin = []
         for y in range(H):
             c = col[y]
-            gin.append([None] + self.vecs if accepts(c, 3) else [None])
+            if not accepts(c, 3):
+                gin.append([None])
+                continue
+            e, he = st[y][1], st[y][3]
+            vin = any(0 <= q < H and d in pushes(col[q]) and accepts(c, d) for q, d in ((y - 1, 2), (y + 1, 0))) \
+                or any(col[q] is not None and col[q][0] == 'I' and col[q][1] in '02' and self.vpair(col, q) == y
+                       for q in range(H))
+            if c == 'B3' and e not in (NOACC, ACC0):
+                # all of a belt's inflow leaves east: without vertical inputs it is exactly the promise
+                gin.append([e] if not vin else ['AUTO'])     # AUTO: promise minus the vertical inputs
+            elif c == 'S3':
+                k = sum(1 for d, q in ((0, y - 1), (2, y + 1)) if 0 <= q < H and accepts(col[q], d)) + \
+                    (1 if e not in (NOACC, ACC0) else 0)
+                if e not in (NOACC, ACC0):
+                    v = tuple(k * x for x in e)
+                    gin.append([v] if sum(v) <= self.D else [])
+                else:
+                    k = k or 0
+                    gin.append([None] if k == 0 else [v for v in self.vecs if all(x % k == 0 for x in v)])
+            elif c == 'I3':
+                gin.append([v for v in self.vecs if he is not None and all(a <= b for a, b in zip(v, he[1]))])
+            else:                       # a belt: total inflow 1..D
+                w = st[y][0]
+                base = sum(w[1]) if (w is not None and w[0] == 'W') else 0
+                opts = [v for v in self.vecs if sum(v) <= self.D - base]
+                gin.append(opts if (not vin and base == 0) else [None] + opts)
         gsp = []
         for y in range(H):
             c = col[y]
@@ -208,6 +233,7 @@ class Problem:
 
     def solve_col(self, st, col, ins, spw):
         H, zero = self.H, self.zero
+        ins = list(ins)
         inflow = [zero] * H
         known = [True] * H
         # links into each tile: from east (st w), from west (guess), from west hops ending, vertical
@@ -216,7 +242,7 @@ class Problem:
             c = col[y]
             if w is not None and w[0] == 'W':
                 inflow[y] = vadd(inflow[y], w[1])
-            if ins[y] is not None:
+            if ins[y] is not None and ins[y] != 'AUTO':
                 inflow[y] = vadd(inflow[y], ins[y])
             if c == 'O1':
                 for n, v in hw:
@@ -257,6 +283,12 @@ class Problem:
             f = inflow[y]
             for s in vin[y]:
                 f = vadd(f, sent[s, y])
+            if ins[y] == 'AUTO':
+                g = vsub(st[y][1], f)
+                if min(g) < 0:
+                    return None
+                ins[y] = g if sum(g) else None
+                f = st[y][1]
             if c is None:
                 if sum(f):
                     return None
@@ -380,7 +412,20 @@ def split_dist(st):
     return tuple(key), tuple(dist)
 
 
-def search(P, max_w=200, log=print):
+_P = None
+
+
+def _steps(chunk):
+    return [(s, _P.step(s)) for s in chunk]
+
+
+def search(P, max_w=200, log=print, procs=1):
+    global _P
+    _P = P
+    pool = None
+    if procs > 1:
+        import multiprocessing as mp
+        pool = mp.get_context('fork').Pool(procs)
     s0 = P.start()
     seen = {s0: None}
     best = {}                           # key -> list of minimal distance tuples
@@ -390,8 +435,13 @@ def search(P, max_w=200, log=print):
     t0 = time.time()
     for wdt in range(1, max_w + 1):
         nxt = []
-        for s in front:
-            for ns, col in P.step(s).items():
+        if pool is not None:
+            chunks = [front[i:i + 64] for i in range(0, len(front), 64)]
+            results = (r for part in pool.imap(_steps, chunks) for r in part)
+        else:
+            results = ((s, P.step(s)) for s in front)
+        for s, succ in results:
+            for ns, col in succ.items():
                 if ns in seen:
                     continue
                 k, d = split_dist(ns)
@@ -428,12 +478,13 @@ def main():
     ap.add_argument('--height', type=int, required=True)
     ap.add_argument('--D', type=int, default=4)
     ap.add_argument('--max-w', type=int, default=200)
+    ap.add_argument('--procs', type=int, default=1)
     a = ap.parse_args()
     n, H, D = a.n, a.height, a.D
     assert D % n == 0
     P = Problem(H, n, D, list(range(n)), list(range(n)), tuple([D // n] * n))
     print('%d:%d %d tall, D=%d, %d column kinds' % (n, n, H, D, len(P.cols)), flush=True)
-    r, wdt, seen, fin = search(P, a.max_w, log=lambda s: print(s, flush=True))
+    r, wdt, seen, fin = search(P, a.max_w, log=lambda s: print(s, flush=True), procs=a.procs)
     print('%d:%d %d tall: %s at width %d' % (n, n, H, r, wdt))
     if fin is not None:
         g = layout(seen, fin)
