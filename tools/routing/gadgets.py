@@ -65,6 +65,9 @@ def spec(name):
     if kind == 'splx':                        # k full belts; belt i splits, its halves leave at i and i+k
         k = nums[0]
         return k, [('W', i) for i in range(k)], [('E', i) for i in range(2 * k)]
+    if kind == 'tap':
+        k = nums[0]
+        return k, [('W', i) for i in range(k)], [('E', i) for i in range(k)]
     if kind in ('trapt', 'trapb'):
         k = nums[0]
         return k + 2, [('W', i) for i in range(k + 2)], [('E', i) for i in range(k + 1)]
@@ -117,6 +120,23 @@ def window(name, W, H, L=0):
 
 def window_mix(name, W, H):
     """merge / split cases: amounts in halves (D = 2); every bundle sits anywhere along its edge"""
+    if name.startswith('tap'):
+        # bus tap: k full belts west -> east; half of the top belt leaves through the bottom edge, crossing the
+        # other k-1 belts; the rest of the bus goes on in order
+        k = int(name[3:])
+        w = Window(W, H, k, 2)
+        ins = [[2 if j == i else 0 for j in range(k)] for i in range(k)]
+        outs = [[(1 if i == 0 else 2) if j == i else 0 for j in range(k)] for i in range(k)]
+        tap = [1] + [0] * (k - 1)
+        w.port_options = []
+        for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs), ('out', 'S', [tap])):
+            L_ = H if e in 'WE' else W
+            opts = [{(tile(e, s_ + i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}
+                    for s_ in range(L_ - len(vecs) + 1)]
+            if not opts:
+                return None
+            w.port_options.append(opts)
+        return w
     if name.startswith('trap'):
         # john's trapped belt: a half belt, k full belts, a half belt; the halves merge into one full belt that
         # leaves above (trapt) or below (trapb) the k full belts, which keep their order
@@ -233,7 +253,7 @@ def box(name, W, H, timeout, L=0):
     key = '%dx%d' % (W, H) + ('L%d' % L if L else '')
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0]
-    mix = name.startswith(('mrgx', 'splx', 'trap'))
+    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap'))
     win = window_mix(name, W, H) if mix else window(name, W, H, L)
     if win is None:
         return 'INFEASIBLE'
