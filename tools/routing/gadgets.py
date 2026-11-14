@@ -135,6 +135,37 @@ def window_mix(name, W, H):
     return w
 
 
+def verify_mix(grid, win, options):
+    """exact flow check: every output port gets exactly its planned amounts, nothing overfull or stuck"""
+    from fractions import Fraction
+    from bmsolver.check import check, Design
+    from bmsolver.pieces import accepts, push_dirs
+    ins, outs, rates, want = [], [], [], []
+    for g, j in zip(win.port_options, options):
+        for (t, d), (kind, vec) in sorted(g[j].items()):
+            c = grid.get(t)
+            if kind == 'in':
+                if not c or not accepts(c, (d + 2) % 4):
+                    return False
+                ins.append((t, (d + 2) % 4))
+                rates.append(Fraction(sum(vec), win.D))
+            else:
+                if not c or d not in push_dirs(c):
+                    return False
+                outs.append((t, d))
+                want.append(vec)
+    r = check(Design(grid), ins, outs, rates=rates, mix=True)
+    if r['overfull'] or r['stuck']:
+        return False
+    # shares[o][i] = fraction of input i reaching output o; inputs are listed in commodity order
+    for o, vec in enumerate(want):
+        for i in range(len(ins)):
+            got = r['shares'][o][i] * rates[i] * win.D
+            if got != vec[i] if len(vec) == len(ins) else None:
+                return False
+    return True
+
+
 def trace(grid, win, options):
     """follow every belt from its entrance: -> True when each one ends at its own exit"""
     from bmsolver.check import Design
@@ -181,8 +212,7 @@ def box(name, W, H, timeout, L=0):
     ok = False
     if 'grid' in r:
         if mix:
-            from bmsolver import bench
-            ok = bool(bench.verify(r['grid'], win, r['options']))
+            ok = verify_mix(r['grid'], win, r['options'])
         else:
             ok = trace(r['grid'], win, r['options'])
         with open(os.path.join(OUT, '%s.jsonl' % name), 'a') as fh:
@@ -237,7 +267,7 @@ def table():
     for f in sorted(os.listdir(OUT)):
         if f.endswith('.status'):
             st = status(f[:-7])
-            got = sorted((k for k, v in st.items() if v[0] == 'FOUND'), key=lambda k: tuple(map(int, k.split('x')))[::-1])
+            got = sorted((k for k, v in st.items() if v[0] == 'FOUND'), key=lambda k: tuple(map(int, k.split('L')[0].split('x')))[::-1])
             un = [k for k, v in st.items() if v[0] == 'UNKNOWN']
             print('%-12s found: %-40s undecided: %s' % (f[:-7], ', '.join(got), ', '.join(un)))
 
