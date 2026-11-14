@@ -208,12 +208,14 @@ def main(argv=None):
     ap.add_argument('--engine', default='cadical195')
     ap.add_argument('--timeout', type=float, default=None)
     ap.add_argument('--loops', type=int, default=1)
+    ap.add_argument('--A', type=int, default=3, help='largest power of 2 in a mass denominator')
+    ap.add_argument('--B', type=int, default=2, help='largest power of 3')
     a = ap.parse_args(argv)
     eng = os.path.expanduser(a.engine)
     for size in a.size.split(','):
         W, H = map(int, size.split('x'))
         win = S.Spec([S.Group('E', a.n)], [S.Group('W', a.n)]).window(W, H)
-        r = solve(win, a.n, a.loops, eng, a.timeout)
+        r = solve(win, a.n, a.loops, eng, a.timeout, a.A, a.B)
         ok = ''
         if 'grid' in r:
             ok = '%s pcs=%d' % (bench.verify(r['grid'], win, r.get('options')), sum(1 for c in r['grid'].values() if c))
