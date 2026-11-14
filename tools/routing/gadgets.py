@@ -71,6 +71,8 @@ def spec(name):
     if kind in ('trapt', 'trapb'):
         k = nums[0]
         return k + 2, [('W', i) for i in range(k + 2)], [('E', i) for i in range(k + 1)]
+    if kind == 'mixf':
+        return 2, [('W', 0), ('W', 1)], [('E', 0), ('E', 1)]
     if kind == 'sq':
         k = nums[0]
         return k, [('W', i) for i in range(k)], [('E', i) for i in range(k)]
@@ -133,6 +135,20 @@ def window_mix(name, W, H):
             L_ = H if e in 'WE' else W
             opts = [{(tile(e, s_ + i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}
                     for s_ in range(L_ - len(vecs) + 1)]
+            if not opts:
+                return None
+            w.port_options.append(opts)
+        return w
+    if name.startswith('mixf'):
+        # loop piece for 5:5: two full belts x, y -> (k/5 x + (5-k)/5 y, (5-k)/5 x + k/5 y); fifths need a loop
+        k = int(name[4:])
+        w = Window(W, H, 2, 5)
+        ins = [[5, 0], [0, 5]]
+        outs = [[k, 5 - k], [5 - k, k]]
+        w.port_options = []
+        for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
+            opts = [{(tile(e, s + i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}
+                    for s in range(H - len(vecs) + 1)]
             if not opts:
                 return None
             w.port_options.append(opts)
@@ -253,7 +269,7 @@ def box(name, W, H, timeout, L=0):
     key = '%dx%d' % (W, H) + ('L%d' % L if L else '')
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0]
-    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap'))
+    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf'))
     win = window_mix(name, W, H) if mix else window(name, W, H, L)
     if win is None:
         return 'INFEASIBLE'
