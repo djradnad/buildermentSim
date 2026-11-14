@@ -185,8 +185,10 @@ class Tail(tuple):
 def scores(e):
     """The independent ways one layout can beat another of the same ratio (smaller is better): width, height (so the
     best layout of every width and every height smaller than the most square one stays), the symmetry rule it meets,
-    full mixing, and the clean-up scores in john's order (see Tail)."""
-    return (e['W'], e['H'], LOOSE[e['mode']], 0 if e['mixed'] else 1,
+    full mixing, a clean edge (john 2026-11-14: a splitter facing out of an edge where nothing comes out shows a
+    false output in game, so the smallest layout without one is always kept too), and the clean-up scores in john's
+    order (see Tail)."""
+    return (e['W'], e['H'], LOOSE[e['mode']], 0 if e['mixed'] else 1, 1 if e.get('false_outputs') else 0,
             Tail((e['footprint'], e['pieces'], e['edge_splitters'], e['gold'], 1 if e['stray_out'] else 0)))
 
 
@@ -266,7 +268,8 @@ def main(paths):
             # scores for layouts of the same box (john's order): footprint, pieces, edge splitters, gold
             ent['outs'] = [[q[0], q[1], dd] for q, dd in lay.outputs]     # the real outputs (tile, direction)
             ent['ins'] = [[q[0], q[1], dd] for q, dd in lay.inputs]       # the real inputs (tile, direction items move)
-            ent.update(footprint=cleanup.footprint(r), edge_splitters=cleanup.edge_splitters(lay), gold=cleanup.gold(r))
+            ent.update(footprint=cleanup.footprint(r), edge_splitters=cleanup.edge_splitters(lay), gold=cleanup.gold(r),
+                       false_outputs=cleanup.false_outputs(lay))
             if e.get('proven_for'):
                 ent['proven_for'] = e['proven_for']      # smallest area under this rule (and every stricter one)
             if e.get('mirror_id') and ent['mode'] != 'sym':

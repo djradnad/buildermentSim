@@ -113,3 +113,4 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 .badge.asym { color: var(--muted); }
 #dAll { max-height: 220px; overflow-y: auto; }
 .good { color: var(--good); }
+.bad { color: var(--bad); }

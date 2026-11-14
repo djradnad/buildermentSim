@@ -105,7 +105,10 @@ export function initDesigner({ openInSim }) {
     const src = d.source === 'wiki' ? 'community design from the wiki' : d.source === 'ours' ? 'found by our solver' : 'by ' + d.source;
     const pr = st.goal === 'area' && proven(d, all) ? ' · <span class="good">smallest possible area (proven)</span>' : '';
     const fp = d.footprint != null && d.footprint < d.W * d.H ? ` (footprint ${d.footprint})` : '';
-    const edge = d.edge_splitters ? ` · ${d.edge_splitters} splitter face${d.edge_splitters > 1 ? 's' : ''} out of the edge` : '';
+    const f = d.false_outputs || 0;
+    const edge = (f ? ` · <span class="bad">⚠ false output${f > 1 ? 's' : ''}: ${f} splitter${f > 1 ? 's' : ''} ` +
+      `face${f > 1 ? '' : 's'} out of the output edge where nothing comes out, and the game shows ${f > 1 ? 'them' : 'it'} ` +
+      `as an output</span>` : '') + (d.edge_splitters ? ` · ${d.edge_splitters} edge splitter${d.edge_splitters > 1 ? 's' : ''}` : '');
     return `${d.W}×${d.H}${fp} · ${d.pieces} pieces · ${d.splitters} splitters${d.ug ? ' · ' + d.ug + ' underground' : ''}${edge}` +
       `${d.gold ? ' · ' + d.gold + ' gold' : ''} · ${MODE_NAME[d.mode]} · ${src}${pr}`;
   }
@@ -150,7 +153,7 @@ export function initDesigner({ openInSim }) {
       el.className = 'gal' + (ALLOWED[st.mode].includes(d.mode) ? '' : ' off');
       el.dataset.k = d._k;
       const fp = d.footprint != null && d.footprint < d.W * d.H ? ' (' + d.footprint + ')' : '';
-      const edge = d.edge_splitters ? ` · ${d.edge_splitters} edge` : '';
+      const edge = d.false_outputs ? ` · <span class="bad">⚠ ${d.false_outputs} false out</span>` : '';
       el.innerHTML = `<span>${d.W}×${d.H}${fp} <span class="muted">· ${d.pieces} pcs${d.gold ? ' · ' + d.gold + 'g' : ''}${edge}</span></span>` +
         `<span class="badge ${d.mode}">${d.mode}</span><span class="muted small">${d.source}${d.id ? ' · ' + d.id : ''}</span>`;
       el.addEventListener('click', () => pick(d));
