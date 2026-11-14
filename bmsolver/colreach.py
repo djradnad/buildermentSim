@@ -23,6 +23,8 @@ Every line also carries net one belt of each item westward (D per item); states 
 """
 import argparse
 import itertools
+import os
+import pickle
 import time
 
 from .pieces import UG_REACH
@@ -419,7 +421,7 @@ def _steps(chunk):
     return [(s, _P.step(s)) for s in chunk]
 
 
-def search(P, max_w=200, log=print, procs=1):
+def search(P, max_w=200, log=print, procs=1, ckpt=None):
     global _P
     _P = P
     pool = None
@@ -433,7 +435,12 @@ def search(P, max_w=200, log=print, procs=1):
     best[k0] = [d0]
     front = [s0]
     t0 = time.time()
-    for wdt in range(1, max_w + 1):
+    w_lo = 1
+    if ckpt and os.path.exists(ckpt):     # resume after the last finished width
+        with open(ckpt, 'rb') as fh:
+            seen, best, front, w_lo = pickle.load(fh)
+        log('resumed at width %d with %d states' % (w_lo, len(seen)))
+    for wdt in range(w_lo, max_w + 1):
         nxt = []
         if pool is not None:
             chunks = [front[i:i + 64] for i in range(0, len(front), 64)]
@@ -458,6 +465,10 @@ def search(P, max_w=200, log=print, procs=1):
         if not nxt:
             return 'IMPOSSIBLE', wdt, seen, None
         front = nxt
+        if ckpt:
+            with open(ckpt + '.tmp', 'wb') as fh:
+                pickle.dump((seen, best, front, wdt + 1), fh, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(ckpt + '.tmp', ckpt)
     return 'UNKNOWN', max_w, seen, None
 
 
@@ -479,12 +490,13 @@ def main():
     ap.add_argument('--D', type=int, default=4)
     ap.add_argument('--max-w', type=int, default=200)
     ap.add_argument('--procs', type=int, default=1)
+    ap.add_argument('--ckpt', default=None, help='checkpoint file: saved after every width, resumed from if present')
     a = ap.parse_args()
     n, H, D = a.n, a.height, a.D
     assert D % n == 0
     P = Problem(H, n, D, list(range(n)), list(range(n)), tuple([D // n] * n))
     print('%d:%d %d tall, D=%d, %d column kinds' % (n, n, H, D, len(P.cols)), flush=True)
-    r, wdt, seen, fin = search(P, a.max_w, log=lambda s: print(s, flush=True), procs=a.procs)
+    r, wdt, seen, fin = search(P, a.max_w, log=lambda s: print(s, flush=True), procs=a.procs, ckpt=a.ckpt and os.path.expanduser(a.ckpt))
     print('%d:%d %d tall: %s at width %d' % (n, n, H, r, wdt))
     if fin is not None:
         g = layout(seen, fin)
