@@ -68,6 +68,41 @@ def candidates(n, sym, cap, skip):
     return sorted(filter(ok, probes), key=key), sorted(filter(ok, steps), key=key)
 
 
+def cached_prove(win, box, a):
+    """cnf.prove, but every cube verdict is saved (~/data/cubes/<box>.json), so a box bigger than one run resumes.
+    Mirror images are dropped (port order is free in an N:N balancer). Timed-out cubes are retried next run."""
+    import concurrent.futures as cf
+    from bmsolver import model, lazy
+    path = os.path.expanduser('~/data/cubes/%s.json' % box.replace(':', '_'))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    done = json.load(open(path)) if os.path.exists(path) else {}
+    cs = cnf.cubes(win, mirror=True)
+    todo = [k for k in range(len(cs)) if done.get(str(k)) != 'INFEASIBLE']
+    running, res = [], dict(status='INFEASIBLE', cubes=len(cs))
+
+    def one(k):
+        mod = model.Model(cs[k])
+        lazy.add_flow_lemmas(mod, cs[k])
+        return k, cnf.solve(mod, engine=os.path.expanduser(a.engine), timeout=a.timeout, procs=running)
+    with cf.ThreadPoolExecutor(a.procs) as ex:
+        futs = [ex.submit(one, k) for k in todo]
+        for f in cf.as_completed(futs):
+            k, r = f.result()
+            done[str(k)] = r['status']
+            json.dump(done, open(path, 'w'))
+            if r['status'] == 'FEASIBLE':
+                res.update(status='FEASIBLE', grid=r['grid'], window=cs[k])
+                for g in futs:
+                    g.cancel()
+                for p in running:
+                    if p.poll() is None:
+                        p.kill()
+                break
+            if r['status'] != 'INFEASIBLE':
+                res['status'] = 'UNKNOWN'
+    return res
+
+
 def run_box(n, W, H, sym, a):
     win = S.Spec([S.Group('E', n)], [S.Group('W', n)]).window(W, H, symmetry='y' if sym else None)
     box = '%d:%dx%d%s' % (n, W, H, ':sym' if sym else '')
@@ -86,7 +121,7 @@ def run_box(n, W, H, sym, a):
             except Exception as e:      # the fast try is only a shortcut
                 rec['fast_error'] = str(e)[:200]
         if r is None:
-            r = cnf.prove(win, os.path.expanduser(a.engine), procs=a.procs, timeout=a.timeout, log=None, lemmas=True)
+            r = cached_prove(win, box, a)
             r['how'] = 'flow'
         rec.update(status=r['status'], cubes=r.get('cubes'), how=r['how'])
         if 'grid' in r:
