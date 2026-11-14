@@ -111,6 +111,13 @@ def build(win, K_lines=None):
                     m.Add(x == 0)
                 v.append(x)
             act[l, k], vec[l, k] = a, v
+    # in a real layout every input goes west across every line, net one full belt of it (the box has no other
+    # ports): west-going flow minus east-going flow of each item is exactly one belt on every line
+    for l in lines:
+        for c in range(nc):
+            wv = [vec[l, k][c] for k in keys if k[0] in ('s', 't') and k[2] == 'W']
+            ev = [vec[l, k][c] for k in keys if k[0] in ('s', 't') and k[2] == 'E']
+            m.Add(sum(wv) - sum(ev) == D)
     for a_, b_ in [(i, j) for i in lines for j in lines if j < i]:
         diffs = []
         for k in keys:
