@@ -22,6 +22,7 @@ Every line also carries net one belt of each item westward (D per item); states 
     python -m bmsolver.colreach --n 2 --height 2 --D 4
 """
 import argparse
+import hashlib
 import itertools
 import os
 import pickle
@@ -421,7 +422,29 @@ def _steps(chunk):
     return [(s, _P.step(s)) for s in chunk]
 
 
-def search(P, max_w=200, log=print, procs=1, ckpt=None):
+def _flipv(v):
+    return v if not isinstance(v, tuple) else tuple(reversed(v))
+
+
+def mirror(st):
+    """the same border seen with the box flipped top to bottom and the items renamed in reverse order"""
+    rows = []
+    for w, e, hw, he in reversed(st):
+        w2 = w if (w is None or w[0] == 'X') else (w[0], _flipv(w[1]))
+        e2 = e if e in (NOACC, ACC0) else _flipv(e)
+        hw2 = tuple((n, _flipv(v)) for n, v in hw)
+        he2 = None if he is None else (he[0], _flipv(he[1]))
+        rows.append((w2, e2, hw2, he2))
+    return tuple(rows)
+
+
+def _digest(k):
+    return hashlib.blake2b(repr(k).encode(), digest_size=16).digest()
+
+
+def search(P, max_w=200, log=print, procs=1, ckpt=None, compact=False):
+    """compact: keep only a 128-bit digest per state shape (dominance table) and no parent links, so a big run fits
+    in memory; a FOUND layout then has to be rebuilt by a normal run"""
     global _P
     _P = P
     pool = None
@@ -432,14 +455,25 @@ def search(P, max_w=200, log=print, procs=1, ckpt=None):
     seen = {s0: None}
     best = {}                           # key -> list of minimal distance tuples
     k0, d0 = split_dist(s0)
-    best[k0] = [d0]
+    best[_digest(k0) if compact else k0] = [d0]
+    if compact:
+        seen = None
+    H = P.H
+    # flipping the box top to bottom maps the problem onto itself when the ports and items mirror (then only one of
+    # each mirror pair of borders is kept; compact runs only, since the layout links would need flipping too)
+    sym = compact and sorted(H - 1 - y for y in P.in_rows) == sorted(P.in_rows) and \
+        [H - 1 - y for y in P.in_rows] == P.in_rows[::-1] and sorted(H - 1 - y for y in P.out_rows) == sorted(P.out_rows) \
+        and P.out_vec == tuple(reversed(P.out_vec))
     front = [s0]
     t0 = time.time()
     w_lo = 1
     if ckpt and os.path.exists(ckpt):     # resume after the last finished width
         with open(ckpt, 'rb') as fh:
             seen, best, front, w_lo = pickle.load(fh)
-        log('resumed at width %d with %d states' % (w_lo, len(seen)))
+        if compact:
+            seen = None
+            best = {(k if isinstance(k, bytes) else _digest(k)): v for k, v in best.items()}
+        log('resumed at width %d with %d shapes' % (w_lo, len(best)))
     for wdt in range(w_lo, max_w + 1):
         nxt = []
         if pool is not None:
@@ -449,19 +483,22 @@ def search(P, max_w=200, log=print, procs=1, ckpt=None):
             results = ((s, P.step(s)) for s in front)
         for s, succ in results:
             for ns, col in succ.items():
-                if ns in seen:
+                if sym:
+                    ns = min(ns, mirror(ns), key=repr)
+                if seen is not None and ns in seen:
                     continue
                 k, d = split_dist(ns)
-                lst = best.setdefault(k, [])
+                lst = best.setdefault(_digest(k) if compact else k, [])
                 if any(all(a <= b for a, b in zip(o, d)) for o in lst):
                     continue
                 lst[:] = [o for o in lst if not all(b <= a for a, b in zip(o, d))] + [d]
-                seen[ns] = (s, col)
+                if seen is not None:
+                    seen[ns] = (s, col)
                 nxt.append(ns)
                 if P.final(ns):
-                    log('width %d: FOUND (%d states, %.0fs)' % (wdt, len(seen), time.time() - t0))
+                    log('width %d: FOUND (%d states, %.0fs)' % (wdt, len(best), time.time() - t0))
                     return 'FOUND', wdt, seen, ns
-        log('width %d: %d new states, %d total, %.0fs' % (wdt, len(nxt), len(seen), time.time() - t0))
+        log('width %d: %d new states, %d total, %.0fs' % (wdt, len(nxt), len(best), time.time() - t0))
         if not nxt:
             return 'IMPOSSIBLE', wdt, seen, None
         front = nxt
@@ -490,15 +527,16 @@ def main():
     ap.add_argument('--D', type=int, default=4)
     ap.add_argument('--max-w', type=int, default=200)
     ap.add_argument('--procs', type=int, default=1)
+    ap.add_argument('--compact', action='store_true', help='digest table only (big runs); no layout printed')
     ap.add_argument('--ckpt', default=None, help='checkpoint file: saved after every width, resumed from if present')
     a = ap.parse_args()
     n, H, D = a.n, a.height, a.D
     assert D % n == 0
     P = Problem(H, n, D, list(range(n)), list(range(n)), tuple([D // n] * n))
     print('%d:%d %d tall, D=%d, %d column kinds' % (n, n, H, D, len(P.cols)), flush=True)
-    r, wdt, seen, fin = search(P, a.max_w, log=lambda s: print(s, flush=True), procs=a.procs, ckpt=a.ckpt and os.path.expanduser(a.ckpt))
+    r, wdt, seen, fin = search(P, a.max_w, log=lambda s: print(s, flush=True), procs=a.procs, ckpt=a.ckpt and os.path.expanduser(a.ckpt), compact=a.compact)
     print('%d:%d %d tall: %s at width %d' % (n, n, H, r, wdt))
-    if fin is not None:
+    if fin is not None and seen is not None:
         g = layout(seen, fin)
         print('\n'.join(''.join(c or '..' for c in row) for row in g))
 
