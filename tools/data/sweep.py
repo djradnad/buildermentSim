@@ -118,7 +118,16 @@ def main():
             skip = set()
             while True:
                 pr, stp = candidates(n, sym, a.cap, skip)
-                cs = pr + stp
+                cs = sorted(pr + stp, key=lambda b: (max(b), b[0] * b[1], -b[1]))
+                st = status(n, sym, a.cap)
+                if not any(v in 'Ff' for v in st.values()):
+                    # nothing found yet for this ratio: most square first, k x k upward (sym: k x k or k x k+1)
+                    sq = []
+                    for k in range(n, a.cap + 1):
+                        for b in ((k, k), (k, k + 1)):
+                            if parity_ok(n, b[1], sym) and st.get(b, '.') not in 'Pp?' and b not in skip:
+                                sq.append(b)
+                    cs = sq[:a.procs if sym else 1]
                 if a.dry:
                     print(n, mode, 'probes', pr, 'steps', stp)
                     break
