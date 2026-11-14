@@ -53,6 +53,12 @@ def spec(name):
         a, b = nums
         return a + b, [('W', i) for i in range(a)] + [('N', i) for i in range(b)], \
             [('S', i) for i in range(a + b)]
+    if kind == 'mrgx':                        # 2k half belts; belts i and i+k merge into output i (pairs apart)
+        k = nums[0]
+        return 2 * k, [('W', i) for i in range(2 * k)], [('E', i) for i in range(k)]
+    if kind == 'splx':                        # k full belts; belt i splits, its halves leave at i and i+k
+        k = nums[0]
+        return k, [('W', i) for i in range(k)], [('E', i) for i in range(2 * k)]
     if kind == 'sq':
         k = nums[0]
         return k, [('W', i) for i in range(k)], [('E', i) for i in range(k)]
@@ -100,6 +106,35 @@ def window(name, W, H, L=0):
     return w
 
 
+def window_mix(name, W, H):
+    """merge / split cases: amounts in halves (D = 2); every bundle sits anywhere along its edge"""
+    k = int(name[4:])
+    mrg = name.startswith('mrgx')
+    n = 2 * k if mrg else k
+    w = Window(W, H, n, 2)
+    if mrg:
+        w.max_splitters = 0
+    ins, outs = [], []
+    for i in range(2 * k if mrg else k):
+        v = [0] * n
+        v[i] = 1 if mrg else 2
+        ins.append(v)
+    for j in range(k if mrg else 2 * k):
+        v = [0] * n
+        if mrg:
+            v[j] = v[j + k] = 1
+        else:
+            v[j % k] = 1
+        outs.append(v)
+    w.port_options = []
+    for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
+        opts = [{(tile(e, s + i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)} for s in range(H - len(vecs) + 1)]
+        if not opts:
+            return None
+        w.port_options.append(opts)
+    return w
+
+
 def trace(grid, win, options):
     """follow every belt from its entrance: -> True when each one ends at its own exit"""
     from bmsolver.check import Design
@@ -137,14 +172,19 @@ def box(name, W, H, timeout, L=0):
     key = '%dx%d' % (W, H) + ('L%d' % L if L else '')
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0]
-    win = window(name, W, H, L)
+    mix = name.startswith(('mrgx', 'splx'))
+    win = window_mix(name, W, H) if mix else window(name, W, H, L)
     if win is None:
         return 'INFEASIBLE'
     t0 = time.time()
     r = model.solve(win, timeout=timeout, workers=int(os.environ.get('GADGET_WORKERS', 4)))
     ok = False
     if 'grid' in r:
-        ok = trace(r['grid'], win, r['options'])
+        if mix:
+            from bmsolver import bench
+            ok = bool(bench.verify(r['grid'], win, r['options']))
+        else:
+            ok = trace(r['grid'], win, r['options'])
         with open(os.path.join(OUT, '%s.jsonl' % name), 'a') as fh:
             fh.write(json.dumps(dict(case=name, W=W, H=H, L=L, traced=ok, pieces=r.get('pieces'), options=r['options'],
                                      grid={'%d,%d' % p: c for p, c in r['grid'].items() if c})) + '\n')
