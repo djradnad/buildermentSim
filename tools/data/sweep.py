@@ -81,6 +81,8 @@ def cached_prove(win, box, a):
     running, res = [], dict(status='INFEASIBLE', cubes=len(cs))
 
     def one(k):
+        if getattr(a, 'cuts', None):
+            cs[k].cuts = a.cuts
         mod = model.Model(cs[k])
         lazy.add_flow_lemmas(mod, cs[k])
         return k, cnf.solve(mod, engine=os.path.expanduser(a.engine), timeout=a.timeout, procs=running)
@@ -146,6 +148,7 @@ def main():
     ap.add_argument('--engine', default='~/solvers/kissat')
     ap.add_argument('--out', default='~/data/flowcheck.jsonl')
     ap.add_argument('--dry', action='store_true')
+    ap.add_argument('--cuts', default=None, help="redundant line rules per cube: flow, card or both")
     a = ap.parse_args()
     for n in map(int, a.n.split(',')):
         for mode in a.modes.split(','):
