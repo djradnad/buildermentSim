@@ -71,6 +71,8 @@ def spec(name):
     if kind in ('trapt', 'trapb'):
         k = nums[0]
         return k + 2, [('W', i) for i in range(k + 2)], [('E', i) for i in range(k + 1)]
+    if kind in ('mixt', 'mixg'):
+        return 3, [('W', i) for i in range(3)], [('E', i) for i in range(3)]
     if kind == 'mixf':
         return 2, [('W', 0), ('W', 1)], [('E', 0), ('E', 1)]
     if kind == 'sq':
@@ -138,6 +140,33 @@ def window_mix(name, W, H):
             if not opts:
                 return None
             w.port_options.append(opts)
+        return w
+    if name.startswith('mixg'):
+        # 3-row 5:5 piece, no pass-through: rows 0,1 carry the same mix q, row 2 carries x; out rows 0,1 get
+        # 3/5 q + 2/5 x each, row 2 gets 4/5 q + 1/5 x (after a 4:4 on rows 0-3 before and after: all fifths)
+        D = int(os.environ.get('MIXF_D', 30))
+        w = Window(W, H, 3, D)                 # q split as two commodities a, b with equal shares
+        if os.environ.get('MIXF_MAXS'):
+            w.max_splitters = int(os.environ['MIXF_MAXS'])
+        ins = [[D, 0, 0], [0, D, 0], [0, 0, D]]
+        o2 = [3 * D // 10, 3 * D // 10, 2 * D // 5]
+        outs = [o2, list(o2), [2 * D // 5, 2 * D // 5, D // 5]]
+        w.port_options = []
+        for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
+            w.port_options.append([{(tile(e, i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}])
+        return w
+    if name.startswith('mixt'):
+        # 3-row chain piece: belts 0,1 mix as mixf<k>, belt 2 passes straight through (rows fixed 0,1,2)
+        k = int(name[4:])
+        D = int(os.environ.get('MIXF_D', 15))
+        w = Window(W, H, 3, D)
+        if os.environ.get('MIXF_MAXS'):
+            w.max_splitters = int(os.environ['MIXF_MAXS'])
+        ins = [[D, 0, 0], [0, D, 0], [0, 0, D]]
+        outs = [[k * D // 5, (5 - k) * D // 5, 0], [(5 - k) * D // 5, k * D // 5, 0], [0, 0, D]]
+        w.port_options = []
+        for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
+            w.port_options.append([{(tile(e, i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}])
         return w
     if name.startswith('mixf'):
         # loop piece for 5:5: two full belts x, y -> (k/5 x + (5-k)/5 y, (5-k)/5 x + k/5 y); fifths need a loop
@@ -272,7 +301,7 @@ def box(name, W, H, timeout, L=0):
     key = '%dx%d' % (W, H) + ('L%d' % L if L else '')
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0]
-    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf'))
+    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf', 'mixt', 'mixg'))
     win = window_mix(name, W, H) if mix else window(name, W, H, L)
     if win is None:
         return 'INFEASIBLE'
