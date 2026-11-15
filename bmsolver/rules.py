@@ -34,7 +34,7 @@ rule('primes', 'Pair moves that only halve or take thirds (no loops) make shares
      'Any other prime (5, 7, ...) needs a loop: flow fed back so that 1/(1-g) brings the new prime in.',
      'hand argument (splitters divide by 2 or 3)', 'all layouts')
 rule('splitter-min', 'Fewest splitters (game rules: one input belt, merging up to 3, split 2 or 3 ways, belts <= 1): '
-     '2-belt 1/5-4/5 mix = 4 (3 impossible); 3-belt (q,q,x) -> (3/5,3/5,4/5 q) piece = 6 (5 impossible).',
+     '2-belt 1/5-4/5 mix = 4 (3 impossible); 2-belt 1/7-6/7 mix = 5 (4 impossible, inner belts in 1/21); 3-belt (q,q,x) -> (3/5,3/5,4/5 q) piece = 6 (5 impossible).',
      'CP-SAT netlist search (tools/routing/netlist_cp.py)', 'flow unit 1/360')
 rule('two-rows', 'Two full belts in 2 rows: halves, crossovers, fifths and every split in tenths are impossible at any '
      'width; 2:2 at 2 tall only ever reaches repeated quarter swaps (x -> 3/4 x + 1/4 y).',

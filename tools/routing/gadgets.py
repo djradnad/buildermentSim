@@ -77,7 +77,7 @@ def spec(name):
         return 4, [('W', i) for i in range(4)], [('E', i) for i in range(4)]
     if kind in ('mixt', 'mixg', 'mixp', 'mixo'):
         return 3, [('W', i) for i in range(3)], [('E', i) for i in range(3)]
-    if kind == 'mixf':
+    if kind in ('mixf', 'mixs'):
         return 2, [('W', 0), ('W', 1)], [('E', 0), ('E', 1)]
     if kind == 'sq':
         k = nums[0]
@@ -249,6 +249,23 @@ def window_mix(name, W, H):
         for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
             w.port_options.append([{(tile(e, i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}])
         return w
+    if name.startswith('mixs'):
+        # mixs<k>_<n>: two full belts x, y -> (k/n x + (n-k)/n y, (n-k)/n x + k/n y); 1/7 loop flows need 1/21 units
+        k, n_ = map(int, name[4:].split('_'))
+        D = int(os.environ.get('MIXS_D', 3 * n_))
+        w = Window(W, H, 2, D)
+        if os.environ.get('MIXF_MAXS'):
+            w.max_splitters = int(os.environ['MIXF_MAXS'])
+        ins = [[D, 0], [0, D]]
+        outs = [[k * D // n_, (n_ - k) * D // n_], [(n_ - k) * D // n_, k * D // n_]]
+        w.port_options = []
+        for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
+            opts = [{(tile(e, s_ + i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}
+                    for s_ in range(H - len(vecs) + 1)]
+            if not opts:
+                return None
+            w.port_options.append(opts)
+        return w
     if name.startswith('mixf'):
         # loop piece for 5:5: two full belts x, y -> (k/5 x + (5-k)/5 y, (5-k)/5 x + k/5 y); fifths need a loop
         k = int(name[4:])
@@ -382,7 +399,7 @@ def box(name, W, H, timeout, L=0):
     key = '%dx%d' % (W, H) + ('L%d' % L if L else '')
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0]
-    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf', 'mixt', 'mixg', 'mixp', 'mixo', 'mixu', 'mix5'))
+    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf', 'mixt', 'mixg', 'mixp', 'mixo', 'mixu', 'mix5', 'mixs'))
     win = window_mix(name, W, H) if mix else window(name, W, H, L)
     if win is None:
         return 'INFEASIBLE'
