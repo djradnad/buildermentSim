@@ -67,10 +67,69 @@ def tidy(g, n, W, H):
             if changed:
                 break
         if not changed:
-            g2 = pair_pass(g, n, W, H) or chain_pass(g, n, W, H)
+            g2 = false_pass(g, n, W, H) or pair_pass(g, n, W, H) or chain_pass(g, n, W, H)
             if g2 is not None:
                 g, changed = g2, True
     return g
+
+
+def false_pass(g, n, W, H):
+    """Splitters that send everything one way (one link out) are belts in disguise, often in chains or L shapes
+    where each shields the next. Swap them all at once to belts facing their one way out (a side way out gives a
+    curved belt); any new belt that a real splitter would now spill into stays a splitter; repeat to a fixed point,
+    then one exact check (bisect if it fails)."""
+    from bmsolver.design import Design
+    def links_of(t):
+        out = {}
+        for p, q, k in Design(t).links():
+            out.setdefault(p, []).append(q)
+        return out
+    L = links_of(g)
+    cand = {}
+    for p, c in g.items():
+        if c[0] != 'S':
+            continue
+        qs = L.get(p, [])
+        sinks = [d for d in range(4) if (p[0] == 0 and d == 1)]   # west edge outputs drain
+        if len(qs) + len(sinks) == 1:
+            q = qs[0] if qs else None
+            d = [k for k, v in DIRS.items() if q and (p[0] + v[0], p[1] + v[1]) == q]
+            cand[p] = 'B%d' % (d[0] if d else 1)
+    if not cand:
+        return None
+    feeders = {}
+    for p, qs in L.items():
+        for q in qs:
+            feeders.setdefault(q, set()).add(p)
+    while True:
+        g2 = dict(g); g2.update(cand)
+        L2 = links_of(g2)
+        bad = set()
+        for p2, qs in L2.items():
+            for q in qs:
+                if q in cand and p2 not in feeders.get(q, set()):
+                    bad.add(q)
+        if not bad:
+            break
+        for q in bad:
+            del cand[q]
+        if not cand:
+            return None
+    items = sorted(cand.items())
+    def tryset(sub):
+        g2 = dict(g); g2.update(dict(sub))
+        return g2 if ok(g2, n, W, H) else None
+    r = tryset(items)
+    if r is not None:
+        return r
+    while len(items) > 1:                       # keep the half that still checks
+        h = len(items) // 2
+        for part in (items[:h], items[h:]):
+            r = tryset(part)
+            if r is not None:
+                return r
+        items = items[:h]
+    return None
 
 
 def opts(c):

@@ -131,16 +131,23 @@ def main():
                     c += 1
         return g, W, H
     import relax
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'routing'))
+    import tidy
 
     def straighten(g, W, H):
         """stage 0 (john's hand method): slide parts together over plain belt stretches, no solver, one check"""
-        g2, W2, _ = relax.compact(g, W, H)
-        if g2 is None or W2 >= W:
+        g1 = tidy.false_pass(g, a.n, W, H) or g          # disguised belts first (any shape, curved too)
+        g2, W2, _ = relax.compact(g1, W, H)
+        if g2 is None:
+            g2, W2 = g1, W
+        if g2 is g:
             return g, W, H
         win = S.Spec([S.Group('E', a.n)], [S.Group('W', a.n)], unit_mult=UNIT_MULT).window(W2, H)
         if win is None or not bench.verify(g2, win, None):
-            return g, W, H
-        print('%dx%d straightened (was %d wide)' % (W2, H, W), flush=True)
+            if g1 is g:
+                return g, W, H
+            g2, W2 = g1, W                              # the swaps alone (tidy checked them)
+        print('%dx%d straightened (was %d wide, %d splitters left)' % (W2, H, W, sum(c[0] == 'S' for c in g2.values())), flush=True)
         with open(os.path.expanduser(a.out), 'a') as fh:
             fh.write(json.dumps(dict(n=a.n, W=W2, H=H, grid=rows_of(g2, W2, H))) + '\n')
         return g2, W2, H
