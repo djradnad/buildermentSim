@@ -110,6 +110,44 @@ def main():
                      tuple(inflow.get(p, ()))) for p in tiles)
         return (axis, b, rel)
 
+    # stage 0 (john's easy-first pipeline): free drops, no solver: delete a line and keep it if the exact check passes
+    def free_drops(g, W, H):
+        changed = True
+        while changed:
+            changed = False
+            for axis in ((0, 1) if W >= H else (1, 0)):
+                c = 1
+                while c < (W if axis == 0 else H) - 1:
+                    g2 = drop(g, axis, c)
+                    W2, H2 = (W - 1, H) if axis == 0 else (W, H - 1)
+                    win = S.Spec([S.Group('E', a.n)], [S.Group('W', a.n)], unit_mult=UNIT_MULT).window(W2, H2)
+                    if win is not None and bench.verify(g2, win, None):
+                        g, W, H = g2, W2, H2
+                        print('%dx%d free drop %s %d' % (W, H, 'col' if axis == 0 else 'row', c), flush=True)
+                        with open(os.path.expanduser(a.out), 'a') as fh:
+                            fh.write(json.dumps(dict(n=a.n, W=W, H=H, grid=rows_of(g, W, H))) + '\n')
+                        changed = True
+                        continue
+                    c += 1
+        return g, W, H
+    import relax
+
+    def straighten(g, W, H):
+        """stage 0 (john's hand method): slide parts together over plain belt stretches, no solver, one check"""
+        g2, W2, _ = relax.compact(g, W, H)
+        if g2 is None or W2 >= W:
+            return g, W, H
+        win = S.Spec([S.Group('E', a.n)], [S.Group('W', a.n)], unit_mult=UNIT_MULT).window(W2, H)
+        if win is None or not bench.verify(g2, win, None):
+            return g, W, H
+        print('%dx%d straightened (was %d wide)' % (W2, H, W), flush=True)
+        with open(os.path.expanduser(a.out), 'a') as fh:
+            fh.write(json.dumps(dict(n=a.n, W=W2, H=H, grid=rows_of(g2, W2, H))) + '\n')
+        return g2, W2, H
+    if os.environ.get('FREE_DROPS') == '1':
+        g, W, H = free_drops(g, W, H)
+    g, W, H = straighten(g, W, H)
+
     improved = True
     while improved:
         improved = False
@@ -129,7 +167,7 @@ def main():
                     print('%dx%d drop %s %d band %d: %s %.0fs' % (W, H, 'col' if axis == 0 else 'row', c, b,
                                                                   'ok' if r else '-', time.time() - t), flush=True)
                     if r:
-                        g, W, H = r
+                        g, W, H = straighten(*r)
                         with open(os.path.expanduser(a.out), 'a') as fh:
                             fh.write(json.dumps(dict(n=a.n, W=W, H=H, grid=rows_of(g, W, H))) + '\n')
                         print('\n'.join(rows_of(g, W, H)), flush=True)
