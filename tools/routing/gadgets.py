@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from bmsolver import model  # noqa: E402
 from bmsolver.model import Window  # noqa: E402
 
-OUT = os.path.expanduser('~/data/gadgets')
+OUT = os.path.expanduser(os.environ.get('GADGET_OUT', '~/data/gadgets'))
 
 
 def spec(name):
@@ -142,11 +142,12 @@ def window_mix(name, W, H):
     if name.startswith('mixf'):
         # loop piece for 5:5: two full belts x, y -> (k/5 x + (5-k)/5 y, (5-k)/5 x + k/5 y); fifths need a loop
         k = int(name[4:])
-        w = Window(W, H, 2, 5)
+        D = int(os.environ.get('MIXF_D', 15))     # inner belts carry 2/15 (ring of 3-way splitters)
+        w = Window(W, H, 2, D)
         if os.environ.get('MIXF_MAXS'):         # a 4-splitter ring does it (S0 x|A, S1 y|B, S0<->S2<->S3<->S1)
             w.max_splitters = int(os.environ['MIXF_MAXS'])
-        ins = [[5, 0], [0, 5]]
-        outs = [[k, 5 - k], [5 - k, k]]
+        ins = [[D, 0], [0, D]]
+        outs = [[k * D // 5, (5 - k) * D // 5], [(5 - k) * D // 5, k * D // 5]]
         w.port_options = []
         for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
             opts = [{(tile(e, s + i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}
