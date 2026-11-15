@@ -33,6 +33,22 @@ def rows_of(g, W, H):
 UNIT_MULT = 1
 
 
+def auto_unit(n, g, W, H):
+    """smallest unit multiplier so every exact flow of the layout is a whole number of units (loops bring in
+    1/15, 1/21 ... and later halvings divide those further)"""
+    from fractions import Fraction as F
+    from math import lcm
+    from bmsolver.design import Design, flows
+    src = {(W - 1, y): [F(int(i == y)) for i in range(n)] for y in range(n)}
+    inflow, _ = flows(Design(g), src, set(((0, y), 1) for y in range(n)))
+    L = 1
+    for v in inflow.values():
+        for x in v:
+            L = lcm(L, F(x).denominator)
+    D = S.Spec([S.Group('E', n)], [S.Group('W', n)]).D
+    return lcm(D, L) // D
+
+
 def drop(g, axis, c):
     out = {}
     for (x, y), v in g.items():
@@ -68,11 +84,12 @@ def main():
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--bands', default='4,6,8')
     ap.add_argument('--out', required=True)
-    ap.add_argument('--unit-mult', type=int, default=1, help='finer flow units (loops with 1/15 belts inside chains)')
+    ap.add_argument('--unit-mult', type=int, default=0, help='finer flow units (loops with 1/15 belts inside chains)')
     a = ap.parse_args()
     global UNIT_MULT
-    UNIT_MULT = a.unit_mult
     g, W, H = parse([l.rstrip('\n') for l in open(a.grid) if l.strip()])
+    UNIT_MULT = a.unit_mult or auto_unit(a.n, g, W, H)
+    print('flow unit multiplier', UNIT_MULT, flush=True)
     improved = True
     while improved:
         improved = False
