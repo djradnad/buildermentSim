@@ -157,6 +157,20 @@ def main():
     if os.environ.get('FREE_DROPS') == '1':
         g, W, H = free_drops(g, W, H)
     g, W, H = straighten(g, W, H)
+    import seam
+
+    def seam_stage(g, W, H):
+        """john's staircase cuts: one tile per row, pieces kept whole, exact check"""
+        win_of = lambda W2: S.Spec([S.Group('E', a.n)], [S.Group('W', a.n)], unit_mult=UNIT_MULT).window(W2, H)
+        chk = lambda g2, W2: (lambda w: w is not None and bench.verify(g2, w, None))(win_of(W2))
+
+        def log(g2, W2, path):
+            print('%dx%d seam cut %s' % (W2, H, path), flush=True)
+            with open(os.path.expanduser(a.out), 'a') as fh:
+                fh.write(json.dumps(dict(n=a.n, W=W2, H=H, grid=rows_of(g2, W2, H))) + '\n')
+        g2, W2 = seam.carve(g, W, H, chk, log)
+        return g2, W2, H
+    g, W, H = seam_stage(g, W, H)
 
     improved = True
     while improved:
@@ -187,6 +201,10 @@ def main():
                     break
             if improved:
                 break
+        if not improved:                        # windows stuck: try seam cuts once more
+            W0 = W
+            g, W, H = seam_stage(g, W, H)
+            improved = W < W0
 
 
 if __name__ == '__main__':
