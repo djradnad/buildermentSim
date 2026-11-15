@@ -172,15 +172,18 @@ def main():
         return g2, W2, H
     g, W, H = seam_stage(g, W, H)
 
+    resume = {}
     improved = True
     while improved:
         improved = False
         # shrink the longer side first (most square first)
-        axes = (0, 1) if W >= H else (1, 0)
+        axes = tuple(int(v) for v in os.environ['SHRINK_AXES'].split(',')) if os.environ.get('SHRINK_AXES') else ((0, 1) if W >= H else (1, 0))
         for axis in axes:
             n_lines = W if axis == 0 else H
             for b in map(int, a.bands.split(',')):
-                for c in range(1, n_lines - 1):
+                cs = list(range(1, n_lines - 1))
+                k0 = resume.get((axis, b), 0) % max(1, len(cs))
+                for c in cs[k0:] + cs[:k0]:         # carry on from the last hit instead of restarting west
                     t = time.time()
                     k = key(g, W, H, axis, c, b)
                     if k in failed:
@@ -191,6 +194,7 @@ def main():
                     print('%dx%d drop %s %d band %d: %s %.0fs' % (W, H, 'col' if axis == 0 else 'row', c, b,
                                                                   'ok' if r else '-', time.time() - t), flush=True)
                     if r:
+                        resume[(axis, b)] = c
                         g, W, H = straighten(*r)
                         with open(os.path.expanduser(a.out), 'a') as fh:
                             fh.write(json.dumps(dict(n=a.n, W=W, H=H, grid=rows_of(g, W, H))) + '\n')
