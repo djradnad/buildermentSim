@@ -177,8 +177,82 @@ def build(N):
             blocks.append(cache[i, mv[2], mv[3]])
         else:
             blocks.append(nchain.place(op, i, N))
+    if os.environ.get('LAYERS', '1') == '1':
+        blocks = layered(N, moves, blocks)
+        print('packed into %d layers' % len(blocks), flush=True)
     full = [sum((b[y] for b in reversed(blocks)), []) for y in range(N)]
     return full
+
+
+def mix_matrix(block, N):
+    """exact mix of an N-row block (inputs east, outputs west): M[out row][in row], or None if it jams"""
+    from fractions import Fraction as F
+    from bmsolver.design import Design, flows
+    W = len(block[0])
+    g = {(x, y): block[y][x] for y in range(N) for x in range(W) if block[y][x]}
+    src = {(W - 1, y): [F(int(i == y)) for i in range(N)] for y in range(N)}
+    try:
+        inflow, dr = flows(Design(g), src, set(((0, y), 1) for y in range(N)))
+    except ValueError:
+        return None
+    if any(sum(v) > 1 for v in inflow.values()):
+        return None
+    M = [list(dr.get(((0, y), 1), [F(0)] * N)) for y in range(N)]
+    if any(sum(r) != 1 for r in M):
+        return None
+    return M
+
+
+def matmul(A, B):
+    """A after B (B is applied first)"""
+    n = len(A)
+    return [[sum(A[i][k] * B[k][j] for k in range(n)) for j in range(n)] for i in range(n)]
+
+
+def piece_rows(op, i, N):
+    if op == 'L':
+        return set(range(N))
+    return set(range(i, i + 3)) if i + 2 < N else set(range(i - 1, i + 2))
+
+
+def layer_block(members, N):
+    """members: [(rows, block)], disjoint rows; pad each piece on its east side with a hop run"""
+    w = max(len(b[0]) for r, b in members)
+    out = [nchain.through(w) for _ in range(N)]
+    for rows, b in members:
+        wp = len(b[0])
+        for y in rows:
+            pad = w - wp
+            out[y] = list(b[y]) + (nchain.through(pad) if pad > 1 else ['B1'] * pad)
+    return out
+
+
+def layered(N, moves, blocks):
+    """pack moves into layers: a move joins the earliest layer after the last one touching its rows, if the
+    layer's exact mix still equals the moves applied one by one; otherwise it opens a new layer"""
+    layers = []                                   # [{'rows': set, 'members': [(rows, block)], 'M': matrix}]
+    last = {}
+    for mv, b in zip(moves, blocks):
+        R = piece_rows(mv[0], mv[1], N)
+        start = max([last[r] + 1 for r in R if r in last] + [0])
+        Mb = mix_matrix(b, N)
+        placed = None
+        for li in range(start, len(layers)):
+            L = layers[li]
+            if L['rows'] & R or any(r for r in R if L['rows'] & {r - 1, r + 1} and False):
+                continue
+            cand = layer_block(L['members'] + [(R, b)], N)
+            Mc = mix_matrix(cand, N)
+            if Mc is not None and Mc == matmul(Mb, L['M']):
+                L['members'].append((R, b)); L['rows'] |= R; L['M'] = Mc
+                placed = li
+                break
+        if placed is None:
+            layers.append({'rows': set(R), 'members': [(R, b)], 'M': Mb})
+            placed = len(layers) - 1
+        for r in R:
+            last[r] = placed
+    return [layer_block(L['members'], N) for L in layers]
 
 
 def main():

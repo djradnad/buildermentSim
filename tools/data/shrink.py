@@ -90,6 +90,26 @@ def main():
     g, W, H = parse([l.rstrip('\n') for l in open(a.grid) if l.strip()])
     UNIT_MULT = a.unit_mult or auto_unit(a.n, g, W, H)
     print('flow unit multiplier', UNIT_MULT, flush=True)
+    failed = set()
+
+    def key(g, W, H, axis, c, b):
+        """a band's problem is fixed by the tiles within underground reach of it and the exact flows on them"""
+        from fractions import Fraction as F
+        from bmsolver.design import Design, flows
+        lo, hi = c - b // 2 - 8, c - b // 2 + b + 8
+        tiles = sorted(p for p in g if lo <= p[axis] < hi)
+        if not hasattr(key, 'cache') or key.cache[0] is not g:
+            src = {(W - 1, y): [F(int(i == y)) for i in range(a.n)] for y in range(a.n)} if axis == 0 or True else {}
+            try:
+                inflow, _ = flows(Design(g), src, set(((0, y), 1) for y in range(a.n)))
+            except ValueError:
+                inflow = {}
+            key.cache = (g, inflow)
+        inflow = key.cache[1]
+        rel = tuple(((p[0] - (c if axis == 0 else 0), p[1] - (c if axis == 1 else 0)), g[p],
+                     tuple(inflow.get(p, ()))) for p in tiles)
+        return (axis, b, rel)
+
     improved = True
     while improved:
         improved = False
@@ -100,7 +120,12 @@ def main():
             for b in map(int, a.bands.split(',')):
                 for c in range(1, n_lines - 1):
                     t = time.time()
+                    k = key(g, W, H, axis, c, b)
+                    if k in failed:
+                        continue
                     r = attempt(a.n, g, W, H, axis, c, b, a.timeout, a.workers)
+                    if not r:
+                        failed.add(k)
                     print('%dx%d drop %s %d band %d: %s %.0fs' % (W, H, 'col' if axis == 0 else 'row', c, b,
                                                                   'ok' if r else '-', time.time() - t), flush=True)
                     if r:
