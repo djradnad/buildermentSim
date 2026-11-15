@@ -128,15 +128,76 @@ def logical(rows):
             return out
     if n in (2, 3):
         return fm(rows)
+    if os.environ.get('SPREAD', '1') == '1':     # after the loop only row rows[-2] is off: spread it
+        return logical(rows[:-1]) + [('L', rows[-2], rows[-1], n), ('S', tuple(rows[:-1]), rows[-2])]
     return logical(rows[:-1]) + [('L', rows[-2], rows[-1], n)] + logical(rows[:-1])
 
 
-def route(N, lmoves):
+def spread_plan(m, start, maxc=200):
+    """cheapest adjacent moves that share one off row equally over m rows (every row gets 1/m of it): after a
+    loop only that row differs from the balanced rest, so this replaces a second full balance (exact Dijkstra on
+    the share vector)"""
+    import heapq
+    from fractions import Fraction as Fr
+    cost = {'H': 6, 'T': 9, 'X': 6}
+
+    def ap(s, op, i):
+        a, b = s[i], s[i + 1]
+        if op == 'H':
+            na = nb = (a + b) / 2
+        elif op == 'T':
+            na, nb = a / 3 + 2 * b / 3, 2 * a / 3 + b / 3
+        else:
+            na, nb = b, a
+        return s[:i] + (na, nb) + s[i + 2:]
+    s0 = tuple(Fr(int(i == start)) for i in range(m))
+    goal = tuple(Fr(1, m) for _ in range(m))
+    pq, seen, k = [(0, 0, s0, ())], {s0: 0}, 0
+    while pq:
+        c, _, s, plan = heapq.heappop(pq)
+        if s == goal:
+            return list(plan)
+        if c > maxc:
+            return None
+        for op in 'HTX':
+            for i in range(m - 1):
+                s2, c2 = ap(s, op, i), c + cost[op]
+                if seen.get(s2, 1e9) <= c2:
+                    continue
+                seen[s2] = c2; k += 1
+                heapq.heappush(pq, (c2, k, s2, plan + ((op, i),)))
+    return None
+
+
+def spread_logical(rows, start):
+    """the spread plan as logical pair moves (crossings only reorder; route() places rows physically)"""
+    pos = list(rows)
+    out = []
+    for op, i in spread_plan(len(rows), start):
+        if op == 'X':
+            pos[i], pos[i + 1] = pos[i + 1], pos[i]
+        else:
+            out.append((op, pos[i], pos[i + 1]))
+    return out
+
+
+def route(N, lmoves, at=None):
     """physical moves: keep track of which logical row sits where; bring a pair together by crossings and never
     cross back (balanced outputs are all alike, so the final order does not matter)"""
-    at = list(range(N))                         # at[physical] = logical
+    at = list(range(N)) if at is None else at    # at[physical] = logical (shared with a caller)
     out = []
     for mv in lmoves:
+        if mv[0] == 'S':                        # spread one off row over a group, planned on the physical order
+            group, q = set(mv[1]), mv[2]
+            ps = sorted(at.index(r) for r in group)
+            if ps[-1] - ps[0] == len(ps) - 1:
+                for op, i in spread_plan(len(ps), at.index(q) - ps[0]):
+                    out.append((op, ps[0] + i))
+                    if op == 'X':
+                        at[ps[0] + i], at[ps[0] + i + 1] = at[ps[0] + i + 1], at[ps[0] + i]
+                continue
+            out += route(N, spread_logical(list(mv[1]), list(mv[1]).index(q)), at)
+            continue
         u, v = mv[1], mv[2]
         while True:
             pu, pv = at.index(u), at.index(v)

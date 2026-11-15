@@ -33,6 +33,23 @@ def rows_of(g, W, H):
     return [''.join(g.get((x, y)) or '..' for x in range(W)) for y in range(H)]
 
 
+def prune(g, W, H):
+    """drop tiles nothing can ever feed (closed dead loops, stray pieces): they carry nothing and, being unfed,
+    were never an accepting neighbour of anything live"""
+    from bmsolver.design import Design
+    nxt = {}
+    for p, q, k in Design(g).links():
+        nxt.setdefault(p, []).append(q)
+    st = [(W - 1, y) for y in range(H) if (W - 1, y) in g]
+    seen = set(st)
+    while st:
+        p = st.pop()
+        for q in nxt.get(p, []):
+            if q not in seen:
+                seen.add(q); st.append(q)
+    return {p: c for p, c in g.items() if p in seen}
+
+
 def pushes_into(g, x, y):
     """True if a vertical neighbour could put items into (x, y) were it a belt"""
     for dy, toward in ((-1, '2'), (1, '0')):

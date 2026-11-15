@@ -158,6 +158,7 @@ def main():
     import time
     from shrink import auto_unit
     g, W, H = R.parse([l.rstrip('\n') for l in open(os.path.expanduser(a.grid)) if l.strip()])
+    g = R.prune(g, W, H)
     um = auto_unit(a.n, g, W, H) if a.n else 1
 
     def check(g, W):

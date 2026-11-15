@@ -88,6 +88,9 @@ def main():
     a = ap.parse_args()
     global UNIT_MULT
     g, W, H = parse([l.rstrip('\n') for l in open(a.grid) if l.strip()])
+    sys.path.insert(0, os.path.dirname(__file__))
+    import relax as _r
+    g = _r.prune(g, W, H)
     UNIT_MULT = a.unit_mult or auto_unit(a.n, g, W, H)
     print('flow unit multiplier', UNIT_MULT, flush=True)
     failed = set()
