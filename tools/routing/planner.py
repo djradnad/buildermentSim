@@ -73,7 +73,7 @@ def piece(n):
     return best
 
 
-def section(N, n, a, extra=8, timeout=600):
+def section(N, n, a, x_low=False, extra=8, timeout=600):
     """loop section, N rows: rows a, a+1 mix 1/n - (n-1)/n through the pinned piece (rows a-1..a+1), the rest
     pass. Returns rows (inputs east, outputs west) or None"""
     r = piece(n)
@@ -91,12 +91,12 @@ def section(N, n, a, extra=8, timeout=600):
             for y in range(3):
                 w.fixed.setdefault((x + ox, y + top), None)
         ins = [[D if j == i else 0 for j in range(N)] for i in range(N)]
-        opts = []
-        for kk in (1, n - 1):
-            outs = [list(v) for v in ins]
-            outs[a] = [0] * N; outs[a][a] = kk * 3; outs[a][a + 1] = D - kk * 3
-            outs[a + 1] = [0] * N; outs[a + 1][a] = D - kk * 3; outs[a + 1][a + 1] = kk * 3
-            opts.append({((W - 1, i), EDGE['E']): ('out', v) for i, v in enumerate(outs)})
+        # the x row (the belt joining the balanced group) must end (n-1)/n q + 1/n x
+        q, x = (a + 1, a) if x_low else (a, a + 1)
+        outs = [list(v) for v in ins]
+        outs[x] = [0] * N; outs[x][q] = D - 3; outs[x][x] = 3
+        outs[q] = [0] * N; outs[q][q] = 3; outs[q][x] = D - 3
+        opts = [{((W - 1, i), EDGE['E']): ('out', v) for i, v in enumerate(outs)}]
         w.port_options = [[{((0, i), EDGE['W']): ('in', v) for i, v in enumerate(ins)}], opts]
         res = model.solve(w, timeout=timeout, workers=int(os.environ.get('WORKERS', 8)))
         print('section %d rows, loop 1/%d at rows %d,%d, %d wide: %s' % (N, n, a, a + 1, W, res['status']), flush=True)
@@ -155,7 +155,7 @@ def route(N, lmoves):
                 out.append(('X', 0)); at[0], at[1] = at[1], at[0]
                 out.append(('X', 1)); at[1], at[2] = at[2], at[1]
                 lo = 1
-            out.append(('L', lo, mv[3]))
+            out.append(('L', lo, mv[3], at[lo] == v))
         elif mv[0] == 'T' and pu > pv:
             out.append(('T', lo))               # 2/3 swap is symmetric in its pair
         else:
@@ -170,11 +170,11 @@ def build(N):
     for mv in moves:
         op, i = mv[0], mv[1]
         if op == 'L':
-            if i not in cache:
-                cache[i] = section(N, mv[2], i)
-            if cache[i] is None:
+            if (i, mv[2], mv[3]) not in cache:
+                cache[i, mv[2], mv[3]] = section(N, mv[2], i, mv[3])
+            if cache[i, mv[2], mv[3]] is None:
                 raise SystemExit('no loop section found')
-            blocks.append(cache[i])
+            blocks.append(cache[i, mv[2], mv[3]])
         else:
             blocks.append(nchain.place(op, i, N))
     full = [sum((b[y] for b in reversed(blocks)), []) for y in range(N)]
