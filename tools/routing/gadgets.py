@@ -71,6 +71,10 @@ def spec(name):
     if kind in ('trapt', 'trapb'):
         k = nums[0]
         return k + 2, [('W', i) for i in range(k + 2)], [('E', i) for i in range(k + 1)]
+    if kind == 'mix':
+        return 5, [('W', i) for i in range(5)], [('E', i) for i in range(5)]
+    if kind == 'mixu':
+        return 4, [('W', i) for i in range(4)], [('E', i) for i in range(4)]
     if kind in ('mixt', 'mixg', 'mixp', 'mixo'):
         return 3, [('W', i) for i in range(3)], [('E', i) for i in range(3)]
     if kind == 'mixf':
@@ -194,6 +198,43 @@ def window_mix(name, W, H):
                                      (tile('E', 1, W, H), EDGE['E']): ('out', [rest[0] - u, rest[1] - v, rest[2] - wv]),
                                      (tile('E', 2, W, H), EDGE['E']): ('out', xr)})
         w.port_options.append(opts)
+        return w
+    if name.startswith('mixu'):
+        # 4-row chain piece: belts 0,1 pass straight through, belts 2,3 mix as mixf<k>
+        k = int(name[4:])
+        D = int(os.environ.get('MIXF_D', 15))
+        w = Window(W, H, 4, D)
+        if os.environ.get('MIXF_MAXS'):
+            w.max_splitters = int(os.environ['MIXF_MAXS'])
+        ins = [[D if j == i else 0 for j in range(4)] for i in range(4)]
+        outs = [ins[0], ins[1], [0, 0, k * D // 5, (5 - k) * D // 5], [0, 0, (5 - k) * D // 5, k * D // 5]]
+        w.port_options = []
+        for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
+            w.port_options.append([{(tile(e, i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}])
+        return w
+    if name.startswith('mix5'):
+        # 5-tall section: belts 0-2 pass (squeezed into rows 0,1 beside the piece), belts 3,4 mix 1/5-4/5 through
+        # a fixed 3-row piece (MIX5_PIECE json from gadgets, placed with its top at row 2, left edge MIX5_X)
+        import json as _j
+        r = _j.load(open(os.path.expanduser(os.environ['MIX5_PIECE'])))
+        ox = int(os.environ.get('MIX5_X', 2))
+        D = 15
+        w = Window(W, H, 5, D)
+        if os.environ.get('MIXF_MAXS'):
+            w.max_splitters = int(os.environ['MIXF_MAXS'])
+        w.fixed = {}
+        for k_, c in r['grid'].items():
+            x, y = map(int, k_.split(','))
+            w.fixed[(x + ox, y + 2)] = c
+        for x in range(r['W']):
+            for y in range(r['H']):
+                w.fixed.setdefault((x + ox, y + 2), None)
+        ins = [[D if j == i else 0 for j in range(5)] for i in range(5)]
+        opts = []
+        for kk in (1, 4):
+            outs = ins[:3] + [[0, 0, 0, kk * 3, 15 - kk * 3], [0, 0, 0, 15 - kk * 3, kk * 3]]
+            opts.append({(tile('E', i, W, H), EDGE['E']): ('out', v) for i, v in enumerate(outs)})
+        w.port_options = [[{(tile('W', i, W, H), EDGE['W']): ('in', v) for i, v in enumerate(ins)}], opts]
         return w
     if name.startswith('mixt'):
         # 3-row chain piece: belts 0,1 mix as mixf<k>, belt 2 passes straight through (rows fixed 0,1,2)
@@ -341,7 +382,7 @@ def box(name, W, H, timeout, L=0):
     key = '%dx%d' % (W, H) + ('L%d' % L if L else '')
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0]
-    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf', 'mixt', 'mixg', 'mixp', 'mixo'))
+    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf', 'mixt', 'mixg', 'mixp', 'mixo', 'mixu', 'mix5'))
     win = window_mix(name, W, H) if mix else window(name, W, H, L)
     if win is None:
         return 'INFEASIBLE'

@@ -56,6 +56,9 @@ def solve(n_in, target, s, U, timeout):
             m.Add(e[('sp', i, j), t] == 0)
     for b, vec in enumerate(target):
         t = ('out', b)
+        if vec is None:                          # free output row: any mix, exactly one full belt
+            m.Add(sum(fe[p, t, k] for p in ports for k in range(K)) == U)
+            continue
         for k in range(K):
             m.Add(sum(fe[p, t, k] for p in ports) == vec[k])
     for i in range(s - 1):                      # symmetry: splitter order by input belt count (weak)
@@ -81,11 +84,11 @@ def main():
     ap.add_argument('--max', type=int, default=8)
     ap.add_argument('--timeout', type=float, default=600)
     a = ap.parse_args()
-    rows = [list(map(int, r.split(','))) for r in a.target.split('/')]
-    den = sum(rows[0])
-    target = [[v * a.unit // den for v in r] for r in rows]
+    rows = [None if r == '*' else list(map(int, r.split(','))) for r in a.target.split('/')]
+    den = sum(next(r for r in rows if r))
+    target = [r and [v * a.unit // den for v in r] for r in rows]
     for s in range(1, a.max + 1):
-        st, net = solve(len(rows[0]), target, s, a.unit, a.timeout)
+        st, net = solve(len(rows), target, s, a.unit, a.timeout)
         print(s, st, flush=True)
         if net:
             for p, (t, fl) in sorted(net.items()):
