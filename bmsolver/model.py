@@ -21,6 +21,8 @@ Windows cut out of an existing layout (improve.py) can also have tunnels crossin
     tun_in[(q, d)] = vec       an entrance at q outside sends vec; its exit must be the first one inside in reach
     tun_out[(q, d)] = vec      an exit at q outside must get vec from entrances inside (whose first exit it is)
     no_ug = {(p, d)}           an outside tunnel runs under p in direction d: no same-direction ends at p
+    no_exit = {(p, d)}         the same, where an entrance may stay: several entrances can share one exit (game
+                               rule), so an entrance under the tunnel is fine as long as it reaches the same exit
 """
 import time
 from ortools.sat.python import cp_model
@@ -42,7 +44,7 @@ class Window:
         self.blocked = set()        # tiles that can't hold pieces
         self.fixed = {}             # tile -> code (or None for empty) forced
         self.hint = {}              # tile -> code, a starting point for the search
-        self.tun_in, self.tun_out, self.no_ug = {}, {}, set()
+        self.tun_in, self.tun_out, self.no_ug, self.no_exit = {}, {}, set(), set()
         self.symmetry = None        # None, 'y' (top/bottom mirror) or 'x' (left/right mirror)
         self.sym_free = set()       # with symmetry: tiles left out of it (e.g. an output corner that may differ)
         self.quasi = 0              # with symmetry: up to this many mirror pairs in the middle row(s) may differ:
@@ -155,6 +157,9 @@ class Model:
 
         for (p, d) in win.no_ug:
             for v in nz([V(p, 'I', d), V(p, 'O', d)]):
+                m.Add(v == 0)
+        for (p, d) in getattr(win, 'no_exit', ()):
+            for v in nz([V(p, 'O', d)]):
                 m.Add(v == 0)
 
         # ---- links

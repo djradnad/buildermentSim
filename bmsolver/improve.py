@@ -193,6 +193,7 @@ def cut_window(layout, x0, x1, y0=None, y1=None, shrink=0, cut=None):
         elif accepts(cu, d):
             win.ports[key] = 'deny_out'
     # tunnels passing over the window: no new ends of that direction under them
+    shared = {q for (p, q, k) in lf if k == 'ug' and inside(p)}      # exits outside fed by an entrance inside
     for (p, q, k) in lf:
         if k == 'ug' and not inside(p) and not inside(q):
             d = int(g.tiles[p][1])
@@ -202,6 +203,8 @@ def cut_window(layout, x0, x1, y0=None, y1=None, shrink=0, cut=None):
                 if inside(t):
                     if shrink:                  # positions shift: block the whole row
                         win.no_ug |= {((xx, t[1] - y0), d) for xx in range(W)}
+                    elif g.tiles.get(t) == 'I%d' % d and q in shared:
+                        win.no_exit.add((local(t), d))   # an entrance here shares the tunnel's exit (game rule)
                     else:
                         win.no_ug.add((local(t), d))
     return win, sub
