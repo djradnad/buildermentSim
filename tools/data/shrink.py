@@ -30,6 +30,9 @@ def rows_of(g, W, H):
     return [''.join(g.get((x, y)) or '..' for x in range(W)) for y in range(H)]
 
 
+UNIT_MULT = 1
+
+
 def drop(g, axis, c):
     out = {}
     for (x, y), v in g.items():
@@ -45,7 +48,7 @@ def drop(g, axis, c):
 def attempt(n, g, W, H, axis, c, b, timeout, workers):
     g2 = drop(g, axis, c)
     W2, H2 = (W - 1, H) if axis == 0 else (W, H - 1)
-    win = S.Spec([S.Group('E', n)], [S.Group('W', n)]).window(W2, H2)
+    win = S.Spec([S.Group('E', n)], [S.Group('W', n)], unit_mult=UNIT_MULT).window(W2, H2)
     if win is None:
         return None
     lo, hi = c - b // 2, c - b // 2 + b
@@ -65,7 +68,10 @@ def main():
     ap.add_argument('--workers', type=int, default=4)
     ap.add_argument('--bands', default='4,6,8')
     ap.add_argument('--out', required=True)
+    ap.add_argument('--unit-mult', type=int, default=1, help='finer flow units (loops with 1/15 belts inside chains)')
     a = ap.parse_args()
+    global UNIT_MULT
+    UNIT_MULT = a.unit_mult
     g, W, H = parse([l.rstrip('\n') for l in open(a.grid) if l.strip()])
     improved = True
     while improved:
