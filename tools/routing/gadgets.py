@@ -169,19 +169,9 @@ def window_mix(name, W, H):
             w.port_options.append([{(tile(e, i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}])
         return w
     if name.startswith('mixp'):
-        # mixt with the passing belt fixed as a hop chain in row 2 (tiles blocked for the solver); the mix of rows
-        # 0,1 is solved around it; verified with the mixt window after adding the chain
-        k = int(name[4:])
-        D = int(os.environ.get('MIXF_D', 15))
-        w = Window(W, H, 2, D)
-        if os.environ.get('MIXF_MAXS'):
-            w.max_splitters = int(os.environ['MIXF_MAXS'])
-        w.blocked = set(hop_row(W, 2))
-        ins = [[D, 0], [0, D]]
-        outs = [[k * D // 5, (5 - k) * D // 5], [(5 - k) * D // 5, k * D // 5]]
-        w.port_options = []
-        for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
-            w.port_options.append([{(tile(e, i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}])
+        # mixt with the passing belt pinned as a hop chain in row 2 (fixed tiles, fully modelled)
+        w = window_mix('mixt' + name[4:], W, H)
+        w.fixed = dict(hop_row(W, 2))
         return w
     if name.startswith('mixo'):
         # loose 3-belt 5:5 piece: rows (a, b, x) with a, b the same mix q; row 2 must get 4/5 q + 1/5 x (any a/b
@@ -359,11 +349,7 @@ def box(name, W, H, timeout, L=0):
     r = model.solve(win, timeout=timeout, workers=int(os.environ.get('GADGET_WORKERS', 4)))
     ok = False
     if 'grid' in r:
-        if name.startswith('mixp'):
-            g = dict(r['grid']); g.update(hop_row(W, 2))
-            r['grid'] = g
-            ok = verify_mix(g, window_mix('mixt' + name[4:], W, H), [0, 0])
-        elif mix:
+        if mix:
             ok = verify_mix(r['grid'], win, r['options'])
         else:
             ok = trace(r['grid'], win, r['options'])
