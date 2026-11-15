@@ -162,7 +162,7 @@ def realign(g, W, H):
 
 def components(g, W, H, E):
     """rigid parts: tiles that are not elastic (pieces, their inner gaps), joined by side contact"""
-    ne = [(x, y) for y in range(H) for x in range(W) if x not in E[y]]
+    ne = [(x, y) for y in range(H) for x in range(W) if x not in E[y] and g.get((x, y))]   # empty void is nothing
     par = {p: p for p in ne}
     def f(p):
         while par[p] != p:
@@ -172,6 +172,10 @@ def components(g, W, H, E):
         for q in ((x + 1, y), (x, y + 1)):
             if q in par:
                 par[f(q)] = f((x, y))
+    from bmsolver.design import Design
+    for p, q, k in Design(g).links():           # a tunnel's two ends move together
+        if k == 'ug' and p in par and q in par:
+            par[f(q)] = f(p)
     comps = {}
     for p in ne:
         comps.setdefault(f(p), []).append(p)
@@ -245,9 +249,17 @@ def compact(g, W, H, glue=frozenset()):
                 g2[(x + pos[i], y)] = g[(x, y)]
             occ[y].add(x + pos[i])
     st = []
+    start = {(y, lo + pos[i]): i for i, d in enumerate(ext) for y, (lo, hi) in d.items()}
     for y in range(H):
         free = [x for x in range(W2) if x not in occ[y]]
-        st += [(y, a, b) for a, b in runs(free)]
+        for a, b in runs(free):                 # a run carries a belt only if something pushes west into it
+            if b == W2 - 1:
+                live = bool(g.get((W - 1, y)))
+            else:                               # the part east of it fed a tile there before it moved
+                i = start.get((y, b + 1))
+                live = i is not None and bool(g.get((ext[i][y][0] - 1, y)))
+            if live:
+                st.append((y, a, b))
     bad = []
     for y, a, b in st:
         exposed = {x - a for x in range(a, b + 1) if pushes_into(g2, x, y)}
