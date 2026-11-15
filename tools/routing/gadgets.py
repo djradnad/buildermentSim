@@ -143,6 +143,8 @@ def window_mix(name, W, H):
         # loop piece for 5:5: two full belts x, y -> (k/5 x + (5-k)/5 y, (5-k)/5 x + k/5 y); fifths need a loop
         k = int(name[4:])
         w = Window(W, H, 2, 5)
+        if os.environ.get('MIXF_MAXS'):         # a 4-splitter ring does it (S0 x|A, S1 y|B, S0<->S2<->S3<->S1)
+            w.max_splitters = int(os.environ['MIXF_MAXS'])
         ins = [[5, 0], [0, 5]]
         outs = [[k, 5 - k], [5 - k, k]]
         w.port_options = []
