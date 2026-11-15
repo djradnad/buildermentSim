@@ -71,7 +71,7 @@ def spec(name):
     if kind in ('trapt', 'trapb'):
         k = nums[0]
         return k + 2, [('W', i) for i in range(k + 2)], [('E', i) for i in range(k + 1)]
-    if kind in ('mixt', 'mixg'):
+    if kind in ('mixt', 'mixg', 'mixp', 'mixo'):
         return 3, [('W', i) for i in range(3)], [('E', i) for i in range(3)]
     if kind == 'mixf':
         return 2, [('W', 0), ('W', 1)], [('E', 0), ('E', 1)]
@@ -122,6 +122,19 @@ def window(name, W, H, L=0):
     return w
 
 
+def hop_row(W, y):
+    """eastward pass-through as hops of at most 7: tile -> code"""
+    row, x = {}, 0
+    while x < W - 1:
+        row[(x, y)] = 'I3'
+        o = min(W - 1, x + 7)
+        row[(o, y)] = 'O3'
+        x = o + 1
+    if x == W - 1:
+        row[(x, y)] = 'B3'
+    return row
+
+
 def window_mix(name, W, H):
     """merge / split cases: amounts in halves (D = 2); every bundle sits anywhere along its edge"""
     if name.startswith('tap'):
@@ -154,6 +167,43 @@ def window_mix(name, W, H):
         w.port_options = []
         for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
             w.port_options.append([{(tile(e, i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}])
+        return w
+    if name.startswith('mixp'):
+        # mixt with the passing belt fixed as a hop chain in row 2 (tiles blocked for the solver); the mix of rows
+        # 0,1 is solved around it; verified with the mixt window after adding the chain
+        k = int(name[4:])
+        D = int(os.environ.get('MIXF_D', 15))
+        w = Window(W, H, 2, D)
+        if os.environ.get('MIXF_MAXS'):
+            w.max_splitters = int(os.environ['MIXF_MAXS'])
+        w.blocked = set(hop_row(W, 2))
+        ins = [[D, 0], [0, D]]
+        outs = [[k * D // 5, (5 - k) * D // 5], [(5 - k) * D // 5, k * D // 5]]
+        w.port_options = []
+        for kind, e, vecs in (('in', 'W', ins), ('out', 'E', outs)):
+            w.port_options.append([{(tile(e, i, W, H), EDGE[e]): (kind, v) for i, v in enumerate(vecs)}])
+        return w
+    if name.startswith('mixo'):
+        # loose 3-belt 5:5 piece: rows (a, b, x) with a, b the same mix q; row 2 must get 4/5 q + 1/5 x (any a/b
+        # split, in 1/15 steps), rows 0,1 anything that adds up (the 4:4 after averages them)
+        D = 15
+        w = Window(W, H, 3, D)
+        if os.environ.get('MIXF_MAXS'):
+            w.max_splitters = int(os.environ['MIXF_MAXS'])
+        ins = [[D, 0, 0], [0, D, 0], [0, 0, D]]
+        w.port_options = [[{(tile('W', i, W, H), EDGE['W']): ('in', v) for i, v in enumerate(ins)}]]
+        opts = []
+        for sa in range(13):
+            xr = [sa, 12 - sa, 3]
+            rest = [D - xr[0], D - xr[1], D - xr[2]]
+            for u in range(rest[0] + 1):
+                for v in range(rest[1] + 1):
+                    wv = D - u - v
+                    if 0 <= wv <= rest[2]:
+                        opts.append({(tile('E', 0, W, H), EDGE['E']): ('out', [u, v, wv]),
+                                     (tile('E', 1, W, H), EDGE['E']): ('out', [rest[0] - u, rest[1] - v, rest[2] - wv]),
+                                     (tile('E', 2, W, H), EDGE['E']): ('out', xr)})
+        w.port_options.append(opts)
         return w
     if name.startswith('mixt'):
         # 3-row chain piece: belts 0,1 mix as mixf<k>, belt 2 passes straight through (rows fixed 0,1,2)
@@ -301,7 +351,7 @@ def box(name, W, H, timeout, L=0):
     key = '%dx%d' % (W, H) + ('L%d' % L if L else '')
     if key in done and (done[key][0] != 'UNKNOWN' or float(done[key][1]) >= timeout):
         return done[key][0]
-    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf', 'mixt', 'mixg'))
+    mix = name.startswith(('mrgx', 'splx', 'trap', 'tap', 'mixf', 'mixt', 'mixg', 'mixp', 'mixo'))
     win = window_mix(name, W, H) if mix else window(name, W, H, L)
     if win is None:
         return 'INFEASIBLE'
@@ -309,7 +359,11 @@ def box(name, W, H, timeout, L=0):
     r = model.solve(win, timeout=timeout, workers=int(os.environ.get('GADGET_WORKERS', 4)))
     ok = False
     if 'grid' in r:
-        if mix:
+        if name.startswith('mixp'):
+            g = dict(r['grid']); g.update(hop_row(W, 2))
+            r['grid'] = g
+            ok = verify_mix(g, window_mix('mixt' + name[4:], W, H), [0, 0])
+        elif mix:
             ok = verify_mix(r['grid'], win, r['options'])
         else:
             ok = trace(r['grid'], win, r['options'])
