@@ -25,8 +25,16 @@ def problem(what, D):
     e = lambda k, i: [D * (j == i) for j in range(k)]
     if what == 'piece4':                        # commodities a0, a1, a2, x; the passing belt on row 3
         return 4, 4, [e(4, i) for i in range(4)], [[t, t, t, 0]] * 3 + [e(4, 3)]
-    # stage7: a0..a2, b0..b2, x
-    return 7, 7, [e(7, i) for i in range(7)], [[t] * 3 + [0] * 4] * 3 + [[0] * 3 + [t] * 3 + [0]] * 3 + [e(7, 6)]
+    # stage7: a0..a2, b0..b2, x on the rows of env ROWGROUPS (john: interleaved rows like 0,2,4 / 1,3,5 work too)
+    ga, gb = [[int(v) for v in h.split(',')] for h in os.environ.get('ROWGROUPS', '0,1,2:3,4,5').split(':')]
+    gx = [y for y in range(7) if y not in ga + gb][0]
+    ins, outs = [None] * 7, [None] * 7
+    for k, y in enumerate(ga):
+        ins[y] = e(7, k); outs[y] = [t] * 3 + [0] * 4
+    for k, y in enumerate(gb):
+        ins[y] = e(7, 3 + k); outs[y] = [0] * 3 + [t] * 3 + [0]
+    ins[gx] = e(7, 6); outs[gx] = e(7, 6)
+    return 7, 7, ins, outs
 
 
 def main():
