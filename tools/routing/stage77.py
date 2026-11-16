@@ -44,6 +44,8 @@ def main():
     ap.add_argument('--rows', default='1,2,3,0:0,1,2,3', help='piece4: box input rows + pass row : box output rows + '
                     'pass row (game frame, west side outputs)')
     ap.add_argument('--dx', default='0', help='piece4 --shape: columns added east of the shape (comma list to try)')
+    ap.add_argument('--rot', default='0', choices=['0', 'cw', 'ccw'], help='turn the shape 90 degrees (john)')
+    ap.add_argument('--dy', default='0', help='rows above the placed shape (comma list to try)')
     a = ap.parse_args()
     H, nc, ins, outs = problem(a.what, a.D)
     if a.what == 'piece4':
@@ -72,21 +74,29 @@ def main():
         SW = len(rows[0]) // 2
         shape = {(SW - 1 - x, y): mirror_code(rows[y][2 * x:2 * x + 2], 'x') for y in range(len(rows))
                  for x in range(SW) if rows[y][2 * x:2 * x + 2] != '..'}     # solver frame: inputs at x = 0
+        SH = len(rows)
+        if a.rot == 'cw':                       # (x, y) -> (SH-1-y, x); N->E, W->N, S->W, E->S
+            shape = {(SH - 1 - y, x): c[0] + str((int(c[1]) + 3) % 4) for (x, y), c in shape.items()}
+            SW, SH = SH, SW
+        elif a.rot == 'ccw':
+            shape = {(y, SW - 1 - x): c[0] + str((int(c[1]) + 1) % 4) for (x, y), c in shape.items()}
+            SW, SH = SH, SW
     widths = range(a.wmax, a.wmin - 1, -1) if a.down else range(a.wmin, a.wmax + 1)
-    jobs = [(W, dx) for W in widths for dx in ([int(v) for v in a.dx.split(',')] if shape else [0])
-            if not shape or dx + SW <= W]
-    for W, dx in jobs:
+    jobs = [(W, dx, dy) for W in widths for dx in ([int(v) for v in a.dx.split(',')] if shape else [0])
+            for dy in ([int(v) for v in a.dy.split(',')] if shape else [0])
+            if not shape or (dx + SW <= W and dy + SH <= H)]
+    for W, dx, dy in jobs:
         w = Window(W, H, nc, a.D)
         w.max_splitters = a.splitters
         if shape:
             for (x, y), c in shape.items():
                 if c[0] == 'S':
-                    w.fixed[(x + dx, y)] = c
-                w.hint[(x + dx, y)] = c
+                    w.fixed[(x + dx, y + dy)] = c
+                w.hint[(x + dx, y + dy)] = c
         w.port_options = [[{((0, i), EDGE['W']): ('in', v) for i, v in enumerate(ins)}],
                           [{((W - 1, i), EDGE['E']): ('out', v) for i, v in enumerate(outs)}]]
         r = model.solve(w, timeout=a.timeout, workers=a.workers)
-        print('%s %dx%d dx %d splitters<=%s: %s' % (a.what, W, H, dx, a.splitters, r['status']), flush=True)
+        print('%s %s %dx%d dx %d dy %d splitters<=%s: %s' % (a.what, a.rot, W, H, dx, dy, a.splitters, r['status']), flush=True)
         if 'grid' in r:
             g = r['grid']
             rows = [''.join(mirror_code(g[(W - 1 - x, y)], 'x') if g.get((W - 1 - x, y)) else '..' for x in range(W))
