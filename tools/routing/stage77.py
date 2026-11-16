@@ -40,16 +40,42 @@ def main():
     ap.add_argument('--workers', type=int, default=2)
     ap.add_argument('--down', action='store_true', help='walk widths down from wmax, keep going while feasible')
     ap.add_argument('--out', default=None)
+    ap.add_argument('--shape', default=None, help='piece4: a 3:3 box grid (inputs east) whose splitters are pinned')
+    ap.add_argument('--rows', default='1,2,3,0:0,1,2,3', help='piece4: box input rows + pass row : box output rows + '
+                    'pass row (game frame, west side outputs)')
+    ap.add_argument('--dx', default='0', help='piece4 --shape: columns added east of the shape (comma list to try)')
     a = ap.parse_args()
     H, nc, ins, outs = problem(a.what, a.D)
+    if a.what == 'piece4':
+        ri, ro = [[int(v) for v in h.split(',')] for h in a.rows.split(':')]
+        D, t = a.D, a.D // 3
+        e = lambda i: [D * (j == i) for j in range(4)]
+        ins = [None] * 4; outs = [None] * 4
+        for k, y in enumerate(ri):
+            ins[y] = e(k)
+        for k, y in enumerate(ro):
+            outs[y] = [t, t, t, 0] if k < 3 else e(3)
+    shape = None
+    if a.shape:
+        rows = [l.rstrip('\n') for l in open(os.path.expanduser(a.shape)) if l.strip()]
+        SW = len(rows[0]) // 2
+        shape = {(SW - 1 - x, y): mirror_code(rows[y][2 * x:2 * x + 2], 'x') for y in range(len(rows))
+                 for x in range(SW) if rows[y][2 * x:2 * x + 2] != '..'}     # solver frame: inputs at x = 0
     widths = range(a.wmax, a.wmin - 1, -1) if a.down else range(a.wmin, a.wmax + 1)
-    for W in widths:
+    jobs = [(W, dx) for W in widths for dx in ([int(v) for v in a.dx.split(',')] if shape else [0])
+            if not shape or dx + SW <= W]
+    for W, dx in jobs:
         w = Window(W, H, nc, a.D)
         w.max_splitters = a.splitters
+        if shape:
+            for (x, y), c in shape.items():
+                if c[0] == 'S':
+                    w.fixed[(x + dx, y)] = c
+                w.hint[(x + dx, y)] = c
         w.port_options = [[{((0, i), EDGE['W']): ('in', v) for i, v in enumerate(ins)}],
                           [{((W - 1, i), EDGE['E']): ('out', v) for i, v in enumerate(outs)}]]
         r = model.solve(w, timeout=a.timeout, workers=a.workers)
-        print('%s %dx%d splitters<=%s: %s' % (a.what, W, H, a.splitters, r['status']), flush=True)
+        print('%s %dx%d dx %d splitters<=%s: %s' % (a.what, W, H, dx, a.splitters, r['status']), flush=True)
         if 'grid' in r:
             g = r['grid']
             rows = [''.join(mirror_code(g[(W - 1 - x, y)], 'x') if g.get((W - 1 - x, y)) else '..' for x in range(W))
