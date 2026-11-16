@@ -31,7 +31,7 @@ def problem(what, D):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--what', default='stage7', choices=['piece4', 'stage7'])
+    ap.add_argument('--what', default='stage7', choices=['piece4', 'stage7', 'boxpass'])
     ap.add_argument('--wmin', type=int, default=8)
     ap.add_argument('--wmax', type=int, default=17)
     ap.add_argument('--splitters', type=int, default=None)
@@ -55,6 +55,17 @@ def main():
             ins[y] = e(k)
         for k, y in enumerate(ro):
             outs[y] = [t, t, t, 0] if k < 3 else e(3)
+    if a.what == 'boxpass':                     # a 3:3 box shape inside 7 rows, the other 4 belts pass in order
+        H = 7
+        ri, ro = [[int(v) for v in h.split(',')] for h in a.rows.split(':')]
+        pi = [y for y in range(H) if y not in ri]; po = [y for y in range(H) if y not in ro]
+        nc, D, t = 7, a.D, a.D // 3
+        e = lambda i: [D * (j == i) for j in range(nc)]
+        ins = [None] * H; outs = [None] * H
+        for k, y in enumerate(ri):
+            ins[y] = e(k); outs[ro[k]] = [t, t, t, 0, 0, 0, 0]
+        for k, (y, z) in enumerate(zip(pi, po)):
+            ins[y] = e(3 + k); outs[z] = e(3 + k)
     shape = None
     if a.shape:
         rows = [l.rstrip('\n') for l in open(os.path.expanduser(a.shape)) if l.strip()]
