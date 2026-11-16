@@ -37,7 +37,9 @@ compactness is rewarded; stage 3 is a benchmark where RL meets our proven-optima
 
 ### Open assumptions (switches in `SETTINGS`, to confirm or trace from the exe)
 
-- every item into a lab or vault pays its SellValue in gold
+- traced in the PC exe (2026-11-16): labs (FUN_140ee9560) and gold vaults (FUN_140ee9200) both hand their items
+  each tick to FUN_140ee7500, which converts them through the item table's SellValue (FUN_140ee5ce0) and adds
+  the result to the wallet; only labs also call the research update (FUN_140ee3800)
 - confirmed by john: 2000 start gold, no lab placed; a delivered item counts for every available tech
   (`progress='all'`); finish = first Earth Token, with per-item first-production milestones
 - builds cost 1 s of game time each; fill-up delays are ignored (settled rates only)

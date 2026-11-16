@@ -8,7 +8,7 @@ Exact parts, from the game's tables (rl/data/tables.json):
   tech tree (93 techs: costs, prerequisites, unlocks, upgrade tiers), build and upgrade costs, gold per item
   (SellValue), recipe rates from exact tick periods (tools/recipe_rates.mjs), Gen 2 extractor rates.
 Assumptions still to confirm with john / trace from the exe (each is a SETTINGS switch):
-  start_gold, lab position, labs take 4 belts each, every item into a lab gives its SellValue in gold,
+  lab position, labs take 4 belts each (every item into a lab/vault paying its SellValue: traced in the exe),
   research progress goes to every available tech that needs the item ('all') or only the chosen one ('select').
 
 Time is event-free: the steady flow is recomputed after every change, then integrated over the wait. Long-run
@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, 'data', 'tables.json')))
 
 SETTINGS = dict(
-    gen='gen2', boost='0', world='2CCJhI', start_gold=2000, start_labs=0, first_lab_free=False, lab_xy=(0, 0),
+    gen='gen2', boost='0', world='2CCJhI', start_gold=2000, start_gems=100, gem_trade=False, boosted_start=False, start_labs=0, first_lab_free=False, lab_xy=(0, 0),
     act_seconds=1.0,          # game time a build/upgrade action costs (player taps)
     wait_seconds=10.0,        # one "wait" step
     max_minutes=600.0, goal='first_et', progress='all', lab_inputs=4, belt_tiles_per_building=6,
@@ -122,7 +122,8 @@ A_EXTRACT = A_BUILD + NR                 # + resource index
 A_UPGRADE = A_EXTRACT + NX               # + class index
 A_LAB = A_UPGRADE + NK
 A_VAULT = A_LAB + 1
-NA = A_VAULT + 1
+A_GEMS = A_VAULT + 1                     # trade 50 gems for 12500 gold (in-game offer; 100 for 25000 is the same rate)
+NA = A_GEMS + 1
 
 
 class EconEnv:
@@ -131,6 +132,8 @@ class EconEnv:
 
     def __init__(self, batch=64, seed=0, **kw):
         self.cfg = dict(SETTINGS, **kw)
+        if self.cfg['boosted_start']:                       # john: boosted start = 20000 gold, 1000 gems
+            self.cfg['start_gold'], self.cfg['start_gems'] = 20000, 1000
         self.B = batch
         self.rng = np.random.default_rng(seed)
         self.cpm = crafts_per_min(self.cfg['boost'])
@@ -152,6 +155,7 @@ class EconEnv:
         B = self.B
         self.t = np.zeros(B)                                 # game seconds
         self.gold = np.full(B, float(self.cfg['start_gold']))
+        self.gems = np.full(B, float(self.cfg['start_gems']))
         self.done_t = np.zeros((B, NT), bool)
         self.done_t[:, LAB_TECH] = True                      # starting tech
         self.prog = np.zeros((B, NT, NI))
@@ -169,7 +173,7 @@ class EconEnv:
         """restart the runs in boolean mask m (auto-reset for training)"""
         if not m.any():
             return
-        self.t[m] = 0; self.gold[m] = self.cfg['start_gold']
+        self.t[m] = 0; self.gold[m] = self.cfg['start_gold']; self.gems[m] = self.cfg['start_gems']
         self.done_t[m] = False; self.done_t[m, LAB_TECH] = True
         self.prog[m] = 0; self.n_rec[m] = 0; self.n_ext[m] = 0; self.tier[m] = 0
         self.labs[m] = self.cfg['start_labs']; self.vaults[m] = 0; self.finished[m] = False; self.first[m] = np.inf
@@ -282,6 +286,7 @@ class EconEnv:
                 & (self._n_class(k) > 0)
         m[:, A_LAB] = (self.labs < 3) & (self.gold >= self._lab_cost())
         m[:, A_VAULT] = (self.vaults < 3) & self.done_t[:, VAULT_TECH] & (self.gold >= BCOST['building_gold_vault'])
+        m[:, A_GEMS] = self.cfg['gem_trade'] & (self.gems >= 50)
         m[self.finished] = False
         m[self.finished, A_WAIT] = True
         return m
@@ -317,6 +322,8 @@ class EconEnv:
         self.gold -= np.where(s, self._lab_cost(), 0); self.labs += s; changed |= s
         s = (a == A_VAULT) & live
         self.gold -= np.where(s, BCOST['building_gold_vault'], 0); self.vaults += s; changed |= s
+        s = (a == A_GEMS) & live
+        self.gems -= 50 * s; self.gold += 12500 * s
         if changed.any():
             self._flow()
         wait = np.array([self.cfg['wait_seconds'] if w is None else w for w in WAITS])
