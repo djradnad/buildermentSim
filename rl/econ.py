@@ -23,11 +23,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, 'data', 'tables.json')))
 
 SETTINGS = dict(
-    gen='gen2', boost='0', world='2CCJhI', start_gold=1000, start_labs=1, lab_xy=(0, 0),
+    gen='gen2', boost='0', world='2CCJhI', start_gold=2000, start_labs=0, first_lab_free=False, lab_xy=(0, 0),
     act_seconds=1.0,          # game time a build/upgrade action costs (player taps)
     wait_seconds=10.0,        # one "wait" step
-    max_minutes=600.0, goal='end_game', progress='all', lab_inputs=4, belt_tiles_per_building=6,
-    tech_bonus=1.0,           # shaping reward per tech researched (0 = pure -time)
+    max_minutes=600.0, goal='first_et', progress='all', lab_inputs=4, belt_tiles_per_building=6,
+    tech_bonus=0.2,           # shaping reward per tech researched (0 = pure -time)
+    milestone_bonus=1.0,      # reward per item type produced for the first time (john's 'time to first item' card)
 )
 
 ITEMS = T['items']
@@ -141,7 +142,9 @@ class EconEnv:
         for f in RES_FLAGS:
             m = n[:, 2] == f
             self.node_dist.append(np.sort(np.abs(n[m, 0] - lx) + np.abs(n[m, 1] - ly)).astype(np.float64))
-        self.goal = TX[{'end_game': 4026}.get(self.cfg['goal'], self.cfg['goal'])] if not isinstance(self.cfg['goal'], int) else TX[self.cfg['goal']]
+        g = self.cfg['goal']
+        self.goal_item = IX['Earth Token'] if g == 'first_et' else None
+        self.goal = TX[4026] if g in ('first_et', 'end_game') else TX[g]
         self.reset()
 
     # ---------------- state ----------------
@@ -158,6 +161,7 @@ class EconEnv:
         self.labs = np.full(B, self.cfg['start_labs'], np.int64)
         self.vaults = np.zeros(B, np.int64)
         self.finished = np.zeros(B, bool)
+        self.first = np.full((B, NI), np.inf)               # game second each item was first made (milestones)
         self._flow()
         return self.obs()
 
@@ -168,7 +172,7 @@ class EconEnv:
         self.t[m] = 0; self.gold[m] = self.cfg['start_gold']
         self.done_t[m] = False; self.done_t[m, LAB_TECH] = True
         self.prog[m] = 0; self.n_rec[m] = 0; self.n_ext[m] = 0; self.tier[m] = 0
-        self.labs[m] = self.cfg['start_labs']; self.vaults[m] = 0; self.finished[m] = False
+        self.labs[m] = self.cfg['start_labs']; self.vaults[m] = 0; self.finished[m] = False; self.first[m] = np.inf
         self._flow()
 
     def _available(self):
@@ -198,6 +202,18 @@ class EconEnv:
             share[:, i] = np.where(dem > 0, np.minimum(1.0, sup[:, i] / np.maximum(dem, 1e-12)), 1.0)
             users = R_IN[:, i] > 0
             util[:, users] = np.minimum(util[:, users], share[:, i][:, None])
+        self.made = sup.copy()                               # items/min made of each item (incl. raw)
+        per_machine = np.where(self.n_rec > 0, rate, 0)
+        # minutes until a running machine finishes its first craft: one craft period of the fastest active one
+        act = (crafts * util) > 0
+        self.first_lag = np.full((B, NI), np.inf)
+        for j in range(NR):
+            lag = np.where(act[:, j], 1.0 / np.maximum(per_machine[:, j], 1e-12), np.inf)
+            for i in np.nonzero(R_OUT[j])[0]:
+                self.first_lag[:, i] = np.minimum(self.first_lag[:, i], lag)
+        for x in range(NX):
+            r = T['uranium_per_min'][self.cfg['gen']] if x == 6 else self.ext_rate[self.tier[:, 0]]
+            self.first_lag[:, RES_ITEM[x]] = np.where(self.n_ext[:, x] > 0, 1.0 / r, np.inf)
         used = (crafts * util) @ R_IN
         surplus = np.maximum(sup - used, 0.0)
         cap = (self.labs + self.vaults) * self.cfg['lab_inputs'] * T['belt_per_min']
@@ -221,6 +237,11 @@ class EconEnv:
         dist = np.where(k < len(d), d[np.minimum(k, len(d) - 1)], np.inf)
         base = BCOST['building_uranium_extractor'] if x == 6 else self._build_cost(0)
         return base + T['buildings']['belt_straight']['cost']['Gold'] * dist
+
+    def _lab_cost(self):
+        # john 2026-11-16: start with 2000 gold and no lab; the tutorial has you place one (1000 gold)
+        free = self.cfg['first_lab_free'] & (self.labs == 0)
+        return np.where(free, 0.0, BCOST['research_lab'])
 
     def _belt_gold(self):
         return T['buildings']['belt_straight']['cost']['Gold'] * self.cfg['belt_tiles_per_building']
@@ -259,7 +280,7 @@ class EconEnv:
         for k in range(NK):
             m[:, A_UPGRADE + k] = (self._unlocked_tier(k) > self.tier[:, k]) & (self.gold >= self._up_cost(k)) \
                 & (self._n_class(k) > 0)
-        m[:, A_LAB] = (self.labs < 3) & (self.gold >= BCOST['research_lab'])
+        m[:, A_LAB] = (self.labs < 3) & (self.gold >= self._lab_cost())
         m[:, A_VAULT] = (self.vaults < 3) & self.done_t[:, VAULT_TECH] & (self.gold >= BCOST['building_gold_vault'])
         m[self.finished] = False
         m[self.finished, A_WAIT] = True
@@ -293,7 +314,7 @@ class EconEnv:
                 self.tier[s, k] += 1
                 changed |= s
         s = (a == A_LAB) & live
-        self.gold -= np.where(s, BCOST['research_lab'], 0); self.labs += s; changed |= s
+        self.gold -= np.where(s, self._lab_cost(), 0); self.labs += s; changed |= s
         s = (a == A_VAULT) & live
         self.gold -= np.where(s, BCOST['building_gold_vault'], 0); self.vaults += s; changed |= s
         if changed.any():
@@ -304,9 +325,22 @@ class EconEnv:
         self._advance(dt)
         newly = self.done_t.sum(1) - before
         self.t += dt
-        fin = self.done_t[:, self.goal] & live
+        # milestones: an item counts as made one craft period after its machine starts running (settled view)
+        cand = np.where(np.isfinite(self.first_lag), self.t[:, None] - dt[:, None] + self.first_lag * 60, np.inf)
+        new_first = np.isinf(self.first) & (cand <= self.t[:, None]) & live[:, None]
+        self.first = np.where(new_first, cand, self.first)
+        n_first = new_first.sum(1)
+        if self.goal_item is not None:
+            fin = np.isfinite(self.first[:, self.goal_item]) & live
+        else:
+            fin = self.done_t[:, self.goal] & live
         trunc = (self.t >= self.cfg['max_minutes'] * 60) & live & ~fin
-        reward = -dt / 60.0 + self.cfg['tech_bonus'] * newly
+        reward = -dt / 60.0 + self.cfg['tech_bonus'] * newly + self.cfg['milestone_bonus'] * n_first
+        # bankrupt: no income and nothing affordable, so the run can never move again; end it now and charge the
+        # rest of the time cap (the game allows this dead end too, e.g. a second lab bought with the start gold)
+        stuck = live & ~fin & ~trunc & (self.gold_rate <= 0) & ~self.action_mask()[:, A_BUILD:].any(1)
+        reward = reward - stuck * np.maximum(self.cfg['max_minutes'] - self.t / 60.0, 0)
+        trunc = trunc | stuck
         self.finished |= fin | trunc
         return self.obs(), reward, fin | trunc, dict(finished=fin, truncated=trunc, minutes=self.t / 60)
 
@@ -334,7 +368,7 @@ class EconEnv:
             lg(self.gold)[:, None], (self.t / 3600.0)[:, None], lg(self.gold_rate)[:, None],
             self.done_t.astype(np.float64), frac * self._available(), lg(self.n_rec), lg(self.n_ext),
             self.tier / 4.0, self.labs[:, None] / 3.0, self.vaults[:, None] / 3.0, lg(self.deliver),
-            self.util,
+            self.util, np.isfinite(self.first),
         ], 1).astype(np.float32)
 
 

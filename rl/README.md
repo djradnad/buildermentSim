@@ -26,7 +26,10 @@ compactness is rewarded; stage 3 is a benchmark where RL meets our proven-optima
 - **Flow**: steady rates recomputed after each change. Items are pooled per type, each item's supply is shared
   among its consumers in proportion to demand, machine use = its scarcest input; everything left over goes to the
   labs/vaults (4 belts each). Labs give gold (SellValue) and research progress.
-- **Reward**: −minutes elapsed (+1 per tech, optional shaping). Episode ends at the goal tech or the time cap.
+- **Reward** (john's speedrun rules, 2026-11-16): −minutes elapsed, +1 the first time each item type is made (the
+  in-game "time to first item" card; times kept in `env.first`), +0.2 per tech. The run ends at the first Earth
+  Token, the time cap, or bankruptcy (no income and nothing affordable: charged the rest of the cap).
+- **Start**: 2000 gold, no lab (the tutorial has you place one for 1000).
 - **Speed**: ~14k env steps/s for random play on 4 CPU cores with 256 worlds in one batch; ~7k/s while training PPO.
 - **Baseline**: `python -m rl.baseline` is a calculator-style greedy planner (chase the cheapest main-line research,
   build the machine counts a rate calculator asks for). It reaches 67 of 93 techs in 25 h of game time on 2CCJhI but
@@ -34,11 +37,18 @@ compactness is rewarded; stage 3 is a benchmark where RL meets our proven-optima
 
 ### Open assumptions (switches in `SETTINGS`, to confirm or trace from the exe)
 
-- starting gold and whether the first lab is pre-placed (`start_gold=1000`, `start_labs=1`)
 - every item into a lab or vault pays its SellValue in gold
-- research progress: each delivered item counts for every available tech that needs it (`progress='all'`)
-- what counts as the finish (`goal='end_game'` = Earth Teleporter research)
+- confirmed by john: 2000 start gold, no lab placed; a delivered item counts for every available tech
+  (`progress='all'`); finish = first Earth Token, with per-item first-production milestones
 - builds cost 1 s of game time each; fill-up delays are ignored (settled rates only)
+
+## After the speedrun: max ET (john, 2026-11-16)
+
+Phase 2 goal: the highest **steady** ET/min (real production, no stockpiles in storage), then, at max ET, the most
+**compact** layout: all production buildings (not extractors, power plants, belts, undergrounds, arms, splitters)
+inside a small area, usually the big open area of the map. Time to max ET matters little; the AI may need to farm
+gold first. This needs the stage 2 layout env (placement on the real map + belts) with the steady rate checked by
+the exact flow rules and the game-exact sim.
 
 ## Train
 
