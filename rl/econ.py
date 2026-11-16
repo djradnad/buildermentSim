@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, 'data', 'tables.json')))
 
 SETTINGS = dict(
-    gen='gen2', boost='0', world='2CCJhI', start_gold=2000, start_gems=100, gem_trade=False, boosted_start=False, start_labs=0, first_lab_free=False, lab_xy=(0, 0),
+    gen='gen2', boost='0', world='2CCJhI', start_gold=2000, start_gems=100, refund=1.0, gem_trade=False, boosted_start=False, start_labs=0, first_lab_free=False, lab_xy=(0, 0),
     act_seconds=1.0,          # game time a build/upgrade action costs (player taps)
     wait_seconds=10.0,        # one "wait" step
     max_minutes=600.0, goal='first_et', progress='all', lab_inputs=4, belt_tiles_per_building=6,
@@ -123,7 +123,9 @@ A_UPGRADE = A_EXTRACT + NX               # + class index
 A_LAB = A_UPGRADE + NK
 A_VAULT = A_LAB + 1
 A_GEMS = A_VAULT + 1                     # trade 50 gems for 12500 gold (in-game offer; 100 for 25000 is the same rate)
-NA = A_GEMS + 1
+A_REMOVE = A_GEMS + 1                    # + recipe index: delete one machine, gold back
+A_REMOVE_X = A_REMOVE + NR               # + resource index: delete the farthest extractor of that resource
+NA = A_REMOVE_X + NX
 
 
 class EconEnv:
@@ -220,11 +222,20 @@ class EconEnv:
             self.first_lag[:, RES_ITEM[x]] = np.where(self.n_ext[:, x] > 0, 1.0 / r, np.inf)
         used = (crafts * util) @ R_IN
         surplus = np.maximum(sup - used, 0.0)
-        cap = (self.labs + self.vaults) * self.cfg['lab_inputs'] * T['belt_per_min']
-        tot = surplus.sum(1)
-        f = np.where(tot > cap, cap / np.maximum(tot, 1e-12), 1.0)
-        self.deliver = surplus * f[:, None]                  # items/min into labs and vaults
-        self.lab_share = np.where(self.labs + self.vaults > 0, self.labs / np.maximum(self.labs + self.vaults, 1), 0)
+        # sinks: labs pay gold AND research, gold vaults pay gold only (john 2026-11-16). Items open research
+        # needs go to the labs first, then other surplus fills the labs' belts, the rest goes to the vaults.
+        belt = self.cfg['lab_inputs'] * T['belt_per_min']
+        lab_cap, vault_cap = self.labs * belt, self.vaults * belt
+        needed = ((TECH_COST[None] > 0) & self._available()[:, :, None]).any(1)        # (B, NI)
+        def fill(want, cap):
+            tot = want.sum(1)
+            f = np.where(tot > cap, cap / np.maximum(tot, 1e-12), 1.0)
+            return want * f[:, None]
+        lab1 = fill(surplus * needed, lab_cap)
+        lab2 = fill(surplus * ~needed, lab_cap - lab1.sum(1))
+        self.lab_in = lab1 + lab2
+        self.vault_in = fill(surplus - self.lab_in, vault_cap)
+        self.deliver = self.lab_in + self.vault_in           # items/min into labs and vaults
         self.gold_rate = (self.deliver * SELL).sum(1)
         self.util = util
 
@@ -287,6 +298,8 @@ class EconEnv:
         m[:, A_LAB] = (self.labs < 3) & (self.gold >= self._lab_cost())
         m[:, A_VAULT] = (self.vaults < 3) & self.done_t[:, VAULT_TECH] & (self.gold >= BCOST['building_gold_vault'])
         m[:, A_GEMS] = self.cfg['gem_trade'] & (self.gems >= 50)
+        m[:, A_REMOVE:A_REMOVE + NR] = self.n_rec > 0
+        m[:, A_REMOVE_X:A_REMOVE_X + NX] = self.n_ext > 0
         m[self.finished] = False
         m[self.finished, A_WAIT] = True
         return m
@@ -322,6 +335,20 @@ class EconEnv:
         self.gold -= np.where(s, self._lab_cost(), 0); self.labs += s; changed |= s
         s = (a == A_VAULT) & live
         self.gold -= np.where(s, BCOST['building_gold_vault'], 0); self.vaults += s; changed |= s
+        f = self.cfg['refund']
+        for j in range(NR):
+            s = (a == A_REMOVE + j) & live & (self.n_rec[:, j] > 0)
+            if s.any():
+                self.n_rec[s, j] -= 1
+                back = BCOST['building_teleporter'] if R_TELE[j] else self._build_cost(R_CLASS[j]) + self._belt_gold()
+                self.gold += np.where(s, f * back, 0)
+                changed |= s
+        for x in range(NX):
+            s = (a == A_REMOVE_X + x) & live & (self.n_ext[:, x] > 0)
+            if s.any():
+                self.n_ext[s, x] -= 1
+                self.gold += np.where(s, f * self._ext_cost(x), 0)     # cost of the node just freed (the farthest)
+                changed |= s
         s = (a == A_GEMS) & live
         self.gems -= 50 * s; self.gold += 12500 * s
         if changed.any():
@@ -354,7 +381,7 @@ class EconEnv:
     def _advance(self, dt):
         mins = dt / 60.0
         self.gold += self.gold_rate * mins
-        lab_items = self.deliver * (self.lab_share * mins)[:, None]           # (B, NI) items into labs
+        lab_items = self.lab_in * mins[:, None]                              # (B, NI) items into labs
         avail = self._available()
         need = np.maximum(TECH_COST[None] - self.prog, 0) * avail[:, :, None]
         if self.cfg['progress'] == 'all':

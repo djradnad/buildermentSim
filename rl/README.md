@@ -20,12 +20,12 @@ compactness is rewarded; stage 3 is a benchmark where RL meets our proven-optima
 - **Data**: `rl/data/tables.json`, built by `rl/data/build_tables.py` from the game tables (`D_BaseTechnology`,
   `D_BaseBuildings`, `D_BaseItems` SellValue, `site/js/gamedata.js`) and the tick-exact rate tables
   (`tools/recipe_rates.mjs`). Worlds: `node rl/worlds.mjs rl/data/worlds.json <seed>...` (exact Gen 2 generator).
-- **Actions (78)**: 3 waits, build one machine of any of 58 recipes, build an extractor on the nearest free node of
+- **Actions (143)**: 3 waits, build one machine of any of 58 recipes, build an extractor on the nearest free node of
   any of 7 resources (pays its belt to the lab, 4 gold per tile), upgrade a building class one tier (pays per
-  building), build a lab, build a gold vault. A mask gives the legal ones.
+  building), build a lab, build a gold vault, trade gems (off by default), delete a machine or extractor (gold back, ore re-shared). A mask gives the legal ones.
 - **Flow**: steady rates recomputed after each change. Items are pooled per type, each item's supply is shared
   among its consumers in proportion to demand, machine use = its scarcest input; everything left over goes to the
-  labs/vaults (4 belts each). Labs give gold (SellValue) and research progress.
+  labs/vaults (4 belts each). Labs give gold (SellValue) and research progress; vaults gold only. Items open research needs go to the labs first.
 - **Reward** (john's speedrun rules, 2026-11-16): −minutes elapsed, +1 the first time each item type is made (the
   in-game "time to first item" card; times kept in `env.first`), +0.2 per tech. The run ends at the first Earth
   Token, the time cap, or bankruptcy (no income and nothing affordable: charged the rest of the cap).
