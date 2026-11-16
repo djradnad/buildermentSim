@@ -31,7 +31,7 @@ rule('squeeze', 'Exact long-run capacity of h rows (belts that are not split): 1
      'ends (belts must get in and out inside the window): 2 in 1 row L<=4, 4 in 2 rows L<=2, 5 in 3 rows L<=4.',
      'CP-SAT: repeating patterns (tools/routing/lanes.py, every belt traced) for the values; open-ended strips '
      '(tools/routing/strip.py) for the impossibles, which then hold for every longer channel',
-     'h<=6 and h=8 proven for every length (13 in 8 rows dies at L=14); h=7 (11 belts) only excluded for periods 8-16 so far')
+     'h<=8 proven for every length (11 in 7 rows dies at L=16, 13 in 8 rows at L=14); h>=9 values are found patterns under the 13h/8 ceiling')
 rule('two-way', 'East and west tunnels may share a row, so opposing traffic is cheaper: a + b <= floor(19h/8) with each '
      'direction <= floor(13h/8). Exact frontier (a east, most b west): 1 row (1,1); 2 rows (1,3) (2,2) (3,1); '
      '3 rows (3,4) (4,3); 4 rows (2,6) (4,5) (5,4) (6,2).',
@@ -83,7 +83,7 @@ rule('nn-ntall', 'N:N at N tall exists for N = 3, 4, 5, 6 (18x3, 19x4, 28x5, 28x
 
 # ---------------------------------------------------------------- checks used by solvers
 LONG_RUN = {1: 1, 2: 3, 3: 4, 4: 6, 5: 7, 6: 9, 7: 10, 8: 12, 9: 14, 10: 15, 12: 19}   # found patterns (lower bounds)
-PROVEN_MAX = {1: 1, 2: 3, 3: 4, 4: 6, 5: 7, 6: 9, 8: 12}                      # proven for every long stretch
+PROVEN_MAX = {1: 1, 2: 3, 3: 4, 4: 6, 5: 7, 6: 9, 7: 10, 8: 12}                      # proven for every long stretch
 CORNER = {1: 1, 2: 2, 3: 4, 4: 6, 5: 7, 6: 9}
 
 
@@ -144,4 +144,4 @@ if __name__ == '__main__':
     assert section_fits(5, 3, 3) and not section_fits(5, 4, 3)
     assert needs_loop([Fraction(1, 5)]) and not needs_loop([Fraction(1, 12)])
     assert rows_needed(3) == 2 and rows_needed(4) == 3
-    assert lane_capacity(9) == 14 and lane_ceiling(9) == 14 and lane_ceiling(5) == 7 and lane_ceiling(7) == 11
+    assert lane_capacity(9) == 14 and lane_ceiling(9) == 14 and lane_ceiling(5) == 7 and lane_ceiling(7) == 10
