@@ -133,7 +133,7 @@ def supply(env, b, i, want, m, depth):
     return None
 
 
-def run(world='2CCJhI', goal='end_game', verbose=True, **kw):
+def run(world='2CCJhI', goal='end_game', verbose=True, record=None, **kw):
     env = EconEnv(batch=1, world=world, goal=goal, **kw)
     env.reset()
     log, last = [], 0
@@ -141,6 +141,8 @@ def run(world='2CCJhI', goal='end_game', verbose=True, **kw):
         a = plan_action(env, 0)
         if a == 'wait' or a is None:
             a = A_WAIT
+        if record is not None:
+            record.append((env.obs()[0], env.action_mask()[0], int(a)))
         _, r, d, info = env.step(np.array([a]))
         n = int(env.done_t[0].sum())
         if n != last:

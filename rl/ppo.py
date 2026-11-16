@@ -8,6 +8,7 @@ import numpy as np
 import optax
 
 from .econ import NA, EconEnv
+from . import macro as MACRO
 
 
 def init(key, sizes):
@@ -34,10 +35,10 @@ def net(params, obs, mask):
     return logits, v
 
 
-def make(obs_dim, key, hidden=256):
+def make(obs_dim, key, hidden=256, na=NA):
     k1, k2, k3 = jax.random.split(key, 3)
     tr = init(k1, [obs_dim, hidden, hidden])
-    pi = init(k2, [hidden, NA])[0]
+    pi = init(k2, [hidden, na])[0]
     pi = (pi[0] * 0.01, pi[1])
     v = init(k3, [hidden, 1])[0]
     return {'trunk': tr, 'pi': pi, 'v': v}
@@ -66,17 +67,22 @@ def loss_fn(params, batch, clip=0.2, vcoef=0.5, ent=0.01):
 
 
 def train(steps=2_000_000, envs=256, rollout=128, gamma=0.999, lam=0.95, lr=3e-4, epochs=4, minibatches=8,
-          seed=0, out='runs/econ', **envkw):
+          seed=0, out='runs/econ', init=None, ent=0.01, env_kind='econ', **envkw):
     os.makedirs(out, exist_ok=True)
-    env = EconEnv(batch=envs, seed=seed, **envkw)
+    env = (MACRO.MacroEnv if env_kind == 'macro' else EconEnv)(batch=envs, seed=seed, **envkw)
     obs = env.reset()
     key = jax.random.PRNGKey(seed)
-    params = make(obs.shape[1], key)
+    params = make(obs.shape[1], key, na=MACRO.NM if env_kind == 'macro' else NA)
+    mean, var, cnt = np.zeros(obs.shape[1]), np.ones(obs.shape[1]), 1e-4
+    if init:
+        import pickle
+        d = pickle.load(open(init, 'rb'))
+        params = jax.tree_util.tree_map(jnp.asarray, d['params'])
+        mean, var, cnt = d['mean'], d['var'], 1e6          # keep the cloned policy's normalisation
     opt = optax.chain(optax.clip_by_global_norm(0.5), optax.adam(lr))
     ost = opt.init(params)
-    grad = jax.jit(jax.value_and_grad(loss_fn, has_aux=True))
+    grad = jax.jit(jax.value_and_grad(lambda p, b: loss_fn(p, b, ent=ent), has_aux=True))
     upd = jax.jit(lambda g, s, p: (lambda u, s2: (optax.apply_updates(p, u), s2))(*opt.update(g, s, p)))
-    mean, var, cnt = np.zeros(obs.shape[1]), np.ones(obs.shape[1]), 1e-4
     done_log = []
     t0, total, it = time.time(), 0, 0
     ep_ret = np.zeros(envs)
@@ -96,6 +102,8 @@ def train(steps=2_000_000, envs=256, rollout=128, gamma=0.999, lam=0.95, lr=3e-4
             ep_ret += r
             for i in np.nonzero(d)[0]:
                 done_log.append(dict(step=total, minutes=float(info['minutes'][i]), finished=bool(info['finished'][i]),
+                                     items=int(np.isfinite((env.e if env_kind == 'macro' else env).first[i]).sum()),
+                                     target=int((env.e if env_kind == 'macro' else env).target[i]),
                                      techs=int(env.done_t[i].sum()), ret=float(ep_ret[i])))
             ep_ret[d] = 0
             env.reset_where(d)
@@ -126,8 +134,9 @@ def train(steps=2_000_000, envs=256, rollout=128, gamma=0.999, lam=0.95, lr=3e-4
         if it % 5 == 0:
             recent = done_log[-50:]
             fin = [e['minutes'] for e in recent if e['finished']]
-            print('%9d steps %6.0f sps | eps %d | techs %.1f | finished %d/%d best %.1f min | ent %.2f' % (
-                total, total / (time.time() - t0), len(done_log), np.mean([e['techs'] for e in recent]) if recent else 0,
+            print('%9d steps %6.0f sps | eps %d | items %.1f techs %.1f | finished %d/%d best %.1f min | ent %.2f' % (
+                total, total / (time.time() - t0), len(done_log),
+                np.mean([e['items'] for e in recent]) if recent else 0, np.mean([e['techs'] for e in recent]) if recent else 0,
                 len(fin), len(recent), min(fin) if fin else -1, float(aux[2])), flush=True)
             json.dump(done_log, open(os.path.join(out, 'episodes.json'), 'w'))
     return params, done_log
@@ -139,6 +148,18 @@ if __name__ == '__main__':
     ap.add_argument('--envs', type=int, default=256)
     ap.add_argument('--out', default='runs/econ')
     ap.add_argument('--max-minutes', type=float, default=600)
-    ap.add_argument('--goal', default='end_game')
+    ap.add_argument('--goal', default='first_et')
+    ap.add_argument('--init', default=None)
+    ap.add_argument('--ent', type=float, default=0.01)
+    ap.add_argument('--lr', type=float, default=3e-4)
+    ap.add_argument('--max-steps', type=int, default=10000)
+    ap.add_argument('--env', default='econ')
+    ap.add_argument('--rollout', type=int, default=128)
+    ap.add_argument('--targets', default=None, help='comma list of item names for per-item speedruns')
+    ap.add_argument('--milestone', type=float, default=1.0)
+    ap.add_argument('--tech-bonus', type=float, default=0.2)
     a = ap.parse_args()
-    train(int(a.steps), a.envs, out=a.out, max_minutes=a.max_minutes, goal=a.goal)
+    train(int(a.steps), a.envs, rollout=a.rollout, out=a.out, max_minutes=a.max_minutes,
+          **({} if a.targets else dict(goal=a.goal)), init=a.init, ent=a.ent, lr=a.lr,
+          max_steps=a.max_steps, env_kind=a.env, milestone_bonus=a.milestone, tech_bonus=a.tech_bonus,
+          **(dict(goal='items', targets=a.targets.split(',')) if a.targets else {}))
