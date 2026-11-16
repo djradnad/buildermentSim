@@ -178,7 +178,7 @@ CH = {('B', 0): '^', ('B', 1): '<', ('B', 2): 'v', ('B', 3): '>', ('I', 0): 'n',
       ('I', 3): 'e', ('O', 0): 'N', ('O', 1): 'W', ('O', 2): 'S', ('O', 3): 'E'}
 
 
-def solve(h, k, L, secs=600, reach=7, west=0, workers=4):
+def solve(h, k, L, secs=600, reach=7, west=0, workers=int(__import__('os').environ.get('WORKERS', 4))):
     m, X, flux = build(h, L, reach, west)
     for cut in range(-1, L):
         m.Add(flux(cut, 0) == k)

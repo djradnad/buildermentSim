@@ -42,6 +42,16 @@ rule('corner', 'A corridor of width h turning 90 degrees carries 1, 2, 4, 6, 7, 
      'only rows 2.. and columns ..h-3 can hold a tunnel that jumps it and still ends inside: <= h + 2 max(0, h-2).',
      'CP-SAT on the corner shape with free mouths (tools/routing/region.py); diagonal argument for h <= 2',
      'h<=4 proven with arms of 1 tile (so any arms); h=5,6 with arms of 16')
+rule('no-gain', 'Splitters and merges never raise what a place can carry: the most flow any network pushes through a '
+     'region equals the most unsplit belts that fit. Proof: tiles and tunnels each pass <= 1 belt, so by the integral '
+     'flow theorem a network carrying more than k belts of flow contains k+1 tile-disjoint paths; keep only those '
+     'pieces, turn each splitter on a path into a belt facing the output used. Tunnel links are unchanged because '
+     'removing pieces never puts a nearer exit in front of an entrance. So every one-way capacity table here also '
+     'bounds total flow of any splitter network.', 'hand argument', 'one direction of traffic; all shapes')
+rule('hop-cost', 'k belts through h rows: at every column at least k - h belts are underground, and a hop hides a belt '
+     'for at most 6 columns, so a stretch of L columns needs at least (k - h) L / 6 hops.', 'hand argument', 'all channels')
+rule('junction', 'Two corridors crossing (arms 8, free mouths), belts east + belts south: 1 wide 1+1; 2 wide 3+2 or 2+3, '
+     'never 3+3; 3 wide 4+3 (4+4 not excluded yet).', 'CP-SAT on the plus shape (tools/routing/crossing.py)', 'widths 1-3')
 rule('streams', 'A lane holds one stream whatever its fill: k part-filled belts need the lanes of k full belts. Merge '
      'streams before a narrow place, split after it. Every tile and every tunnel passes at most one belt of flow, so '
      'any set of tiles and tunnels that separates inputs from outputs bounds the throughput.',

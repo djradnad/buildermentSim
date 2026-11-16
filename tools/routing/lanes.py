@@ -136,7 +136,7 @@ def show(sol, X, T, h, P, ncls=1):
     return rows
 
 
-def solve_max(h, P, secs=600, reach=REACH, lo=None, workers=4):
+def solve_max(h, P, secs=600, reach=REACH, lo=None, workers=int(__import__('os').environ.get('WORKERS', 4))):
     m, X, T, flux, cells = build(h, P, 1, reach)
     f0 = flux(0, 0)
     if lo is not None:
