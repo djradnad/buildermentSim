@@ -8,10 +8,13 @@ width; the chain is then built by planner.py from the plan.
 import argparse
 from fractions import Fraction as F
 
-COST = {'H': 6, 'T': 9, 'X': 6, 'L': 18}
+COST = {'H': 6, 'T': 9, 'X': 6, 'L': 18, 'J': 9}   # J: john's 0d31bh 3:3 on rows i..i+2 (needs rows i-1, i+3)
 
 
 def apply(M, op, i, n=None):
+    if op == 'J':
+        c = tuple((x + y + z) / 3 for x, y, z in zip(M[i], M[i + 1], M[i + 2]))
+        return M[:i] + (c, c, c) + M[i + 3:]
     a, b = M[i], M[i + 1]
     if op == 'H':
         c = tuple((x + y) / 2 for x, y in zip(a, b)); na, nb = c, c
@@ -23,6 +26,10 @@ def apply(M, op, i, n=None):
         na = tuple(x / n + (n - 1) * y / n for x, y in zip(a, b))
         nb = tuple((n - 1) * x / n + y / n for x, y in zip(a, b))
     return M[:i] + (na, nb) + M[i + 2:]
+
+
+import os
+JOHN = os.environ.get('JPIECE', '0') == '1'
 
 
 def dev(M, N):
@@ -40,9 +47,10 @@ def search(N, beam=3000, maxd=40, alpha=None, loops=()):
     for d in range(maxd):
         nxt = {}
         for M, (c, plan) in front.items():
-            ops = [('H', None), ('T', None), ('X', None)] + [('L', n) for n in loops]
+            ops = [('H', None), ('T', None), ('X', None)] + [('L', n) for n in loops] + \
+                ([('J', None)] if JOHN else [])
             for op, n in ops:
-                for i in range(N - 1):
+                for i in (range(1, N - 3) if op == 'J' else range(N - 1)):
                     if op == 'X' and plan and plan[-1][:2] == ('X', i):
                         continue
                     M2 = apply(M, op, i, n)
