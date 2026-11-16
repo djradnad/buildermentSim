@@ -118,5 +118,65 @@ def main():
             return
 
 
+
+
+def squeeze(rows, what, D, bands=(6, 8), timeout=120, workers=2, out=None, log=print):
+    """band squeeze of a stage layout (game frame rows, inputs east) under its own stage spec: drop one column,
+    re-solve a band around it with everything else fixed; keep going while columns drop"""
+    H, nc, ins, outs = problem(what, D)
+    W = len(rows[0]) // 2
+    g = {(W - 1 - x, y): mirror_code(rows[y][2 * x:2 * x + 2], 'x') for y in range(H) for x in range(W)
+         if rows[y][2 * x:2 * x + 2] != '..'}                      # solver frame
+    back = lambda g, W: [''.join(mirror_code(g[(W - 1 - x, y)], 'x') if g.get((W - 1 - x, y)) else '..'
+                                 for x in range(W)) for y in range(H)]
+
+    def window(W2):
+        w = Window(W2, H, nc, D)
+        w.port_options = [[{((0, i), EDGE['W']): ('in', v) for i, v in enumerate(ins)}],
+                          [{((W2 - 1, i), EDGE['E']): ('out', v) for i, v in enumerate(outs)}]]
+        return w
+    changed = True
+    while changed:
+        changed = False
+        for b in bands:
+            for c in range(W):
+                g2 = {((x - 1 if x > c else x), y): v for (x, y), v in g.items() if x != c}
+                W2 = W - 1
+                lo, hi = c - b // 2, c - b // 2 + b
+                w = window(W2)
+                w.fixed = {(x, y): g2.get((x, y)) for x in range(W2) for y in range(H) if not lo <= x < hi}
+                w.hint = dict(g2)
+                r = model.solve(w, timeout=timeout, workers=workers)
+                log('%s %dx%d drop col %d band %d: %s' % (what, W, H, c, b, r['status']))
+                if 'grid' in r:
+                    g, W, changed = r['grid'], W2, True
+                    rr = back(g, W)
+                    log('\n'.join(rr))
+                    if out:
+                        open(os.path.expanduser(out), 'w').write('\n'.join(rr) + '\n')
+                    break
+            if changed:
+                break
+    return back(g, W)
+
+
+def squeeze_main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--what', default='stage7')
+    ap.add_argument('--grid', required=True)
+    ap.add_argument('--D', type=int, default=3)
+    ap.add_argument('--bands', default='6,8')
+    ap.add_argument('--timeout', type=float, default=120)
+    ap.add_argument('--workers', type=int, default=2)
+    ap.add_argument('--out', default=None)
+    a = ap.parse_args(sys.argv[2:])
+    rows = [l.rstrip('\n') for l in open(os.path.expanduser(a.grid)) if l.strip()]
+    squeeze(rows, a.what, a.D, [int(v) for v in a.bands.split(',')], a.timeout, a.workers, a.out,
+            lambda s: print(s, flush=True))
+
+
 if __name__ == '__main__':
-    main()
+    if sys.argv[1:2] == ['squeeze']:
+        squeeze_main()
+    else:
+        main()
