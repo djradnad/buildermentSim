@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import { Factory } from '../site/js/gamesim.js';
 const L = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const bs = L.buildings.map(b => ({ tier: 1, recipe: 0, filter: 0, ...b }));
-const w = new Factory(bs, { feeds: L.feeds, sinks: L.sinks });
+const w = new Factory(bs, { feeds: L.feeds, sinks: L.sinks, sinkRates: L.sinkRates });
 const warm = (L.warmup ?? 10) * 3600, H = (L.minutes ?? 30) * 3600;
 for (let i = 0; i < warm; i++) w.tick();
 const made0 = w.machines.map(m => m.made);
@@ -41,4 +41,13 @@ for (const [g, m] of w.sinks) {
 const fed = w.feeds.length;
 const fedRates = w.feeds.map((f, i) => ({ at: f.at, kind: f.kind, want: f.perMin, perMin: (f.n - fed0[i]) / mins }));
 const probes = probeSeg.map((g, i) => g ? ((g.ins || 0) - probe0[i]) / mins : null);   // items per minute entering the belt run at each probe tile
-console.log(JSON.stringify({ machines, sinks, feeds: fed, fedRates, probes, wanted: (L.feeds || []).length }));
+// what lies on the belts at the end: runs holding more than one kind (a lane that got a foreign item), and the kinds
+// on each probed run
+const count = g => { const r = {}; for (const k of g.kinds) r[k] = (r[k] || 0) + 1; return r; };
+const mixed = [];
+for (const g of w.segs) {
+  const r = count(g);
+  if (Object.keys(r).length > 1) mixed.push({ from: [g.nodes[0].x, g.nodes[0].y], to: [g.nodes[g.nodes.length - 1].x, g.nodes[g.nodes.length - 1].y], kinds: r });
+}
+const probeKinds = probeSeg.map(g => g ? count(g) : null);
+console.log(JSON.stringify({ machines, sinks, feeds: fed, fedRates, probes, probeKinds, mixed, wanted: (L.feeds || []).length }));

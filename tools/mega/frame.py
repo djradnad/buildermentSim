@@ -44,8 +44,10 @@ def ring_side(mod, keys):
     return None
 
 
-def place(mods, nets, open_in, ch=2, per_port=0.34, cap=3, width=110, seconds=60, seed=1, wl_w=0.03, log=None):
-    """-> (chosen modules, offsets, height, belt length)"""
+def place(mods, nets, open_in, ch=2, per_port=0.34, cap=3, width=110, seconds=60, seed=1, wl_w=0.03, log=None, fixed=(), hole=None):
+    """-> (chosen modules, offsets, height, belt length)
+    fixed: [(module, in key, (x, y))] belts that come from a fixed tile outside (the ring's exits), x, y counted from
+    the corner of the hole (w, h); the packing goes into the hole's bottom right corner"""
     rnd = random.Random(seed)
     n = len(mods)
     ring_keys = [[] for _ in range(n)]
@@ -63,7 +65,7 @@ def place(mods, nets, open_in, ch=2, per_port=0.34, cap=3, width=110, seconds=60
                 var.append([(top, 1), (bot, 3)])
                 continue
             frame.remove(g)
-        var.append([(mods[g], None), (cl.transpose(mods[g]), None)])
+        var.append([(m_, None) for m_ in cl.facings(mods[g])] if hole else [(mods[g], None), (cl.transpose(mods[g]), None)])
     fs = set(frame)
 
     def pt(g, v, spec):
@@ -117,6 +119,13 @@ def place(mods, nets, open_in, ch=2, per_port=0.34, cap=3, width=110, seconds=60
         for (ga, sa), (gb, sb) in ends:
             a, b = pt(ga, v[ga], sa), pt(gb, v[gb], sb)
             wl += abs(pos[ga][0] + a[0] - pos[gb][0] - b[0]) + abs(pos[ga][1] + a[1] - pos[gb][1] - b[1])
+        if fixed:
+            ox, oy = hole[0] - width - 3, hole[1] - top - 3      # packed into the bottom right corner of the hole
+            for g, key, (fx, fy) in fixed:
+                b = var[g][v[g]][0].ins[key][0]
+                wl += abs(pos[g][0] + b[0] + ox - fx) + abs(pos[g][1] + b[1] + oy - fy)
+        if hole:                                             # the hole is given: only belt length counts, as long as it fits
+            return wl + 200 * max(0, top - (hole[1] - 6)) + pen, pos, top, wl
         return max(top, width) + 0.5 * top + wl_w * wl + pen, pos, top, wl
 
     order = sorted(range(n), key=lambda g: -len(mods[g].cells))
@@ -126,7 +135,7 @@ def place(mods, nets, open_in, ch=2, per_port=0.34, cap=3, width=110, seconds=60
     cur = cost(order, v)[0]
     best = (cur, list(order), list(v))
     t0 = time.time()
-    T0, T1 = 3.0, 0.05
+    T0, T1 = (60.0, 1.0) if hole else (3.0, 0.05)
     it = 0
     while time.time() - t0 < seconds:
         T = T0 * (T1 / T0) ** ((time.time() - t0) / seconds)
@@ -137,7 +146,7 @@ def place(mods, nets, open_in, ch=2, per_port=0.34, cap=3, width=110, seconds=60
             r = rnd.random()
             if r < 0.25:
                 nv = list(v)
-                nv[i] ^= 1
+                nv[i] = (nv[i] ^ 1) if len(var[i]) == 2 else rnd.randrange(len(var[i]))
             elif i == j:
                 continue
             elif r < 0.65:

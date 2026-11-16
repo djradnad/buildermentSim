@@ -8,7 +8,7 @@ Particle Glue) and are stand-in blocks of the size of john's builds until they g
     python tools/mega/core.py [seconds]
 """
 import json
-import math
+import math, itertools
 import os
 import pickle
 import sys
@@ -22,7 +22,14 @@ from bmsolver.pieces import step
 B = 3000
 CORE = ('factory_manufacturer', 'factory_industrial', 'factory_machine_shop')
 STANDIN = {2035: (33, 8), 2041: (14, 13)}     # recipe -> (w, h)
-GLUE_IN_DUPLICATOR = True       # john's duplicator build makes its own particle glue from matter compressors
+EXTRA = ('Tungsten_Carbide_ALT', 'Coupler', 'Condenser_Lens')   # ring recipes john's ring has no place for: placed with the core
+JOHN = {'Condenser_Lens': ('nbyv2n', 160.0)}   # his module and what one copy makes per minute
+JOHN_SHARE = {'Condenser_Lens': [470.0 / 740, 270.0 / 740]}   # glass is tight: one copy takes a belt almost whole
+GLUE_IN_DUPLICATOR = True
+SMALL_FIRST = os.environ.get("BM_SMALLFIRST", "1") == "1"   # small consumers first on a chain: the last stop bears every upstream shortfall
+JOIN_MAX = 480                  # joined belts: evenly spaced streams merge without loss up to a full belt (sim: 320+160, 288+192)
+FULL_BELTS = True
+RING = None                     # mega.py: the ring as one fixed module whose exit belts are the streams of the ring items       # john's duplicator build makes its own particle glue from matter compressors
 
 
 def recipes():
@@ -71,9 +78,71 @@ def standin(name, rec, crafts):
     return m
 
 
-def make(rn, rec, crafts, far=False):
+def john_mod(rn, rec, crafts):
+    """copies of john's own module for this recipe, one under the other, sharing the plan evenly"""
+    import jmod
+    code, each = JOHN[rn]
+    base = jmod.load(code)
+    ins, machines, item = jmod.assign(base)
+    outs = list(jmod.OUTS)
+    want = crafts * rec['out'][0]['amount']
+    k = math.ceil(want / each - 1e-6)
+    share = JOHN_SHARE.get(rn, [1.0 / k] * k)                # the copies need not share evenly: one can empty a full belt
+    assert len(share) == k and abs(sum(share) - 1) < 1e-6 and max(share) * want <= each + 1e-6
+    ax = 0 if ins[0][1] in (0, 2) else 1                     # lanes come in from below or above: copies side by side
+    vs = [c[ax] for r in base for c in ([(r[1], r[2])] if r[0] in cl.KIND_OF_ID or r[0] == 3012 else cl.rc.footprint(r))]
+    pitch = max(vs) - min(vs) + 2
+    sh = lambda p, g: (p[0] + g * pitch, p[1]) if ax == 0 else (p[0], p[1] + g * pitch)
+    m = cl.Mod(rn, [[r[0]] + list(sh((r[1], r[2]), g)) + list(r[3:]) for g in range(k) for r in base])
+    m.rec, m.need, m.out_rates = rec, {}, {}
+    for g in range(k):
+        for i, (p, d, kind) in enumerate(ins):
+            if item.get(i) is None:
+                continue
+            m.ins[(g, item[i])] = (step(sh(p, g), (d + 2) % 4), d)
+            m.need[(g, item[i])] = [q['amount'] for q in rec['in'] if q['item'] == item[i]][0] * crafts * share[g]
+        (p, d) = outs[0]
+        m.outs[('out', g)] = (sh(p, g), d)
+        m.out_rates[('out', g)] = want * share[g]
+    m.out_item = rec['out'][0]['item']
+    return m
+
+
+def arms_mod(rn, rec, crafts, per_row=14):
+    """one-tile machines with one light ingredient: rows of feed belt / arms / machines / collector (rawmod.arms).
+    The feed passes every arm and flows on, so a row can sit anywhere on a shared belt."""
+    import rawmod
     rate1 = 60.0 / rec['seconds'] * 3
     n = math.ceil(crafts / rate1 - 1e-6)
+    k = math.ceil(n / per_row)
+    per = [n // k + (1 if g < n % k else 0) for g in range(k)]
+    rows = []
+    m = None
+    item = rec['in'][0]['item']
+    ins, outs, need, rates = {}, {}, {}, {}
+    for g, c in enumerate(per):
+        u = rawmod.arms(rawmod.BID[rec['building']], rec['id'], c)
+        rows += [[r[0], r[1], r[2] + 4 * g] + list(r[3:]) for r in u['rows']]
+        (x, y, d), (ox, oy, od), (tx, ty, td) = u['inputs'][0], u['outputs'][0], u['through'][0]
+        ins[(g, item)] = (step((x, y + 4 * g), (d + 2) % 4), d)
+        outs[('out', g)] = ((ox, oy + 4 * g), od)
+        outs[('thru', g, item)] = ((tx, ty + 4 * g), td)
+        need[(g, item)] = rec['in'][0]['amount'] * rate1 * c
+        rates[('out', g)] = c * rate1 * rec['out'][0]['amount']
+    m = cl.Mod(rn, rows)
+    m.ins, m.need, m.out_rates, m.rec = ins, need, rates, rec
+    m.outs.update(outs)
+    m.out_item = rec['out'][0]['item']
+    return m
+
+
+def make(rn, rec, crafts, far=False):
+    if rn in JOHN:
+        return john_mod(rn, rec, crafts)
+    if rn == 'Coupler':
+        return arms_mod(rn, rec, crafts)
+    rate1 = 60.0 / rec['seconds'] * 3
+    n = math.ceil(crafts / rate1 / USE.get(rn, MAX_USE) - 1e-6)           # a module that must run 99% of the time never catches up
     outa = rec['out'][0]['amount']
     heavy = max(i['amount'] for i in rec['in']) * rate1
     if rec['id'] in STANDIN:
@@ -91,14 +160,46 @@ def make(rn, rec, crafts, far=False):
         return m
     mg = max(1, int(480 / heavy + 1e-9))
     groups = math.ceil(n / mg)
+    if rec['building'] == 'factory_forge':                # a collector carries one belt: enough rows per lane group
+        per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
+        if RING is not None:                              # lane groups sized to the ring's belts of the scarcest ingredient
+            for ing in rec['in']:
+                belts = sorted((r for k, it, r in RING.ring_streams if it == ing['item']), reverse=True)
+                tot = ing['amount'] * crafts
+                if belts and sum(belts) < 1.25 * tot and len(belts) >= groups:
+                    per = [max(1, round(n * b / sum(belts))) for b in belts]
+                    while sum(per) < n:
+                        per[per.index(min(per, key=lambda c: c / belts[per.index(c)]))] += 1
+                    while sum(per) > n + 1:
+                        per[per.index(max(per))] -= 1
+                    groups = len(per)
+                    break
+        rows = 2 * math.ceil(max(per) * rate1 * outa / 480 / 2 - 1e-9)
+        rows = max(rows, 4)
+        m = cl.recipe_mod(rn, rec['id'], n, groups, rows, per=per)
+        m.out_rates = {('out', k): c * rate1 * outa for k, c in enumerate(m.outm)}
+        return m
     arms = [max(math.ceil(i['amount'] * rate1 / 90 - 1e-9), 2 if (rn, i['item']) in TWO_ARM else 1) for i in rec['in']]
     if max(arms) == 2:                                    # a second arm on those lanes, taking from the entrance
         per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
         light = arms.index(1) if len(arms) == 2 and 1 in arms else None
         if light is not None and 2 * max(per) * rec['in'][light]['amount'] * rate1 > 480:
             light = None
+        full = None
+        hv = max(rec['in'], key=lambda i: i['amount'])
+        if RING is not None and FULL_BELTS and mg <= 4 and hv['item'] in {it for k, it, r in RING.ring_streams} and hv['amount'] * crafts > 480:
+            # full belts: one machine more per lane than a belt feeds, so every lane but the last eats a whole ring
+            # belt and ends there (no thin leftovers to collect and join); only the last lane passes its rest on
+            tot = hv['amount'] * crafts
+            G = math.ceil(tot / 480 - 1e-9)
+            last = math.ceil((tot - 480 * (G - 1)) / (hv['amount'] * rate1) - 1e-9)
+            per = [mg + 1] * (G - 1) + [max(1, last)]
+            full = [480.0 / tot] * (G - 1) + [(tot - 480.0 * (G - 1)) / tot]
+            light = None
         m = cl.paired_mod(rn, rec['id'], per, left=tuple(i for i, a in enumerate(arms) if a == 2), far=far, chain=None if far else light)
         m.out_rates = {('out', k): c * rate1 * outa for k, c in enumerate(m.outm)}
+        if full:
+            m.share = full                                # _build: each lane group's share of the plan
         return m
     per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
     rows = 2 if max(per) >= 8 and not far else 1
@@ -179,17 +280,106 @@ def plan_item(lanes, pool, leftover, limit=200000):
                 if r is not None:
                     return r
         return None
-    return dfs(list(pool), sorted(lanes, key=lambda t: -t[0]), [])
+    return dfs(list(pool), sorted(lanes, key=lambda t: t[0] if SMALL_FIRST else -t[0]), [])
 
 
 FLOW = {}                       # (module, out key) -> planned items per minute on that belt, filled by build()
 
 
 DIRECT = os.environ.get('BM_DIRECT', '1') == '1'   # ring sources right at border-facing entrances
+MAX_USE = float(os.environ.get('BM_MAXUSE', 0.965))   # most a core module's machines may be busy at plan
+USE = {'Logic_Circuit_ALT': 1.0}    # 54 machines change its collectors to 257/min each and two of them overfill a Computer lane
 TIGHT = float(os.environ.get('BM_TIGHT', 0.98))   # a module using more than this share of its machines has no room to catch up
 THIN_MARGIN = float(os.environ.get('BM_THIN', 1.0))   # leftover below this many arm takes counts as thin
 TWO_ARM = set()                 # (recipe name, item): lanes that get a second arm per machine so a thin leftover can pass on
 LEAKY = set()
+
+
+def plan_ring(item, mine, belts, standins, flows_on):
+    """john's pass-through wiring for a ring item: every ring belt feeds a chain of lanes, each lane takes its share
+    and the belt runs on, the last stop is a dead end. Lanes that end the belt in themselves (modules without a
+    flow-through exit, stand-in blocks) are put last on their chain.
+    -> ([(lane, [stream ids])] in an order where every stream exists, {(module, item): [stream ids]} for stand-ins)"""
+    chains = [dict(id=(b[0], b[1]), rem=b[2], term=None) for b in sorted(belts, key=lambda b: -b[2])]
+    plan, st_plan = [], {}
+    ends = []                                              # (chain, lane or stand-in, need)
+    terminal = [(need, ('lane', l)) for l in mine for need in [l[0]] if flows_on(l, need + 100) is None]
+    for (i, tot) in standins:
+        terminal.append((tot, ('standin', i)))
+    for need, who in sorted(terminal, key=lambda t: -t[0]):
+        while need > 0.5:
+            free = [c for c in chains if c['term'] is None]
+            if not free:
+                print('  short: no ring belt left for %s (%s), %.1f missing' % (item, who[0], need))
+                break
+            fit = [c for c in free if c['rem'] >= need - 0.01]
+            part = [c for c in free if c['rem'] < 479.5 and c['rem'] <= need + 0.01]
+            # a stop that swallows several belts takes the part-filled ones whole: the full belts stay for the full lanes
+            c = max(part, key=lambda c: c['rem']) if part and who[0] == 'standin' else min(fit, key=lambda c: c['rem']) if fit else max(free, key=lambda c: c['rem'])
+            take = min(need, c['rem'])
+            c['term'] = (who, take)
+            c['rem'] -= take
+            need -= take
+            if who[0] == 'lane' and need > 0.5:
+                print('  short: %s lane wants %.1f more than a belt holds' % (item, need))
+                break
+    rest = sorted((l for l in mine if flows_on(l, l[0] + 100) is not None), key=lambda l: -l[0])
+    for lane in rest:
+        need = lane[0]
+        fit = [c for c in chains if c['rem'] >= need - 0.01]
+        if fit:
+            c = min(fit, key=lambda c: c['rem'])
+            use = [c]
+        else:                                               # join tails (at most one of them may have an end stop)
+            use, tot, termed = [], 0.0, 0
+            live = [c for c in chains if c['rem'] >= 0.5]
+            load = lambda c: c['rem'] + (c['term'][1] if c['term'] else 0)     # what the belt really carries
+            pairs = None
+            for kk in (2, 3, 4):                            # the fewest tails that together still fit one belt
+                opts = [(sum(c['rem'] for c in cs), i_) for i_, cs in enumerate(itertools.combinations(live, kk))
+                        if need - 0.01 <= sum(c['rem'] for c in cs) and sum(load(c) for c in cs) <= JOIN_MAX
+                        and sum(c['term'] is not None for c in cs) <= 1]
+                if opts:
+                    tot, i_ = min(opts)
+                    use = list(list(itertools.combinations(live, kk))[i_])
+                    pairs = opts
+                    break
+            for c in sorted(chains, key=lambda c: -c['rem']) if not pairs else ():
+                if c['rem'] < 0.5 or (c['term'] and termed):
+                    continue
+                use.append(c)
+                termed += c['term'] is not None
+                tot += c['rem']
+                if tot >= need - 0.01:
+                    break
+            if tot < need - 0.01:
+                print('  short: %s for lane %s wants %.1f, the ring belts have %.1f left' % (item, lane[1:], need, tot))
+            if tot > JOIN_MAX:
+                print('  note: %s joins %.0f/min of belt tails for one lane' % (item, tot))
+            use.sort(key=lambda c: -c['rem'])
+        tot = sum(c['rem'] + (c['term'][1] if c['term'] else 0) for c in use)     # what flows in, the end stop's share included
+        plan.append((lane, [c['id'] for c in use]))
+        lf = flows_on(lane, tot)
+        keep = use[0]
+        term = next((c['term'] for c in use if c['term']), None)
+        for c in use[1:]:
+            chains.remove(c)
+        keep['rem'] = sum(c['rem'] for c in use) - need
+        keep['term'] = term
+        if lf is None:
+            if term:
+                print('  short: %s end stop lost behind lane %s' % (item, lane[1:]))
+            chains.remove(keep)
+        else:
+            keep['id'] = (lf[0], lf[1])
+    for c in chains:
+        if c['term']:
+            who, take = c['term']
+            if who[0] == 'lane':
+                plan.append((who[1], [c['id']]))
+            else:
+                st_plan.setdefault(who[1], []).append(c['id'])
+    return plan, st_plan
 
 
 def build():
@@ -209,9 +399,9 @@ def _build():
     FLOW.clear()
     rs = recipes()
     mods, nets, names = [], [], []
-    made_in_core = {rec['out'][0]['item'] for rec, c in rs.values() if rec['building'] in CORE}
+    made_in_core = {rec['out'][0]['item'] for rn, (rec, c) in rs.items() if rec['building'] in CORE or rn in EXTRA}
     for rn, (rec, crafts) in sorted(rs.items()):
-        if rec['building'] in CORE:
+        if rec['building'] in CORE or rn in EXTRA:
             m = make(rn, rec, crafts, far=not any(i['item'] in made_in_core for i in rec['in']))
             if not getattr(m, 'standin', False):           # plan rates: the machines are rounded up, the belts are not
                 i0 = rec['in'][0]
@@ -220,12 +410,25 @@ def _build():
                 want = crafts * rec['out'][0]['amount']
                 m.need = {k: v * f for k, v in m.need.items()}
                 m.out_rates = {k: v * want / full for k, v in m.out_rates.items()}
+                if getattr(m, 'share', None):               # full-belt lane groups: the plan split by belts, not by machines
+                    for ing in rec['in']:
+                        tot_i = ing['amount'] * crafts
+                        for g, sh in enumerate(m.share):
+                            m.need[(g, ing['item'])] = tot_i * sh
+                    if len(m.out_rates) * 2 >= len(m.share) and len(m.out_rates) == (len(m.share) + 1) // 2:
+                        for k in range(len(m.out_rates)):   # a collector between each pair of groups
+                            m.out_rates[('out', k)] = want * sum(m.share[2 * k:2 * k + 2])
             mods.append(m)
             names.append(rn)
+    if RING is not None:
+        mods.append(RING)
+        names.append('ring')
     streams = {}                # item -> list of [module, out key, rate]
     for i, m in enumerate(mods):
         for key, rate in m.out_rates.items():
             streams.setdefault(m.out_item, []).append([i, key, rate, False])
+        for key, item, rate in getattr(m, 'ring_streams', ()):
+            streams.setdefault(item, []).append([i, key, rate, False])
     open_in = []                # inputs fed from outside the core
     lanes = [(need, i, key) for i, m in enumerate(mods) for key, need in m.need.items()]
     def flows_on(lane, tot):
@@ -255,7 +458,22 @@ def _build():
     forced = {}                 # lane -> its streams, for the items where a clean wiring was found by search
     order = []
     standin_items = {key[-1] for m in mods if getattr(m, 'standin', False) for key in m.need}
+    forced_st = {}              # (stand-in module, item) -> its streams (ring items)
+    ring_items = {it for k, it, r in RING.ring_streams} if RING is not None else set()
     for item in sorted(streams):
+        if item in ring_items:
+            mine = [t for t in lanes if t[2][1] == item and not getattr(mods[t[1]], 'standin', False)]
+            sts = {}
+            for need_, i_, (g_, it_) in lanes:
+                if it_ == item and getattr(mods[i_], 'standin', False):
+                    sts[i_] = sts.get(i_, 0) + need_
+            plan, st_plan = plan_ring(item, mine, streams[item], sorted(sts.items()), flows_on)
+            for lane, ids in plan:
+                forced[(lane[1], lane[2])] = ids
+                order.append(lane)
+            for i_, ids in st_plan.items():
+                forced_st[(i_, item)] = ids
+            continue
         if item in standin_items:
             continue
         mine = [t for t in lanes if t[2][1] == item]
@@ -281,13 +499,20 @@ def _build():
             y = max(t[1] for t, d in m.ins.values()) + 1
             k = 0
             pool.sort(key=lambda s: s[2])
-            while tot > 0.5 and pool:
-                pick = next((s for s in pool if s[2] >= tot - 1e-6), None) or pool[-1]
+            ids = list(forced_st.get((i, item), ()))
+            while (ids if (i, item) in forced_st else tot > 0.5 and pool):
+                if (i, item) in forced_st:
+                    sid = ids.pop(0)
+                    pick = next(s for s in pool if (s[0], s[1]) == sid)
+                else:
+                    pick = next((s for s in pool if s[2] >= tot - 1e-6), None) or pool[-1]
                 pool.remove(pick)
                 if k >= len(ports):                           # more belts than lanes on the west side: come in from the top
                     xt = 1 + 2 * len([1 for t_, d_ in m.ins.values() if d_ == 2])
                     ports.append(((xt, -1), 2))
                 m.ins[('p', k, item)] = ports[k]
+                m.port_take = getattr(m, 'port_take', {})
+                m.port_take[('p', k, item)] = min(pick[2], max(tot, 0))   # the sim's stand-in sink takes this much
                 nets.append((pick[0], pick[1], i, ('p', k, item)))
                 FLOW[(pick[0], pick[1])] = pick[2]
                 tot -= pick[2]
@@ -368,6 +593,8 @@ def _build():
     used = {(a, ka) for a, ka, b, kb in nets}
     spare = {}
     for i, m in enumerate(mods):
+        if m is RING:
+            continue                                     # an unused ring exit stays a dead end: the ring backs up
         if not getattr(m, 'standin', False):
             cl.cap_all(m, [k for k in m.outs if (i, k) not in used and k[0] == 'thru'])
         for key in [k for k in m.outs if (i, k) not in used]:
@@ -545,7 +772,7 @@ def add_ring(tm, nets, open_in, off):
     return mods2, nets2, off2
 
 
-def widen(tm, off, fail, by=2):
+def widen(tm, off, fail, by=2, axis=None):
     """open the layout where a failed routing jammed: the tiles wanted by several belts mark the spot; every module
     that starts past it moves `by` tiles away (right for a jam in an upright channel, down for a flat one).
     -> new offsets for the modules of tm, or None when there is no jam to read"""
@@ -559,7 +786,7 @@ def widen(tm, off, fail, by=2):
     iqr = lambda v: v[(3 * len(v)) // 4] - v[len(v) // 4]
     upright = iqr(ys) >= iqr(xs)                             # the jam runs north-south: make the channel wider
     old = [tuple(o) for o in off]
-    for up in (upright, not upright):                        # the other direction when this one moves nothing
+    for up in ((upright, not upright) if axis is None else (axis == 0,)):   # the other direction when this one moves nothing
         k = 0 if up else 1
         for c in ((mid(xs) if up else mid(ys)) + dc for dc in (0, -2, 2, -5, 5, -9, 9)):
             new = []
@@ -724,7 +951,7 @@ def frame_diag(path, minutes=40, warmup=60):
             print('source %-22s gives %6.1f of %6.1f -> %s' % (f['kind'], f['perMin'], f['want'], dest))
 
 
-def modcheck(minutes=60, warmup=30):
+def modcheck(minutes=60, warmup=30, only=None):
     """every core module alone in the game sim, each input lane fed exactly its plan share, used flow-through exits
     and collectors open: does it make its plan rate?  The check that a module (with its dead-end caps) is sound."""
     import subprocess
@@ -733,7 +960,7 @@ def modcheck(minutes=60, warmup=30):
     want = {rn: crafts * rec['out'][0]['amount'] for rn, (rec, crafts) in recipes().items()}
     bad = 0
     for m in mods:
-        if getattr(m, 'standin', False):
+        if getattr(m, 'standin', False) or (only and m.name not in only):
             continue
         bs = [dict(id=r[0], x=r[1], y=r[2], o=r[3], tier=r[4] + 1, recipe=r[5] if r[5] > 0 else 0) for r in m.rows]
         feeds, sinks = [], []

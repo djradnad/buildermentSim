@@ -37,11 +37,12 @@ class Mod:
         self.sinks = []        # more sink tiles (outputs that leave the layout)
 
 
-def recipe_mod(name, recipe, n, groups=1, rows=1, share=False, far=False):
+def recipe_mod(name, recipe, n, groups=1, rows=1, share=False, far=False, per=None):
     rec = RECIPES[recipe]
-    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
+    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007, 'factory_forge': 3009}[rec['building']]
     L = len(rec['in'])
-    per = [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
+    per = per or [n // groups + (1 if k < n % groups else 0) for k in range(groups)]
+    groups = len(per)
     fam = lanemod.stack([lanemod.build(bid, recipe, m, rows, L, share=share, far=far and rows == 1) for m in per])
     mod = Mod(name, [list(r) for r in fam['rows']])
     mod.rec, mod.groups, mod.per = rec, groups, per
@@ -89,7 +90,7 @@ def shop_mod(name, recipe, n, blocks, serp=1):
 def paired_mod(name, recipe, per, left=(), far=False, chain=None):
     """single-row groups stacked in collector-sharing pairs; left = ingredient indices that get a second arm"""
     rec = RECIPES[recipe]
-    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007}[rec['building']]
+    bid = {'factory_manufacturer': 3010, 'factory_industrial': 3008, 'factory_machine_shop': 3007, 'factory_forge': 3009}[rec['building']]
     L = len(rec['in'])
     fam = lanemod.paired(bid, recipe, per, L, left=left, far=far, chain=chain)
     mod = Mod(name, [list(r) for r in fam['rows']])
@@ -242,6 +243,7 @@ class Layout(cc.State):
     def __init__(self, mods, nets):
         """nets: (module index, out key, module index, in key)"""
         self.mods = mods
+        self.raw_nets = list(nets)
         self.n = len(mods)
         self.cells = [sorted(m.cells) for m in mods]
         self.off = [(0, 0)] * self.n
@@ -317,11 +319,13 @@ class Layout(cc.State):
     def sim(self, res, minutes=60, warmup=40, save=None, probes=()):
         rows = self.game_rows(res)
         bs = [dict(id=r[0], x=r[1], y=r[2], o=r[3], tier=r[4] + 1, recipe=r[5] if r[5] > 0 else 0) for r in rows]
-        feeds, sinks, names = [], [], {}
+        feeds, sinks, names, rates = [], [], {}, {}
         for g, m in enumerate(self.mods):
             o = self.off[g]
             if m.feed:
                 t, item, rate = m.feed
+                feeds.append(dict(at=[t[0] + o[0], t[1] + o[1]], kind=item, perMin=rate, buffer=10))
+            for t, item, rate in getattr(m, 'feeds', ()):
                 feeds.append(dict(at=[t[0] + o[0], t[1] + o[1]], kind=item, perMin=rate, buffer=10))
             if m.sink:
                 sinks.append([m.sink[0] + o[0], m.sink[1] + o[1]])
@@ -334,14 +338,17 @@ class Layout(cc.State):
                 b = self.pos(e, ge)
                 sinks.append(list(b))
                 names['%d,%d' % b] = '%s in %d,%d' % ((self.mods[ge].name,) + b)
+                take = getattr(self.mods[ge], 'port_take', {}).get(self.raw_nets[i][3])
+                if take is not None:
+                    rates['%d,%d' % b] = take               # a stand-in takes its plan share, not all that comes
             m = self.mods[gs]
             if getattr(m, 'standin', False):
                 rate = [m.out_rates[k] for k, (t, dd) in m.outs.items() if step(t, dd) == s][0]
                 feeds.append(dict(at=list(self.pos(s, gs)), kind=m.out_item, perMin=rate, buffer=10))
         if save:
-            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, probes=[list(p) for p in probes]), open(save, 'w'))
+            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, sinkRates=rates, probes=[list(p) for p in probes]), open(save, 'w'))
         with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
-            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, probes=[list(p) for p in probes]), f)
+            json.dump(dict(buildings=bs, feeds=feeds, warmup=warmup, minutes=minutes, sinks=sinks, sinkRates=rates, probes=[list(p) for p in probes]), f)
         try:
             rep = json.loads(subprocess.run(['node', 'tools/simlayout.mjs', f.name], capture_output=True, text=True, check=True).stdout)
         finally:
@@ -368,6 +375,10 @@ def _route(self, off, timeout=60):
     W, H = x1 - x0 + 1, y1 - y0 + 1
     sh = lambda p: (p[0] - x0, p[1] - y0)
     blocked = {sh(p) for p in occ}
+    clip = getattr(self, 'clip', None)                       # (x0, y0, x1, y1): no belt outside this area
+    if clip:
+        blocked |= {sh((x, y)) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)
+                    if not (clip[0] <= x <= clip[2] and clip[1] <= y <= clip[3])}
     pos_ug = {}
     for (x, y, g), c in self.ug:
         pos_ug[self.pos((x, y), g, off)] = c
