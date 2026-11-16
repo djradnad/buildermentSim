@@ -142,6 +142,10 @@ def train(steps=2_000_000, envs=256, rollout=128, gamma=0.999, lam=0.95, lr=3e-4
     return params, done_log
 
 
+# reference times (s) for per-item reward scaling: search bests where known (rl/search.py), else rough guesses
+REF = {'Wood Log': 6, 'Iron Ore': 6, 'Copper Ore': 6, 'Stone': 6, 'Coal': 6, 'Wood Plank': 42, 'Wood Frame': 94,
+       'Iron Ingot': 238, 'Copper Ingot': 238, 'Iron Gear': 400, 'Copper Wire': 400}
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--steps', type=float, default=2e6)
@@ -162,4 +166,4 @@ if __name__ == '__main__':
     train(int(a.steps), a.envs, rollout=a.rollout, out=a.out, max_minutes=a.max_minutes,
           **({} if a.targets else dict(goal=a.goal)), init=a.init, ent=a.ent, lr=a.lr,
           max_steps=a.max_steps, env_kind=a.env, milestone_bonus=a.milestone, tech_bonus=a.tech_bonus,
-          **(dict(goal='items', targets=a.targets.split(',')) if a.targets else {}))
+          **(dict(goal='items', targets=a.targets.split(','), target_ref=REF) if a.targets else {}))

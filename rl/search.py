@@ -55,13 +55,13 @@ def search(target, batch=256, max_nodes=200000, max_minutes=120, world='2CCJhI',
     allowed[M_DEL:M_X1] = False
     start = get(env, 0, R)
     cnt = itertools.count()
-    heap = [(0.0, next(cnt), start, [])]
+    heap = [(0.0, 0.0, next(cnt), start, [])]
     seen = {}
     popped = 0
     while heap and popped < max_nodes:
         group = []
         while heap and len(group) < batch:
-            t, _, st, path = heapq.heappop(heap)
+            t, _, _, st, path = heapq.heappop(heap)
             d = dict(((o.__class__.__name__, k), v) for (o, k), v in zip(R, st))
             if np.isfinite(d[('EconEnv', 'first')][ti]):
                 if verbose:
@@ -95,7 +95,7 @@ def search(target, batch=256, max_nodes=200000, max_minutes=120, world='2CCJhI',
                 if env.e.finished[i] and not np.isfinite(env.e.first[i, ti]):
                     continue
                 ns = get(env, i, R)
-                heapq.heappush(heap, (float(env.e.t[i]), next(cnt), ns, path + [a]))
+                heapq.heappush(heap, (float(env.e.t[i]), -float(env.e.gold[i]), next(cnt), ns, path + [a]))
     return None, None
 
 

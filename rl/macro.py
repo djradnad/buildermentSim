@@ -208,11 +208,14 @@ class MacroEnv:
         info = None
         t_before = e.t.copy()
 
+        fin = np.zeros(B, bool); trunc = np.zeros(B, bool)
+
         def run(p):
             nonlocal done, info, reward
             p = np.where(done | ~live, E.A_WAIT, p)
             _, r, d, info = e.step(p)
             reward += np.where(done, 0, r)
+            fin[:] |= info['finished'] & ~done; trunc[:] |= info['truncated'] & ~done
             done |= d
 
         direct = prim != E.A_WAIT
@@ -231,7 +234,7 @@ class MacroEnv:
         e.wait_override = np.where(is_wait, ev, np.where(t_before == e.t, 1.0, 0.0))
         run(np.where(is_wait, a, M_WAIT))
         e.wait_override = None
-        return self.obs(), reward, done, dict(info, decisions=self.decisions.copy())
+        return self.obs(), reward, done, dict(info, finished=fin, truncated=trunc, decisions=self.decisions.copy())
 
     def obs(self):
         dr, dx = self._deficit()

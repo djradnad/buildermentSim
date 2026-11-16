@@ -403,6 +403,11 @@ class EconEnv:
         capped = trunc & (self.t < self.cfg['max_minutes'] * 60)
         reward = reward - (stuck | capped) * np.maximum(self.cfg['max_minutes'] - self.t / 60.0, 0)
         trunc = trunc | stuck
+        if self.cfg['goal'] == 'items' and self.cfg.get('target_ref'):
+            # per-item speedruns: time in units of that item's reference time, so a 6 s item and a 4 min item
+            # weigh the same in training
+            ref = np.array([self.cfg['target_ref'].get(ITEMS[i], 300.0) for i in range(NI)]) / 60.0
+            reward = reward / np.maximum(ref[self.target], 0.5)
         self.finished |= fin | trunc
         return self.obs(), reward, fin | trunc, dict(finished=fin, truncated=trunc, minutes=self.t / 60)
 
