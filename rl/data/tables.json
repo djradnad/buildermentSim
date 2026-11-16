@@ -1,0 +1,6885 @@
+{
+ "items": [
+  "Atomic Locator",
+  "Battery",
+  "Carbon Fiber",
+  "Coal",
+  "Computer",
+  "Concrete",
+  "Condenser Lens",
+  "Copper Ingot",
+  "Copper Ore",
+  "Copper Wire",
+  "Coupler",
+  "Earth Token",
+  "Electric Motor",
+  "Electromagnet",
+  "Electron Microscope",
+  "Empty Fuel Cell",
+  "Energy Cube",
+  "Enriched Uranium",
+  "Gem Apple",
+  "Glass",
+  "Graphite",
+  "Gyroscope",
+  "Heat Sink",
+  "Industrial Frame",
+  "Iron Gear",
+  "Iron Ingot",
+  "Iron Ore",
+  "Iron Plating",
+  "Logic Circuit",
+  "Magnetic Field Generator",
+  "Matter Compressor",
+  "Matter Duplicator",
+  "Metal Frame",
+  "Nano Wire",
+  "Nuclear Fuel Cell",
+  "Particle Glue",
+  "Quantum Entangler",
+  "Rotor",
+  "Sand",
+  "Silicon",
+  "Stabilizer",
+  "Steel",
+  "Steel Rod",
+  "Stone",
+  "Super Computer",
+  "Tank",
+  "Tungsten Carbide",
+  "Tungsten Ore",
+  "Turbocharger",
+  "Uranium Ore",
+  "Wolframite",
+  "Wood Frame",
+  "Wood Log",
+  "Wood Plank"
+ ],
+ "sell": {
+  "Gem Apple": 0,
+  "Wood Log": 1,
+  "Wood Plank": 1,
+  "Wood Frame": 4,
+  "Copper Ore": 1,
+  "Copper Ingot": 1,
+  "Copper Wire": 2,
+  "Iron Ore": 1,
+  "Iron Ingot": 1,
+  "Iron Gear": 2,
+  "Stone": 1,
+  "Sand": 1,
+  "Silicon": 2,
+  "Glass": 4,
+  "Wolframite": 1,
+  "Tungsten Ore": 5,
+  "Tungsten Carbide": 16,
+  "Coupler": 16,
+  "Condenser Lens": 12,
+  "Heat Sink": 5,
+  "Iron Plating": 2,
+  "Electromagnet": 14,
+  "Metal Frame": 12,
+  "Steel": 12,
+  "Rotor": 40,
+  "Steel Rod": 35,
+  "Concrete": 40,
+  "Electric Motor": 250,
+  "Coal": 1,
+  "Graphite": 6,
+  "Logic Circuit": 10,
+  "Carbon Fiber": 24,
+  "Nano Wire": 60,
+  "Computer": 60,
+  "Industrial Frame": 400,
+  "Stabilizer": 500,
+  "Gyroscope": 100,
+  "Magnetic Field Generator": 1500,
+  "Quantum Entangler": 2500,
+  "Electron Microscope": 300,
+  "Turbocharger": 250,
+  "Super Computer": 500,
+  "Atomic Locator": 2500,
+  "Battery": 150,
+  "Energy Cube": 700,
+  "Tank": 250,
+  "Matter Compressor": 1500,
+  "Particle Glue": 150,
+  "Matter Duplicator": 32000,
+  "Earth Token": 32000,
+  "Uranium Ore": 10,
+  "Enriched Uranium": 1000,
+  "Empty Fuel Cell": 70,
+  "Nuclear Fuel Cell": 1200
+ },
+ "techs": [
+  {
+   "id": 4000,
+   "row": "starting",
+   "name": "Starting Tech",
+   "cost": {},
+   "gems_ok": false,
+   "requires": [],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3013
+    },
+    {
+     "UnlockedBuildingId": 3000
+    },
+    {
+     "UnlockedBuildingId": 3004
+    }
+   ]
+  },
+  {
+   "id": 4001,
+   "row": "planks",
+   "name": "Wood Planks",
+   "cost": {
+    "Wood Log": 10
+   },
+   "gems_ok": true,
+   "requires": [
+    4000
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3005
+    },
+    {
+     "UnlockedRecipeId": 2000
+    }
+   ]
+  },
+  {
+   "id": 4002,
+   "row": "frames",
+   "name": "Wood Frames",
+   "cost": {
+    "Wood Plank": 10
+   },
+   "gems_ok": true,
+   "requires": [
+    4001
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2001
+    }
+   ]
+  },
+  {
+   "id": 4003,
+   "row": "smelting",
+   "name": "Smelting",
+   "cost": {
+    "Wood Frame": 10
+   },
+   "gems_ok": true,
+   "requires": [
+    4002
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3006
+    },
+    {
+     "UnlockedRecipeId": 2004
+    },
+    {
+     "UnlockedRecipeId": 2002
+    }
+   ]
+  },
+  {
+   "id": 4029,
+   "row": "upgrade_extractor_tier",
+   "name": "Extractor Upgrade",
+   "cost": {
+    "Wood Frame": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4003
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3004,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4030,
+   "row": "upgrade_extractor_tier",
+   "name": "Extractor Upgrade",
+   "cost": {
+    "Metal Frame": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4029
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3004,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4031,
+   "row": "upgrade_extractor_tier",
+   "name": "Extractor Upgrade",
+   "cost": {
+    "Electric Motor": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4030
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3004,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4079,
+   "row": "upgrade_extractor_tier",
+   "name": "Extractor Upgrade",
+   "cost": {
+    "Earth Token": 20
+   },
+   "gems_ok": true,
+   "requires": [
+    4031
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3004,
+     "UpgradeBuildingTier": 4
+    }
+   ]
+  },
+  {
+   "id": 4004,
+   "row": "metal_working",
+   "name": "Metal Working",
+   "cost": {
+    "Iron Ingot": 25,
+    "Copper Ingot": 25
+   },
+   "gems_ok": true,
+   "requires": [
+    4003
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2003
+    },
+    {
+     "UnlockedRecipeId": 2005
+    }
+   ]
+  },
+  {
+   "id": 4006,
+   "row": "advanced_belts",
+   "name": "Advanced Belts",
+   "cost": {
+    "Iron Gear": 30
+   },
+   "gems_ok": true,
+   "requires": [
+    4004
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3001
+    },
+    {
+     "UnlockedBuildingId": 3002
+    },
+    {
+     "UnlockedBuildingId": 3003
+    }
+   ]
+  },
+  {
+   "id": 4005,
+   "row": "magnets",
+   "name": "Magnets!",
+   "cost": {
+    "Copper Wire": 50
+   },
+   "gems_ok": true,
+   "requires": [
+    4004
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3007
+    },
+    {
+     "UnlockedRecipeId": 2015
+    }
+   ]
+  },
+  {
+   "id": 4032,
+   "row": "upgrade_workshop_tier",
+   "name": "Workshop Upgrade",
+   "cost": {
+    "Copper Wire": 200
+   },
+   "gems_ok": true,
+   "requires": [
+    4004
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3005,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4033,
+   "row": "upgrade_workshop_tier",
+   "name": "Workshop Upgrade",
+   "cost": {
+    "Iron Gear": 5000,
+    "Logic Circuit": 2000
+   },
+   "gems_ok": true,
+   "requires": [
+    4032
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3005,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4034,
+   "row": "upgrade_workshop_tier",
+   "name": "Workshop Upgrade",
+   "cost": {
+    "Turbocharger": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4033
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3005,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4091,
+   "row": "alt_recipes_workshop",
+   "name": "Alternative Recipes",
+   "cost": {
+    "Electric Motor": 50
+   },
+   "gems_ok": true,
+   "requires": [
+    4032
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2046
+    },
+    {
+     "UnlockedRecipeId": 2047
+    }
+   ]
+  },
+  {
+   "id": 4028,
+   "row": "storage_silo",
+   "name": "Storage",
+   "cost": {
+    "Metal Frame": 150
+   },
+   "gems_ok": true,
+   "requires": [
+    4007
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3011
+    }
+   ]
+  },
+  {
+   "id": 4007,
+   "row": "metal_frame",
+   "name": "Metal Frames",
+   "cost": {
+    "Electromagnet": 30
+   },
+   "gems_ok": true,
+   "requires": [
+    4005
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2014
+    },
+    {
+     "UnlockedRecipeId": 2016
+    }
+   ]
+  },
+  {
+   "id": 4089,
+   "row": "silicon",
+   "name": "Silicon",
+   "cost": {
+    "Stone": 50
+   },
+   "gems_ok": true,
+   "requires": [
+    4007
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2006
+    },
+    {
+     "UnlockedRecipeId": 2007
+    }
+   ]
+  },
+  {
+   "id": 4008,
+   "row": "circuits",
+   "name": "Circuitry",
+   "cost": {
+    "Silicon": 100,
+    "Copper Wire": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4089
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2023
+    }
+   ]
+  },
+  {
+   "id": 4086,
+   "row": "coal_power",
+   "name": "Coal Power",
+   "cost": {
+    "Coal": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4005
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3038
+    }
+   ]
+  },
+  {
+   "id": 4027,
+   "row": "robotics",
+   "name": "Robotics",
+   "cost": {
+    "Wood Plank": 1000,
+    "Logic Circuit": 250
+   },
+   "gems_ok": true,
+   "requires": [
+    4008
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3012
+    }
+   ]
+  },
+  {
+   "id": 4083,
+   "row": "gem_tree",
+   "name": "Gem Tree",
+   "cost": {
+    "Wood Log": 1000,
+    "Stone": 1000,
+    "Iron Ore": 1000,
+    "Copper Ore": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4027
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3029
+    }
+   ]
+  },
+  {
+   "id": 4071,
+   "row": "upgrade_robot_arm_tier",
+   "name": "Robotic Arm Upgrade",
+   "cost": {
+    "Computer": 200
+   },
+   "gems_ok": true,
+   "requires": [
+    4027
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3012,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4072,
+   "row": "upgrade_robot_arm_tier",
+   "name": "Robotic Arm Upgrade",
+   "cost": {
+    "Rotor": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4071
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3012,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4073,
+   "row": "upgrade_robot_arm_tier",
+   "name": "Robotic Arm Upgrade",
+   "cost": {
+    "Electric Motor": 500,
+    "Nano Wire": 2000
+   },
+   "gems_ok": true,
+   "requires": [
+    4072
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3012,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4009,
+   "row": "computers",
+   "name": "Computers",
+   "cost": {
+    "Metal Frame": 25,
+    "Logic Circuit": 25
+   },
+   "gems_ok": true,
+   "requires": [
+    4008
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3008
+    },
+    {
+     "UnlockedRecipeId": 2013
+    },
+    {
+     "UnlockedRecipeId": 2026
+    }
+   ]
+  },
+  {
+   "id": 4010,
+   "row": "steel",
+   "name": "Steel Production",
+   "cost": {
+    "Computer": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4009
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3009
+    },
+    {
+     "UnlockedRecipeId": 2022
+    },
+    {
+     "UnlockedRecipeId": 2017
+    }
+   ]
+  },
+  {
+   "id": 4011,
+   "row": "concrete",
+   "name": "Concrete",
+   "cost": {
+    "Steel": 200,
+    "Sand": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4010
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2019
+    },
+    {
+     "UnlockedRecipeId": 2020
+    }
+   ]
+  },
+  {
+   "id": 4012,
+   "row": "batteries",
+   "name": "Batteries",
+   "cost": {
+    "Graphite": 400,
+    "Electromagnet": 400
+   },
+   "gems_ok": true,
+   "requires": [
+    4010
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2036
+    }
+   ]
+  },
+  {
+   "id": 4013,
+   "row": "electric_motors",
+   "name": "Motors",
+   "cost": {
+    "Battery": 50,
+    "Steel Rod": 200
+   },
+   "gems_ok": true,
+   "requires": [
+    4012
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2018
+    },
+    {
+     "UnlockedRecipeId": 2021
+    }
+   ]
+  },
+  {
+   "id": 4014,
+   "row": "nano_wire",
+   "name": "Nano Wire",
+   "cost": {
+    "Electric Motor": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4013
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2008
+    },
+    {
+     "UnlockedRecipeId": 2024
+    },
+    {
+     "UnlockedRecipeId": 2025
+    }
+   ]
+  },
+  {
+   "id": 4015,
+   "row": "microscope",
+   "name": "Microscopes",
+   "cost": {
+    "Nano Wire": 400
+   },
+   "gems_ok": true,
+   "requires": [
+    4014
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3010
+    },
+    {
+     "UnlockedRecipeId": 2012
+    },
+    {
+     "UnlockedRecipeId": 2032
+    }
+   ]
+  },
+  {
+   "id": 4016,
+   "row": "tungsten",
+   "name": "Tungsten Production",
+   "cost": {
+    "Wolframite": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4015
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2009
+    },
+    {
+     "UnlockedRecipeId": 2010
+    }
+   ]
+  },
+  {
+   "id": 4087,
+   "row": "nuclear_processing",
+   "name": "Uranium Processing",
+   "cost": {
+    "Tungsten Carbide": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4016
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3040
+    },
+    {
+     "UnlockedRecipeId": 2043
+    }
+   ]
+  },
+  {
+   "id": 4088,
+   "row": "nuclear_power",
+   "name": "Nuclear Power",
+   "cost": {
+    "Concrete": 1000,
+    "Steel": 1000,
+    "Enriched Uranium": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4087
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3039
+    },
+    {
+     "UnlockedRecipeId": 2044
+    },
+    {
+     "UnlockedRecipeId": 2045
+    }
+   ]
+  },
+  {
+   "id": 4017,
+   "row": "turbocharger",
+   "name": "Turbocharger",
+   "cost": {
+    "Tungsten Carbide": 200,
+    "Nano Wire": 200
+   },
+   "gems_ok": true,
+   "requires": [
+    4016
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2011
+    },
+    {
+     "UnlockedRecipeId": 2033
+    }
+   ]
+  },
+  {
+   "id": 4018,
+   "row": "super_computer",
+   "name": "Super Computers",
+   "cost": {
+    "Computer": 100,
+    "Turbocharger": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4017
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2034
+    }
+   ]
+  },
+  {
+   "id": 4019,
+   "row": "stabilizers",
+   "name": "Stabilizer",
+   "cost": {
+    "Rotor": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4018
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2029
+    },
+    {
+     "UnlockedRecipeId": 2028
+    }
+   ]
+  },
+  {
+   "id": 4020,
+   "row": "industrial_frames",
+   "name": "Industrial Frame",
+   "cost": {
+    "Concrete": 1000,
+    "Metal Frame": 1000,
+    "Tungsten Carbide": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4019
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2027
+    }
+   ]
+  },
+  {
+   "id": 4021,
+   "row": "matter_compressor",
+   "name": "Matter Compressor",
+   "cost": {
+    "Turbocharger": 200,
+    "Industrial Frame": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4020
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2038
+    },
+    {
+     "UnlockedRecipeId": 2039
+    }
+   ]
+  },
+  {
+   "id": 4022,
+   "row": "energy_cube",
+   "name": "Energy Cube",
+   "cost": {
+    "Battery": 200,
+    "Industrial Frame": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4020
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2037
+    }
+   ]
+  },
+  {
+   "id": 4023,
+   "row": "atomic_locator",
+   "name": "Atomic Locator",
+   "cost": {
+    "Super Computer": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4018
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2035
+    }
+   ]
+  },
+  {
+   "id": 4024,
+   "row": "quantum_entanglement",
+   "name": "Quantum Entanglement",
+   "cost": {
+    "Atomic Locator": 40
+   },
+   "gems_ok": true,
+   "requires": [
+    4023
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2030
+    },
+    {
+     "UnlockedRecipeId": 2031
+    },
+    {
+     "UnlockedRecipeId": 2040
+    }
+   ]
+  },
+  {
+   "id": 4025,
+   "row": "matter_duplicator",
+   "name": "Matter Duplication",
+   "cost": {
+    "Particle Glue": 1000,
+    "Quantum Entangler": 50
+   },
+   "gems_ok": true,
+   "requires": [
+    4024
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2041
+    }
+   ]
+  },
+  {
+   "id": 4026,
+   "row": "end_game",
+   "name": "Earth Teleporter",
+   "cost": {
+    "Matter Duplicator": 10
+   },
+   "gems_ok": true,
+   "requires": [
+    4025
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3014
+    },
+    {
+     "UnlockedRecipeId": 2042
+    }
+   ]
+  },
+  {
+   "id": 4053,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4006
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.1
+    }
+   ]
+  },
+  {
+   "id": 4054,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4053
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.1
+    }
+   ]
+  },
+  {
+   "id": 4055,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 2000
+   },
+   "gems_ok": true,
+   "requires": [
+    4054
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.1
+    }
+   ]
+  },
+  {
+   "id": 4056,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 5000
+   },
+   "gems_ok": true,
+   "requires": [
+    4055
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.1
+    }
+   ]
+  },
+  {
+   "id": 4057,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 10000
+   },
+   "gems_ok": true,
+   "requires": [
+    4056
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.2
+    }
+   ]
+  },
+  {
+   "id": 4058,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 20000
+   },
+   "gems_ok": true,
+   "requires": [
+    4057
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.2
+    }
+   ]
+  },
+  {
+   "id": 4059,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 30000
+   },
+   "gems_ok": true,
+   "requires": [
+    4058
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.2
+    }
+   ]
+  },
+  {
+   "id": 4060,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 40000
+   },
+   "gems_ok": true,
+   "requires": [
+    4059
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.2
+    }
+   ]
+  },
+  {
+   "id": 4061,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 60000
+   },
+   "gems_ok": true,
+   "requires": [
+    4060
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.3
+    }
+   ]
+  },
+  {
+   "id": 4062,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 80000
+   },
+   "gems_ok": true,
+   "requires": [
+    4061
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.3
+    }
+   ]
+  },
+  {
+   "id": 4074,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 100000,
+    "Earth Token": 50
+   },
+   "gems_ok": true,
+   "requires": [
+    4062
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.2
+    }
+   ]
+  },
+  {
+   "id": 4075,
+   "row": "belt_speed",
+   "name": "Speed Upgrade",
+   "cost": {
+    "Iron Gear": 150000,
+    "Earth Token": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4074
+   ],
+   "modifiers": [
+    {
+     "BeltSpeedMultiplier": 0.2
+    }
+   ]
+  },
+  {
+   "id": 4084,
+   "row": "belt_underground_distance",
+   "name": "Underground Belt Upgrade",
+   "cost": {
+    "Nano Wire": 100,
+    "Concrete": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4006
+   ],
+   "modifiers": [
+    {
+     "AddUndergroundBeltDistance": 1
+    }
+   ]
+  },
+  {
+   "id": 4085,
+   "row": "belt_underground_distance",
+   "name": "Underground Belt Upgrade",
+   "cost": {
+    "Turbocharger": 200,
+    "Concrete": 4000
+   },
+   "gems_ok": true,
+   "requires": [
+    4084
+   ],
+   "modifiers": [
+    {
+     "AddUndergroundBeltDistance": 1
+    }
+   ]
+  },
+  {
+   "id": 4035,
+   "row": "upgrade_furnace_tier",
+   "name": "Furnace Upgrade",
+   "cost": {
+    "Electromagnet": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4005
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3006,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4036,
+   "row": "upgrade_furnace_tier",
+   "name": "Furnace Upgrade",
+   "cost": {
+    "Heat Sink": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4035
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3006,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4037,
+   "row": "upgrade_furnace_tier",
+   "name": "Furnace Upgrade",
+   "cost": {
+    "Nano Wire": 2000
+   },
+   "gems_ok": true,
+   "requires": [
+    4036
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3006,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4038,
+   "row": "upgrade_machine_shop_tier",
+   "name": "Machine Shop Upgrade",
+   "cost": {
+    "Iron Plating": 2000
+   },
+   "gems_ok": true,
+   "requires": [
+    4007
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3007,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4039,
+   "row": "upgrade_machine_shop_tier",
+   "name": "Machine Shop Upgrade",
+   "cost": {
+    "Computer": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4038
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3007,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4040,
+   "row": "upgrade_machine_shop_tier",
+   "name": "Machine Shop Upgrade",
+   "cost": {
+    "Concrete": 1000,
+    "Coupler": 2000
+   },
+   "gems_ok": true,
+   "requires": [
+    4039
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3007,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4092,
+   "row": "alt_recipes_machine_shop",
+   "name": "Alternative Recipes",
+   "cost": {
+    "Nano Wire": 800
+   },
+   "gems_ok": true,
+   "requires": [
+    4038
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2050
+    },
+    {
+     "UnlockedRecipeId": 2051
+    },
+    {
+     "UnlockedRecipeId": 2057
+    }
+   ]
+  },
+  {
+   "id": 4041,
+   "row": "upgrade_industrial_factory_tier",
+   "name": "Industrial Factory Upgrade",
+   "cost": {
+    "Steel": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4010
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3008,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4042,
+   "row": "upgrade_industrial_factory_tier",
+   "name": "Industrial Factory Upgrade",
+   "cost": {
+    "Tungsten Carbide": 1000,
+    "Rotor": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4041
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3008,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4043,
+   "row": "upgrade_industrial_factory_tier",
+   "name": "Industrial Factory Upgrade",
+   "cost": {
+    "Industrial Frame": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4042
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3008,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4094,
+   "row": "alt_recipes_industrial_factory",
+   "name": "Alternative Recipes",
+   "cost": {
+    "Energy Cube": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4041
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2052
+    },
+    {
+     "UnlockedRecipeId": 2053
+    }
+   ]
+  },
+  {
+   "id": 4050,
+   "row": "upgrade_storage_tier",
+   "name": "Storage Upgrade",
+   "cost": {
+    "Metal Frame": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4028
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3011,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4051,
+   "row": "upgrade_storage_tier",
+   "name": "Storage Upgrade",
+   "cost": {
+    "Metal Frame": 2000,
+    "Steel": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4050
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3011,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4052,
+   "row": "upgrade_storage_tier",
+   "name": "Storage Upgrade",
+   "cost": {
+    "Metal Frame": 4000,
+    "Concrete": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4051
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3011,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4044,
+   "row": "upgrade_forge_tier",
+   "name": "Forge Upgrade",
+   "cost": {
+    "Steel Rod": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4011
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3009,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4045,
+   "row": "upgrade_forge_tier",
+   "name": "Forge Upgrade",
+   "cost": {
+    "Carbon Fiber": 2000
+   },
+   "gems_ok": true,
+   "requires": [
+    4044
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3009,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4046,
+   "row": "upgrade_forge_tier",
+   "name": "Forge Upgrade",
+   "cost": {
+    "Super Computer": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4045
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3009,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4093,
+   "row": "alt_recipes_forge",
+   "name": "Alternative Recipes",
+   "cost": {
+    "Electron Microscope": 300
+   },
+   "gems_ok": true,
+   "requires": [
+    4044
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2048
+    },
+    {
+     "UnlockedRecipeId": 2049
+    },
+    {
+     "UnlockedRecipeId": 2056
+    }
+   ]
+  },
+  {
+   "id": 4047,
+   "row": "upgrade_factory_manufacturer_tier",
+   "name": "Manufacturer Upgrade",
+   "cost": {
+    "Tungsten Carbide": 2000,
+    "Steel": 1000
+   },
+   "gems_ok": true,
+   "requires": [
+    4016
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3010,
+     "UpgradeBuildingTier": 1
+    }
+   ]
+  },
+  {
+   "id": 4048,
+   "row": "upgrade_factory_manufacturer_tier",
+   "name": "Manufacturer Upgrade",
+   "cost": {
+    "Industrial Frame": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4047
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3010,
+     "UpgradeBuildingTier": 2
+    }
+   ]
+  },
+  {
+   "id": 4049,
+   "row": "upgrade_factory_manufacturer_tier",
+   "name": "Manufacturer Upgrade",
+   "cost": {
+    "Industrial Frame": 2000,
+    "Super Computer": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4048
+   ],
+   "modifiers": [
+    {
+     "UpgradeBuildingId": 3010,
+     "UpgradeBuildingTier": 3
+    }
+   ]
+  },
+  {
+   "id": 4095,
+   "row": "alt_recipes_manufacturer",
+   "name": "Alternative Recipes",
+   "cost": {
+    "Atomic Locator": 175
+   },
+   "gems_ok": true,
+   "requires": [
+    4047
+   ],
+   "modifiers": [
+    {
+     "UnlockedRecipeId": 2054
+    },
+    {
+     "UnlockedRecipeId": 2055
+    }
+   ]
+  },
+  {
+   "id": 4063,
+   "row": "deco_trees",
+   "name": "Decorative Trees",
+   "cost": {
+    "Wood Log": 100
+   },
+   "gems_ok": true,
+   "requires": [
+    4003
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3015
+    },
+    {
+     "UnlockedBuildingId": 3030
+    },
+    {
+     "UnlockedBuildingId": 3032
+    },
+    {
+     "UnlockedBuildingId": 3031
+    }
+   ]
+  },
+  {
+   "id": 4070,
+   "row": "deco_winter_holiday",
+   "name": "Festive Decorations",
+   "cost": {
+    "Coal": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4063
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3022
+    },
+    {
+     "UnlockedBuildingId": 3023
+    }
+   ]
+  },
+  {
+   "id": 4081,
+   "row": "deco_rocks",
+   "name": "Decorative Rocks",
+   "cost": {
+    "Stone": 500
+   },
+   "gems_ok": true,
+   "requires": [
+    4063
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3033
+    },
+    {
+     "UnlockedBuildingId": 3034
+    },
+    {
+     "UnlockedBuildingId": 3035
+    }
+   ]
+  },
+  {
+   "id": 4064,
+   "row": "deco_factory_parts",
+   "name": "Factory Decorations",
+   "cost": {
+    "Copper Wire": 150,
+    "Iron Gear": 150
+   },
+   "gems_ok": true,
+   "requires": [
+    4081
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3016
+    },
+    {
+     "UnlockedBuildingId": 3036
+    },
+    {
+     "UnlockedBuildingId": 3017
+    },
+    {
+     "UnlockedBuildingId": 3037
+    }
+   ]
+  },
+  {
+   "id": 4082,
+   "row": "deco_walls",
+   "name": "Decorative Walls",
+   "cost": {
+    "Wood Plank": 200,
+    "Concrete": 50
+   },
+   "gems_ok": true,
+   "requires": [
+    4064
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3026
+    },
+    {
+     "UnlockedBuildingId": 3027
+    }
+   ]
+  },
+  {
+   "id": 4066,
+   "row": "deco_statue_iron_gear",
+   "name": "Gear Statue",
+   "cost": {
+    "Iron Gear": 2000
+   },
+   "gems_ok": false,
+   "requires": [
+    4063
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3018
+    }
+   ]
+  },
+  {
+   "id": 4067,
+   "row": "deco_statue_logic_circuit",
+   "name": "Circuit Statue",
+   "cost": {
+    "Logic Circuit": 3000
+   },
+   "gems_ok": false,
+   "requires": [
+    4066
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3019
+    }
+   ]
+  },
+  {
+   "id": 4068,
+   "row": "deco_statue_steel",
+   "name": "Steel Statue",
+   "cost": {
+    "Steel": 5000
+   },
+   "gems_ok": false,
+   "requires": [
+    4067
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3020
+    }
+   ]
+  },
+  {
+   "id": 4069,
+   "row": "deco_statue_particle_glue",
+   "name": "Particle Statue",
+   "cost": {
+    "Particle Glue": 1000
+   },
+   "gems_ok": false,
+   "requires": [
+    4068
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3021
+    }
+   ]
+  },
+  {
+   "id": 4080,
+   "row": "deco_statue_globe",
+   "name": "Earth Statue",
+   "cost": {
+    "Earth Token": 500
+   },
+   "gems_ok": false,
+   "requires": [
+    4069
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3025
+    }
+   ]
+  },
+  {
+   "id": 4090,
+   "row": "gold_vault",
+   "name": "Gold Vault",
+   "cost": {
+    "Gold": 20000
+   },
+   "gems_ok": false,
+   "requires": [
+    4009
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3024
+    }
+   ]
+  },
+  {
+   "id": 4096,
+   "row": "tech_user_signs",
+   "name": "Writable Signs",
+   "cost": {
+    "Wood Plank": 200,
+    "Graphite": 200
+   },
+   "gems_ok": false,
+   "requires": [
+    4082
+   ],
+   "modifiers": [
+    {
+     "UnlockedBuildingId": 3041
+    }
+   ]
+  }
+ ],
+ "buildings": {
+  "belt_straight": {
+   "id": 3000,
+   "cost": {
+    "Gold": 4
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 1,
+   "h": 1
+  },
+  "belt_splitter": {
+   "id": 3001,
+   "cost": {
+    "Gold": 10
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 1,
+   "h": 1
+  },
+  "belt_underground_enter": {
+   "id": 3002,
+   "cost": {
+    "Gold": 10
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 1,
+   "h": 1
+  },
+  "belt_underground_exit": {
+   "id": 3003,
+   "cost": {
+    "Gold": 10
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 1,
+   "h": 1
+  },
+  "building_robot_arm": {
+   "id": 3012,
+   "cost": {
+    "Gold": 250
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 800
+    },
+    {
+     "Gold": 2000
+    },
+    {
+     "Gold": 8000
+    }
+   ],
+   "w": 1,
+   "h": 1
+  },
+  "research_lab": {
+   "id": 3013,
+   "cost": {
+    "Gold": 1000
+   },
+   "limit": 3,
+   "upgrades": [],
+   "w": 3,
+   "h": 3
+  },
+  "building_teleporter": {
+   "id": 3014,
+   "cost": {
+    "Gold": 100000
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 3,
+   "h": 3
+  },
+  "building_extractor": {
+   "id": 3004,
+   "cost": {
+    "Gold": 10
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 200
+    },
+    {
+     "Gold": 1000
+    },
+    {
+     "Gold": 5000
+    },
+    {
+     "Gold": 20000
+    }
+   ],
+   "w": 1,
+   "h": 1
+  },
+  "factory_workshop": {
+   "id": 3005,
+   "cost": {
+    "Gold": 10
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 1000
+    },
+    {
+     "Gold": 4000
+    },
+    {
+     "Gold": 12000
+    }
+   ],
+   "w": 1,
+   "h": 1
+  },
+  "factory_machine_shop": {
+   "id": 3007,
+   "cost": {
+    "Gold": 100
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 500
+    },
+    {
+     "Gold": 2000
+    },
+    {
+     "Gold": 8000
+    }
+   ],
+   "w": 2,
+   "h": 2
+  },
+  "factory_industrial": {
+   "id": 3008,
+   "cost": {
+    "Gold": 300
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 1000
+    },
+    {
+     "Gold": 4000
+    },
+    {
+     "Gold": 16000
+    }
+   ],
+   "w": 3,
+   "h": 3
+  },
+  "factory_furnace": {
+   "id": 3006,
+   "cost": {
+    "Gold": 30
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 200
+    },
+    {
+     "Gold": 800
+    },
+    {
+     "Gold": 3200
+    }
+   ],
+   "w": 1,
+   "h": 1
+  },
+  "factory_forge": {
+   "id": 3009,
+   "cost": {
+    "Gold": 100
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 500
+    },
+    {
+     "Gold": 2000
+    },
+    {
+     "Gold": 10000
+    }
+   ],
+   "w": 2,
+   "h": 2
+  },
+  "factory_manufacturer": {
+   "id": 3010,
+   "cost": {
+    "Gold": 1000
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 4000
+    },
+    {
+     "Gold": 20000
+    },
+    {
+     "Gold": 80000
+    }
+   ],
+   "w": 4,
+   "h": 4
+  },
+  "building_storage": {
+   "id": 3011,
+   "cost": {
+    "Gold": 500
+   },
+   "limit": null,
+   "upgrades": [
+    {
+     "Gold": 500
+    },
+    {
+     "Gold": 1000
+    },
+    {
+     "Gold": 2000
+    }
+   ],
+   "w": 1,
+   "h": 1
+  },
+  "building_gem_tree": {
+   "id": 3029,
+   "cost": {
+    "Gems": 250
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 1,
+   "h": 1
+  },
+  "building_uranium_extractor": {
+   "id": 3040,
+   "cost": {
+    "Gold": 23500
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 1,
+   "h": 1
+  },
+  "building_coal_power_plant": {
+   "id": 3038,
+   "cost": {
+    "Gold": 2000
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 2,
+   "h": 2
+  },
+  "building_nuclear_power_plant": {
+   "id": 3039,
+   "cost": {
+    "Gold": 500000
+   },
+   "limit": null,
+   "upgrades": [],
+   "w": 3,
+   "h": 4
+  },
+  "building_gold_vault": {
+   "id": 3024,
+   "cost": {
+    "Gold": 2000
+   },
+   "limit": 3,
+   "upgrades": [],
+   "w": 3,
+   "h": 3
+  }
+ },
+ "recipes": {
+  "2000": {
+   "key": "wood_plank",
+   "building": "factory_workshop",
+   "seconds": 4.0,
+   "alt": false,
+   "in": {
+    "Wood Log": 1
+   },
+   "out": {
+    "Wood Plank": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 80,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 67,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 58,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2001": {
+   "key": "wood_frame",
+   "building": "factory_workshop",
+   "seconds": 8.0,
+   "alt": false,
+   "in": {
+    "Wood Plank": 4
+   },
+   "out": {
+    "Wood Frame": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2002": {
+   "key": "copper_ingot",
+   "building": "factory_furnace",
+   "seconds": 2.0,
+   "alt": false,
+   "in": {
+    "Copper Ore": 1
+   },
+   "out": {
+    "Copper Ingot": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 80,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 60,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 40,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 67,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 50,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 34,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 58,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 43,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 29,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2003": {
+   "key": "copper_wire",
+   "building": "factory_workshop",
+   "seconds": 4.0,
+   "alt": false,
+   "in": {
+    "Copper Ingot": 3
+   },
+   "out": {
+    "Copper Wire": 2
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 240,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 160,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 120,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 80,
+      "items": 2,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 200,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 134,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 100,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 67,
+      "items": 2,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 172,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 115,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 86,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 58,
+      "items": 2,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2046": {
+   "key": "alt_copper_wire",
+   "building": "factory_workshop",
+   "seconds": 8.0,
+   "alt": true,
+   "in": {
+    "Carbon Fiber": 1
+   },
+   "out": {
+    "Copper Wire": 8
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 8,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 8,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 8,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 8,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 8,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 8,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 8,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 8,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 8,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 8,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 8,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 8,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2004": {
+   "key": "iron_ingot",
+   "building": "factory_furnace",
+   "seconds": 2.0,
+   "alt": false,
+   "in": {
+    "Iron Ore": 1
+   },
+   "out": {
+    "Iron Ingot": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 80,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 60,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 40,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 67,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 50,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 34,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 58,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 43,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 29,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2005": {
+   "key": "iron_gear",
+   "building": "factory_workshop",
+   "seconds": 4.0,
+   "alt": false,
+   "in": {
+    "Iron Ingot": 2
+   },
+   "out": {
+    "Iron Gear": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 80,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 67,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 58,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2047": {
+   "key": "alt_iron_gear",
+   "building": "factory_workshop",
+   "seconds": 8.0,
+   "alt": true,
+   "in": {
+    "Steel": 1
+   },
+   "out": {
+    "Iron Gear": 8
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 8,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 8,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 8,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 8,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 8,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 8,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 8,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 8,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 8,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 8,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 8,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 8,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2006": {
+   "key": "sand",
+   "building": "factory_workshop",
+   "seconds": 1.5,
+   "alt": false,
+   "in": {
+    "Stone": 1
+   },
+   "out": {
+    "Sand": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 90,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 60,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 45,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 30,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 75,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 50,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 38,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 25,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 65,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 43,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 33,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 22,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2007": {
+   "key": "silicon",
+   "building": "factory_furnace",
+   "seconds": 3.0,
+   "alt": false,
+   "in": {
+    "Sand": 2
+   },
+   "out": {
+    "Silicon": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 180,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 90,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 60,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 75,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 50,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 129,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 65,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 43,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2008": {
+   "key": "glass",
+   "building": "factory_furnace",
+   "seconds": 6.0,
+   "alt": false,
+   "in": {
+    "Sand": 4
+   },
+   "out": {
+    "Glass": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 180,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 129,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2009": {
+   "key": "tungsten_ore",
+   "building": "factory_furnace",
+   "seconds": 2.5,
+   "alt": false,
+   "in": {
+    "Wolframite": 5
+   },
+   "out": {
+    "Tungsten Ore": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 75,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 50,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 125,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 84,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 63,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 42,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 108,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 72,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 54,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 75,
+      "items": 2,
+      "crafts": 2
+     }
+    }
+   }
+  },
+  "2011": {
+   "key": "coupler",
+   "building": "factory_workshop",
+   "seconds": 10.0,
+   "alt": false,
+   "in": {
+    "Tungsten Carbide": 1
+   },
+   "out": {
+    "Coupler": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 334,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 250,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 167,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 286,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 215,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 143,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2012": {
+   "key": "condenser_lens",
+   "building": "factory_workshop",
+   "seconds": 3.0,
+   "alt": false,
+   "in": {
+    "Glass": 3
+   },
+   "out": {
+    "Condenser Lens": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 180,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 90,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 60,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 75,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 50,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 129,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 65,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 43,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2013": {
+   "key": "heat_sink",
+   "building": "factory_workshop",
+   "seconds": 6.0,
+   "alt": false,
+   "in": {
+    "Copper Ingot": 5
+   },
+   "out": {
+    "Heat Sink": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 180,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 129,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2014": {
+   "key": "iron_plating",
+   "building": "factory_workshop",
+   "seconds": 6.0,
+   "alt": false,
+   "in": {
+    "Iron Ingot": 4
+   },
+   "out": {
+    "Iron Plating": 2
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 360,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 240,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 180,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 120,
+      "items": 2,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 300,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 200,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 150,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 100,
+      "items": 2,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 258,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 172,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 129,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 86,
+      "items": 2,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2019": {
+   "key": "steel_rod",
+   "building": "factory_workshop",
+   "seconds": 4.0,
+   "alt": false,
+   "in": {
+    "Steel": 3
+   },
+   "out": {
+    "Steel Rod": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 80,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 67,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 58,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2024": {
+   "key": "carbon_fiber",
+   "building": "factory_workshop",
+   "seconds": 8.0,
+   "alt": false,
+   "in": {
+    "Graphite": 4
+   },
+   "out": {
+    "Carbon Fiber": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2040": {
+   "key": "particle_glue",
+   "building": "factory_workshop",
+   "seconds": 30.0,
+   "alt": false,
+   "in": {
+    "Matter Compressor": 1
+   },
+   "out": {
+    "Particle Glue": 10
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1800,
+      "items": 10,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1200,
+      "items": 10,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 900,
+      "items": 10,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 600,
+      "items": 10,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1500,
+      "items": 10,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1000,
+      "items": 10,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 750,
+      "items": 10,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 500,
+      "items": 10,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1286,
+      "items": 10,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 858,
+      "items": 10,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 643,
+      "items": 10,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 429,
+      "items": 10,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2042": {
+   "key": "teleporter_token",
+   "building": "building_teleporter",
+   "seconds": 42.0,
+   "alt": false,
+   "in": {
+    "Matter Duplicator": 1
+   },
+   "out": {
+    "Earth Token": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 2520,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 2100,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2043": {
+   "key": "uranium_processing",
+   "building": "factory_furnace",
+   "seconds": 60.0,
+   "alt": false,
+   "in": {
+    "Uranium Ore": 30
+   },
+   "out": {
+    "Enriched Uranium": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 3600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 2400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 3000,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 2000,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1500,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 2572,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1715,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1286,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2015": {
+   "key": "electromagnet",
+   "building": "factory_machine_shop",
+   "seconds": 8.0,
+   "alt": false,
+   "in": {
+    "Copper Wire": 6,
+    "Iron Ingot": 2
+   },
+   "out": {
+    "Electromagnet": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2050": {
+   "key": "alt_electromagent",
+   "building": "factory_machine_shop",
+   "seconds": 20.0,
+   "alt": true,
+   "in": {
+    "Nano Wire": 1,
+    "Steel Rod": 1
+   },
+   "out": {
+    "Electromagnet": 12
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1214,
+      "items": 12,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 814,
+      "items": 12,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 614,
+      "items": 12,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 414,
+      "items": 12,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1014,
+      "items": 12,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 681,
+      "items": 12,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 514,
+      "items": 12,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 348,
+      "items": 12,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 872,
+      "items": 12,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 586,
+      "items": 12,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 443,
+      "items": 12,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 300,
+      "items": 12,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2023": {
+   "key": "logic_circuit",
+   "building": "factory_machine_shop",
+   "seconds": 6.0,
+   "alt": false,
+   "in": {
+    "Copper Wire": 3,
+    "Silicon": 2
+   },
+   "out": {
+    "Logic Circuit": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 180,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 129,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2051": {
+   "key": "alt_logic_circuit",
+   "building": "factory_machine_shop",
+   "seconds": 8.0,
+   "alt": true,
+   "in": {
+    "Iron Plating": 1,
+    "Heat Sink": 1
+   },
+   "out": {
+    "Logic Circuit": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2010": {
+   "key": "tungsten_carbide",
+   "building": "factory_forge",
+   "seconds": 5.0,
+   "alt": false,
+   "in": {
+    "Tungsten Ore": 2,
+    "Graphite": 1
+   },
+   "out": {
+    "Tungsten Carbide": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 250,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 167,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 125,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 84,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 215,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 143,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 108,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 72,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2056": {
+   "key": "alt_tungsten_carbide",
+   "building": "factory_forge",
+   "seconds": 15.0,
+   "alt": true,
+   "in": {
+    "Tungsten Ore": 1,
+    "Steel": 1
+   },
+   "out": {
+    "Tungsten Carbide": 2
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 900,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 600,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 450,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 300,
+      "items": 2,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 750,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 500,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 375,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 250,
+      "items": 2,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 643,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 429,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 322,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 215,
+      "items": 2,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2016": {
+   "key": "metal_frame",
+   "building": "factory_machine_shop",
+   "seconds": 12.0,
+   "alt": false,
+   "in": {
+    "Wood Frame": 1,
+    "Iron Plating": 4
+   },
+   "out": {
+    "Metal Frame": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2017": {
+   "key": "steel",
+   "building": "factory_forge",
+   "seconds": 8.0,
+   "alt": false,
+   "in": {
+    "Iron Ore": 6,
+    "Graphite": 1
+   },
+   "out": {
+    "Steel": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2048": {
+   "key": "alt_steel",
+   "building": "factory_forge",
+   "seconds": 6.0,
+   "alt": true,
+   "in": {
+    "Iron Ore": 4,
+    "Coal": 4
+   },
+   "out": {
+    "Steel": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 180,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 129,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2018": {
+   "key": "rotor",
+   "building": "factory_machine_shop",
+   "seconds": 6.0,
+   "alt": false,
+   "in": {
+    "Steel Rod": 1,
+    "Iron Plating": 2
+   },
+   "out": {
+    "Rotor": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 180,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 150,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 129,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2057": {
+   "key": "alt_rotor",
+   "building": "factory_machine_shop",
+   "seconds": 18.0,
+   "alt": true,
+   "in": {
+    "Copper Ingot": 18,
+    "Iron Plating": 18
+   },
+   "out": {
+    "Rotor": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1080,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 540,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 450,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 772,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 386,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2020": {
+   "key": "concrete",
+   "building": "factory_forge",
+   "seconds": 8.0,
+   "alt": false,
+   "in": {
+    "Sand": 10,
+    "Steel Rod": 1
+   },
+   "out": {
+    "Concrete": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2049": {
+   "key": "alt_concrete",
+   "building": "factory_forge",
+   "seconds": 12.0,
+   "alt": true,
+   "in": {
+    "Stone": 20,
+    "Wood Frame": 4
+   },
+   "out": {
+    "Concrete": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2022": {
+   "key": "graphite",
+   "building": "factory_forge",
+   "seconds": 4.0,
+   "alt": false,
+   "in": {
+    "Coal": 3,
+    "Wood Log": 3
+   },
+   "out": {
+    "Graphite": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 120,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 80,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 100,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 67,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 86,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 58,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2025": {
+   "key": "nano_wire",
+   "building": "factory_machine_shop",
+   "seconds": 12.0,
+   "alt": false,
+   "in": {
+    "Carbon Fiber": 2,
+    "Glass": 4
+   },
+   "out": {
+    "Nano Wire": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2029": {
+   "key": "gyroscope",
+   "building": "factory_machine_shop",
+   "seconds": 12.0,
+   "alt": false,
+   "in": {
+    "Copper Wire": 12,
+    "Rotor": 2
+   },
+   "out": {
+    "Gyroscope": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 360,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 258,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2036": {
+   "key": "battery",
+   "building": "factory_machine_shop",
+   "seconds": 24.0,
+   "alt": false,
+   "in": {
+    "Electromagnet": 8,
+    "Graphite": 8
+   },
+   "out": {
+    "Battery": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1440,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 960,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 800,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1029,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 686,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2037": {
+   "key": "energy_cube",
+   "building": "factory_machine_shop",
+   "seconds": 30.0,
+   "alt": false,
+   "in": {
+    "Battery": 2,
+    "Industrial Frame": 1
+   },
+   "out": {
+    "Energy Cube": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 750,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1286,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 643,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2031": {
+   "key": "quantum_entangler",
+   "building": "factory_machine_shop",
+   "seconds": 60.0,
+   "alt": false,
+   "in": {
+    "Magnetic Field Generator": 1,
+    "Stabilizer": 2
+   },
+   "out": {
+    "Quantum Entangler": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 3600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 2400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 3000,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 2000,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1500,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 2572,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1715,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1286,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2044": {
+   "key": "empty_fuel_cell",
+   "building": "factory_machine_shop",
+   "seconds": 15.0,
+   "alt": false,
+   "in": {
+    "Tungsten Carbide": 3,
+    "Glass": 5
+   },
+   "out": {
+    "Empty Fuel Cell": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 450,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 750,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 375,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 250,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 643,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 322,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 215,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2026": {
+   "key": "computer",
+   "building": "factory_industrial",
+   "seconds": 8.0,
+   "alt": false,
+   "in": {
+    "Metal Frame": 1,
+    "Heat Sink": 3,
+    "Logic Circuit": 3
+   },
+   "out": {
+    "Computer": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 320,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 240,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 160,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 267,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 134,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 229,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 172,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 115,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2021": {
+   "key": "electric_motor",
+   "building": "factory_industrial",
+   "seconds": 20.0,
+   "alt": false,
+   "in": {
+    "Battery": 1,
+    "Iron Gear": 4,
+    "Rotor": 2
+   },
+   "out": {
+    "Electric Motor": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 800,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 667,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 334,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 572,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 286,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2052": {
+   "key": "alt_electric_motor",
+   "building": "factory_industrial",
+   "seconds": 22.0,
+   "alt": true,
+   "in": {
+    "Electromagnet": 6,
+    "Steel": 6,
+    "Empty Fuel Cell": 1
+   },
+   "out": {
+    "Electric Motor": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1320,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 880,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 660,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 440,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1100,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 734,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 550,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 367,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 943,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 629,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 472,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 315,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2028": {
+   "key": "stabilizer",
+   "building": "factory_industrial",
+   "seconds": 24.0,
+   "alt": false,
+   "in": {
+    "Computer": 1,
+    "Electric Motor": 1,
+    "Gyroscope": 2
+   },
+   "out": {
+    "Stabilizer": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1440,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 960,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 800,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1029,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 686,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2027": {
+   "key": "industrial_frame",
+   "building": "factory_industrial",
+   "seconds": 20.0,
+   "alt": false,
+   "in": {
+    "Concrete": 6,
+    "Metal Frame": 2,
+    "Tungsten Carbide": 8
+   },
+   "out": {
+    "Industrial Frame": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 800,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 667,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 334,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 572,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 286,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2053": {
+   "key": "alt_industrial_frame",
+   "building": "factory_industrial",
+   "seconds": 36.0,
+   "alt": true,
+   "in": {
+    "Steel": 18,
+    "Iron Plating": 10,
+    "Carbon Fiber": 4
+   },
+   "out": {
+    "Industrial Frame": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 2160,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1440,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1080,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1543,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1029,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 772,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2038": {
+   "key": "tank",
+   "building": "factory_industrial",
+   "seconds": 10.0,
+   "alt": false,
+   "in": {
+    "Glass": 2,
+    "Concrete": 4,
+    "Tungsten Carbide": 4
+   },
+   "out": {
+    "Tank": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 334,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 250,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 167,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 286,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 215,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 143,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2045": {
+   "key": "nuclear_fuel_cell",
+   "building": "factory_industrial",
+   "seconds": 30.0,
+   "alt": false,
+   "in": {
+    "Empty Fuel Cell": 1,
+    "Steel Rod": 1,
+    "Enriched Uranium": 1
+   },
+   "out": {
+    "Nuclear Fuel Cell": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 750,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1286,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 643,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2033": {
+   "key": "turbocharger",
+   "building": "factory_manufacturer",
+   "seconds": 15.0,
+   "alt": false,
+   "in": {
+    "Iron Gear": 8,
+    "Logic Circuit": 4,
+    "Nano Wire": 2,
+    "Coupler": 4
+   },
+   "out": {
+    "Turbocharger": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 450,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 750,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 375,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 250,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 643,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 322,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 215,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2054": {
+   "key": "alt_turbocharger",
+   "building": "factory_manufacturer",
+   "seconds": 10.0,
+   "alt": true,
+   "in": {
+    "Heat Sink": 4,
+    "Computer": 1,
+    "Gyroscope": 1,
+    "Tungsten Carbide": 1
+   },
+   "out": {
+    "Turbocharger": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 300,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 200,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 334,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 250,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 167,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 286,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 215,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 143,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2034": {
+   "key": "super_computer",
+   "building": "factory_manufacturer",
+   "seconds": 30.0,
+   "alt": false,
+   "in": {
+    "Computer": 2,
+    "Heat Sink": 8,
+    "Turbocharger": 1,
+    "Coupler": 8
+   },
+   "out": {
+    "Super Computer": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 750,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1286,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 643,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2055": {
+   "key": "alt_super_computer",
+   "building": "factory_manufacturer",
+   "seconds": 30.0,
+   "alt": true,
+   "in": {
+    "Computer": 2,
+    "Silicon": 40,
+    "Gyroscope": 2,
+    "Industrial Frame": 1
+   },
+   "out": {
+    "Super Computer": 2
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1800,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1200,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 900,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 600,
+      "items": 2,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1500,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1000,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 750,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 500,
+      "items": 2,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1286,
+      "items": 2,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 858,
+      "items": 2,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 643,
+      "items": 2,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 429,
+      "items": 2,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2032": {
+   "key": "electron_microscope",
+   "building": "factory_manufacturer",
+   "seconds": 24.0,
+   "alt": false,
+   "in": {
+    "Nano Wire": 2,
+    "Electromagnet": 8,
+    "Condenser Lens": 4,
+    "Metal Frame": 2
+   },
+   "out": {
+    "Electron Microscope": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1440,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 960,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 720,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 480,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 800,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 400,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1029,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 686,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 515,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 343,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2035": {
+   "key": "atomic_locator",
+   "building": "factory_manufacturer",
+   "seconds": 30.0,
+   "alt": false,
+   "in": {
+    "Super Computer": 2,
+    "Electron Microscope": 2,
+    "Concrete": 24,
+    "Copper Wire": 50
+   },
+   "out": {
+    "Atomic Locator": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 750,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1286,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 643,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2030": {
+   "key": "magnetic_field_generator",
+   "building": "factory_manufacturer",
+   "seconds": 40.0,
+   "alt": false,
+   "in": {
+    "Stabilizer": 1,
+    "Industrial Frame": 1,
+    "Electromagnet": 10,
+    "Nano Wire": 10
+   },
+   "out": {
+    "Magnetic Field Generator": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 2400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1600,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 800,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 2000,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1334,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 667,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1715,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1143,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 572,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2039": {
+   "key": "matter_compressor",
+   "building": "factory_manufacturer",
+   "seconds": 30.0,
+   "alt": false,
+   "in": {
+    "Industrial Frame": 1,
+    "Turbocharger": 2,
+    "Electric Motor": 2,
+    "Tank": 1
+   },
+   "out": {
+    "Matter Compressor": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1200,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 900,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 600,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 1500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 1000,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 750,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 500,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 1286,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 858,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 643,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 429,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  },
+  "2041": {
+   "key": "matter_duplicator",
+   "building": "factory_manufacturer",
+   "seconds": 90.0,
+   "alt": false,
+   "in": {
+    "Atomic Locator": 4,
+    "Quantum Entangler": 2,
+    "Energy Cube": 5,
+    "Particle Glue": 100
+   },
+   "out": {
+    "Matter Duplicator": 1
+   },
+   "period": {
+    "0": {
+     "1": {
+      "ticks": 5400,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 3600,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 2700,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 1800,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.2": {
+     "1": {
+      "ticks": 4500,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 3000,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 2250,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 1500,
+      "items": 1,
+      "crafts": 1
+     }
+    },
+    "0.4": {
+     "1": {
+      "ticks": 3858,
+      "items": 1,
+      "crafts": 1
+     },
+     "2": {
+      "ticks": 2572,
+      "items": 1,
+      "crafts": 1
+     },
+     "3": {
+      "ticks": 1929,
+      "items": 1,
+      "crafts": 1
+     },
+     "4": {
+      "ticks": 1286,
+      "items": 1,
+      "crafts": 1
+     }
+    }
+   }
+  }
+ },
+ "extractor_per_min": {
+  "gen2": [
+   15,
+   30,
+   60,
+   120,
+   150
+  ],
+  "gen1": [
+   7.5,
+   11.25,
+   15,
+   22.5,
+   30
+  ]
+ },
+ "uranium_per_min": {
+  "gen2": 50,
+  "gen1": 10
+ },
+ "belt_per_min": 480,
+ "belt_tiles_per_s": 2.4,
+ "resources": {
+  "1": "Wood Log",
+  "2": "Iron Ore",
+  "4": "Copper Ore",
+  "8": "Stone",
+  "16": "Coal",
+  "32": "Wolframite",
+  "64": "Uranium Ore"
+ }
+}
