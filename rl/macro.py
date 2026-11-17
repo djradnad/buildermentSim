@@ -226,8 +226,10 @@ class MacroEnv:
 
         fin = np.zeros(B, bool); trunc = np.zeros(B, bool)
 
-        def run(p):
+        def run(p, final=False):
             nonlocal done, info, reward
+            if not final:                                    # runs that sit out an inner step take no time
+                e.wait_override = np.zeros(B)
             p = np.where(done | ~live, E.A_WAIT, p)
             _, r, d, info = e.step(p)
             reward += np.where(done, 0, r)
@@ -254,7 +256,7 @@ class MacroEnv:
         is_wait = a < M_ADD1
         ev = self._event_wait()
         e.wait_override = np.where(is_wait, ev, np.where(t_before == e.t, 1.0, 0.0))
-        run(np.where(is_wait, a, M_WAIT))
+        run(np.where(is_wait, a, M_WAIT), final=True)
         e.wait_override = None
         return self.obs(), reward, done, dict(info, finished=fin, truncated=trunc, decisions=self.decisions.copy())
 
