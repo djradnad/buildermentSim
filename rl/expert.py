@@ -223,7 +223,7 @@ def main(rounds=6, out='runs/expert', exact_nodes=60000, minutes=60):
     return best
 
 
-def run_paths(target, paths, minutes=60):
+def run_paths(target, paths, minutes=60, cutoff=np.inf):
     """replay many decision lists at once; returns the time each first makes the target (inf if never).
     After its list ends a run keeps taking event waits, so a list may stop early."""
     n = len(paths)
@@ -232,15 +232,19 @@ def run_paths(target, paths, minutes=60):
     env.e.target[:] = E.IX[target]
     ti = E.IX[target]
     pos = np.zeros(n, np.int64)
-    L = max(len(p) for p in paths)
+    stall = np.zeros(n, np.int64)
+    lens = np.array([len(p) for p in paths])
+    L = max(lens)
     for k in range(60 * (L + 1)):
         m = env.action_mask()
         want = np.array([paths[i][pos[i]] if pos[i] < len(paths[i]) else 0 for i in range(n)])
         ok = m[np.arange(n), want]
         acts = np.where(ok, want, 0)                  # not legal yet: event wait, retry next step
-        pos += ok & (pos < np.array([len(p) for p in paths]))
+        stall = np.where(ok, 0, stall + 1)
+        pos += (ok | (stall > 40)) & (pos < lens)    # still illegal after 40 waits: skip that decision
+        stall[stall > 40] = 0
         env.step(acts)
-        if (np.isfinite(env.e.first[:, ti]) | env.e.finished).all():
+        if (np.isfinite(env.e.first[:, ti]) | env.e.finished | (env.e.t > cutoff)).all():
             break
     return env.e.first[:, ti].copy()
 
@@ -283,7 +287,7 @@ def polish(target, path, minutes=60, rounds=30, batch=256, rng=None):
                 elif M_X4 <= a < M_X4 + E.NX:
                     x = a - M_X4; p[i:i + 1] = [M_PRE + x] * 4; p.insert(rng.integers(i + 4, len(p) + 1), M_CONN + x)
             muts.append(p)
-        ts = run_paths(target, muts, minutes)
+        ts = run_paths(target, muts, minutes, cutoff=best_t + 1)
         k = int(np.argmin(ts))
         if ts[k] < best_t - 1e-9:
             best_t, path = float(ts[k]), muts[k]
