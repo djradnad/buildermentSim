@@ -8,6 +8,7 @@ const DOM = { site: [0, 1, 2], feeds: [0, 1, 2, 3, 5], lines: [0, 1, 2], pre: [0
 const [dst, ...items] = process.argv.slice(2);
 const out = fs.existsSync(dst) ? JSON.parse(fs.readFileSync(dst)) : {};
 for (const it of items) {
+  if (out[it] && out[it].done) { P_('SKIP', it, out[it].seconds.toFixed(1)); continue; }
   const n = techsFor(it).length + 1;
   let params = out[it] ? out[it].params : Array.from({ length: n }, () => ({ site: 0, feeds: 1, lines: 0, pre: 4 }));
   const ev = (p, lim = 1800) => { try { return evaluate(it, script(it, p).script, Math.min(1800, lim)); } catch (e) { return Infinity; } };
@@ -21,9 +22,10 @@ for (const it of items) {
       if (t < best - 1e-9) { best = t; params = c; improved = true; }
     }
     P_(it, 'pass', pass, 'best', best.toFixed(1), 'evals', evals);
+    out[it] = { seconds: best, params, done: false }; fs.writeFileSync(dst, JSON.stringify(out));
     if (!improved) break;
   }
-  out[it] = { seconds: best, params, script: script(it, params).script, stages: script(it, params).stages };
+  out[it] = { seconds: best, params, script: script(it, params).script, stages: script(it, params).stages, done: true };
   fs.writeFileSync(dst, JSON.stringify(out));
   P_('DONE', it, best.toFixed(1));
 }
