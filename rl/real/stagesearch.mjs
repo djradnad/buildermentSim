@@ -10,14 +10,14 @@ const out = fs.existsSync(dst) ? JSON.parse(fs.readFileSync(dst)) : {};
 for (const it of items) {
   const n = techsFor(it).length + 1;
   let params = out[it] ? out[it].params : Array.from({ length: n }, () => ({ site: 0, feeds: 1, lines: 0, pre: 4 }));
-  const ev = p => { try { return evaluate(it, script(it, p).script, 1800); } catch (e) { return Infinity; } };
+  const ev = (p, lim = 1800) => { try { return evaluate(it, script(it, p).script, Math.min(1800, lim)); } catch (e) { return Infinity; } };
   let best = ev(params), evals = 1;
   for (let pass = 0; pass < 4; pass++) {
     let improved = false;
     for (let i = 0; i < n; i++) for (const [k, vals] of Object.entries(DOM)) for (const v of vals) {
       if (params[i][k] === v) continue;
       const c = params.map(p => ({ ...p })); c[i][k] = v;
-      const t = ev(c); evals++;
+      const t = ev(c, isFinite(best) ? best + 1 : 1800); evals++;
       if (t < best - 1e-9) { best = t; params = c; improved = true; }
     }
     P_(it, 'pass', pass, 'best', best.toFixed(1), 'evals', evals);
