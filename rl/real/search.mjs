@@ -1,4 +1,5 @@
 // Exact (tick-level, real map) re-timing and local search of the abstract best runs.
+import path from 'path';
 // usage: node rl/real/search.mjs <best.json> <out.json> [rounds] [items...]
 import fs from 'fs';
 import { Run } from './runner.mjs';
@@ -47,7 +48,7 @@ function mutate(s, rng) {
 
 function rngOf(seed) { let x = seed >>> 0 || 1; return () => ((x ^= x << 13, x ^= x >>> 17, x ^= x << 5) >>> 0) / 4294967296; }
 
-if (process.argv[1].endsWith('search.mjs')) {
+if (path.basename(process.argv[1]) === 'search.mjs') {
   const [src, dst, roundsS, ...items] = process.argv.slice(2);
   const best = JSON.parse(fs.readFileSync(src));
   const out = fs.existsSync(dst) ? JSON.parse(fs.readFileSync(dst)) : {};

@@ -212,11 +212,14 @@ export class Planner {
     const [a, x] = act;
     for (const f of this.feeds) f.taken = false;
     this.freed = new Set(); this.rewired = [];
-    if (a === 'lab') return { pieces: [{ id: 3013, x: SITES[x][0], y: SITES[x][1], o: 0 }] };
+    if (a === 'lab') { const p = Array.isArray(x) ? x : SITES[x]; return { pieces: [{ id: 3013, x: p[0], y: p[1], o: 0 }] }; }
     if (a === 'pre') {
-      const n = this.nearestNodes(x, this.center())[0];
+      const n = this.nearestNodes(x, act[2] || this.center())[0];
       if (!n) return null;
-      const e = { id: 3004, x: n[0], y: n[1], o: 0 };
+      const c = act[2] || this.center(), dx = c[0] - n[0], dy = c[1] - n[1];
+      const d = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 3 : 1) : (dy > 0 ? 2 : 0);   // face the lab (DV: 0 N 1 W 2 S 3 E)
+      // an extractor's output side is its o (ports() of id 3004: o 0 -> dir 0)
+      const e = { id: 3004, x: n[0], y: n[1], o: d };
       return { pieces: [e], after: () => this.waiting.push(e) };
     }
     if (a === 'feed') {
@@ -260,6 +263,19 @@ export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
     if (until && until in run.first) break;
     while (i < script.length) {
       const act = script[i];
+      if (act[0] === 'waitTech') { if (run.done.has(act[1])) { i++; continue; } break; }
+      if (act[0] === 'relocate') {
+        // move the lab: delete every lab, machine and belt (full refund), keep extractors as waiting ones (their
+        // buffers fill until connected again), then a lab at the new spot
+        const lab = { id: 3013, x: act[1][0], y: act[1][1], o: 0 };
+        const keep = b => b.id === 3004 || b.id === 3040;
+        const refund = run.bs.filter(b => !keep(b)).reduce((s, b) => s + buildCost(b.id, b.tier || 1), 0);
+        if (run.gold + refund < buildCost(3013)) break;
+        run.remove(b => !keep(b));
+        P.waiting = run.bs.filter(keep); P.trunks = []; P.feeds = []; P.owner = new Map();
+        if (!run.place([lab])) break;
+        i++; plan = null; continue;
+      }
       if (act[0] === 'dellab') { const [sx, sy] = SITES[act[1]]; run.remove(b => b.id === 3013 && b.x === sx && b.y === sy); i++; plan = null; continue; }
       if (!plan) {
         if (run.tick < (act.next || 0)) break;                  // re-plan at most once a second
