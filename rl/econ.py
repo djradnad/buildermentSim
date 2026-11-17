@@ -92,7 +92,10 @@ TECH_COST = np.zeros((NT, NI))
 for i, t in enumerate(TECHS):
     for n, a in t['cost'].items():
         if n in IX: TECH_COST[i, IX[n]] = a
-TECH_GOLD_COST = np.array([t['cost'].get('Gold', 0) for t in TECHS], np.float64)   # gold vault tech: paid in gold
+TECH_GOLD_COST = np.array([t['cost'].get('Gold', 0) for t in TECHS], np.float64)
+# gold vault tech's Gold cost is research progress: the lab adds each item's SellValue gold to progress next to the
+# item itself (FUN_140ee3800 merges FUN_140ee5ce0's gold map into the delivered items); the wallet is not charged.
+# Unlocking a finished tech is a free click (FUN_140f03bc0: progress >= cost, no wallet change).
 CLASS_UNLOCK_TECH = {}
 for i, bl in TECH_UNLOCK_BLD.items():
     for k in bl:
@@ -212,6 +215,7 @@ class EconEnv:
         self.done_t = np.zeros((B, NT), bool)
         self.done_t[:, LAB_TECH] = True                      # starting tech
         self.prog = np.zeros((B, NT, NI))
+        self.prog_gold = np.zeros((B, NT))
         self.n_rec = np.zeros((B, NR))
         self.n_ext = np.zeros((B, NX), np.int64)
         self.n_free = np.zeros((B, NX), np.int64)          # extractors placed without a belt
@@ -236,7 +240,7 @@ class EconEnv:
             return
         self.t[m] = 0; self.gold[m] = self.cfg['start_gold']; self.gems[m] = self.cfg['start_gems']
         self.done_t[m] = False; self.done_t[m, LAB_TECH] = True
-        self.prog[m] = 0; self.n_rec[m] = 0; self.n_ext[m] = 0; self.tier[m] = 0
+        self.prog[m] = 0; self.prog_gold[m] = 0; self.n_rec[m] = 0; self.n_ext[m] = 0; self.tier[m] = 0
         self.n_free[m] = 0; self.buf[m] = 0
         self.labs[m] = self.cfg['start_labs']; self.lab_at[m] = 0; self.lab_at[m, 0] = self.cfg['start_labs']; self.bufc[m] = 0; self.vaults[m] = 0; self.finished[m] = False; self.first[m] = np.inf; self.steps[m] = 0; self.rs_r[m] = np.inf; self.rs_x[m] = np.inf
         if self.cfg['goal'] == 'items':
@@ -328,6 +332,7 @@ class EconEnv:
         avail = self._available()
         need = np.maximum(TECH_COST[None] - self.prog, 0) * avail[:, :, None]
         self.prog += np.minimum(need, items[:, None, :])
+        self.prog_gold = np.where(avail, np.minimum(self.prog_gold + (items * SELL).sum(1)[:, None], TECH_GOLD_COST[None]), self.prog_gold)
 
     def _lab_cost(self):
         # john 2026-11-16: start with 2000 gold and no lab; the tutorial has you place one (1000 gold)
@@ -528,12 +533,12 @@ class EconEnv:
         need = np.maximum(TECH_COST[None] - self.prog, 0) * avail[:, :, None]
         if self.cfg['progress'] == 'all':
             self.prog += np.minimum(need, lab_items[:, None, :])
+            self.prog_gold = np.where(avail, np.minimum(self.prog_gold + (lab_items * SELL).sum(1)[:, None], TECH_GOLD_COST[None]), self.prog_gold)
         else:
             raise NotImplementedError('select mode: add a research-choice action')
-        gold_ok = self.gold[:, None] >= TECH_GOLD_COST[None]
+        gold_ok = self.prog_gold >= TECH_GOLD_COST[None] - 1e-9
         complete = avail & ((self.prog >= TECH_COST[None] - 1e-9).all(-1)) & gold_ok
         if complete.any():
-            self.gold -= (complete * TECH_GOLD_COST[None]).sum(1)
             self.done_t |= complete
             self._flow()
 
