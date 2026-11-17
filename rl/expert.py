@@ -83,10 +83,21 @@ def replay(target, path, minutes):
     env.reset()
     env.e.target[:] = E.IX[target]
     data = []
-    for a in path:
+    ti = E.IX[target]
+    for a in path:                                    # a step that isn't legal yet waits (event wait) until it is
+        for _ in range(60):
+            if env.action_mask()[0, a] or env.e.finished[0]:
+                break
+            data.append((env.obs()[0], env.action_mask()[0], 0))
+            env.step(np.array([0]))
         data.append((env.obs()[0], env.action_mask()[0], a))
         env.step(np.array([a]))
-    return data, float(env.e.first[0, E.IX[target]])
+    for _ in range(60):                               # then wait until the target is made
+        if np.isfinite(env.e.first[0, ti]) or env.e.finished[0]:
+            break
+        data.append((env.obs()[0], env.action_mask()[0], 0))
+        env.step(np.array([0]))
+    return data, float(env.e.first[0, ti])
 
 
 def fit(data, params=None, mean=None, var=None, epochs=40, lr=1e-3):
@@ -212,16 +223,6 @@ def main(rounds=6, out='runs/expert', exact_nodes=60000, minutes=60):
     return best
 
 
-if __name__ == '__main__':
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--rounds', type=int, default=6)
-    ap.add_argument('--out', default='runs/expert')
-    a = ap.parse_args()
-    b = main(a.rounds, a.out)
-    for it, (t, path, src) in b.items():
-        print('%-14s %7.1f s  %-8s %s' % (it, t, src, ' > '.join(describe(path))))
-
-
 def run_paths(target, paths, minutes=60):
     """replay many decision lists at once; returns the time each first makes the target (inf if never).
     After its list ends a run keeps taking event waits, so a list may stop early."""
@@ -230,11 +231,16 @@ def run_paths(target, paths, minutes=60):
     env.reset()
     env.e.target[:] = E.IX[target]
     ti = E.IX[target]
+    pos = np.zeros(n, np.int64)
     L = max(len(p) for p in paths)
-    for k in range(L + 40):
-        acts = np.array([p[k] if k < len(p) else 0 for p in paths])
+    for k in range(60 * (L + 1)):
+        m = env.action_mask()
+        want = np.array([paths[i][pos[i]] if pos[i] < len(paths[i]) else 0 for i in range(n)])
+        ok = m[np.arange(n), want]
+        acts = np.where(ok, want, 0)                  # not legal yet: event wait, retry next step
+        pos += ok & (pos < np.array([len(p) for p in paths]))
         env.step(acts)
-        if np.isfinite(env.e.first[:, ti]).all() or env.e.finished.all():
+        if (np.isfinite(env.e.first[:, ti]) | env.e.finished).all():
             break
     return env.e.first[:, ti].copy()
 
@@ -270,3 +276,14 @@ def polish(target, path, minutes=60, rounds=30, batch=256, rng=None):
         if ts[k] < best_t - 1e-9:
             best_t, path = float(ts[k]), muts[k]
     return float(best_t), path
+
+
+if __name__ == '__main__':
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--rounds', type=int, default=6)
+    ap.add_argument('--out', default='runs/expert')
+    a = ap.parse_args()
+    b = main(a.rounds, a.out)
+    for it, (t, path, src) in b.items():
+        print('%-14s %7.1f s  %-8s %s' % (it, t, src, ' > '.join(describe(path))))
+
