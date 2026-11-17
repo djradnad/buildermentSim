@@ -4,7 +4,7 @@ import fs from 'fs';
 import { script, techsFor } from './gen.mjs';
 import { evaluate } from './search.mjs';
 const P_ = (...a) => fs.writeSync(1, a.join(' ') + '\n');
-const DOM = { site: [0, 1, 2], feeds: [0, 1, 2, 3, 5], lines: [0, 1, 2], pre: [0, 2, 4, 6, 8] };
+const DOM = { site: [0, 1, 2], feeds: [0, 1, 2, 3, 5], lines: [0, 1, 2], pre: [0, 2, 4, 6, 8], relab: [0, 1] };
 const [dst, ...items] = process.argv.slice(2);
 const out = fs.existsSync(dst) ? JSON.parse(fs.readFileSync(dst)) : {};
 for (const it of items) {

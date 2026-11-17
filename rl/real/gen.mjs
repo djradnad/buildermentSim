@@ -51,7 +51,7 @@ export function script(item, params = []) {
   const stages = techsFor(item).map(t => ({ name: t.name, id: t.id, items: Object.keys(t.cost).filter(k => k !== 'Gold') }));
   stages.push({ name: 'goal', items: [item] });
   const out = [];
-  let site = null;
+  let site = null, prev = null;
   stages.forEach((st, i) => {
     const p = params[i] || {};
     const needs = {};
@@ -60,12 +60,13 @@ export function script(item, params = []) {
     const sp = spots[Math.min(p.site || 0, spots.length - 1)];
     if (i > 0) out.push(['waitTech', stages[i - 1].id]);   // the previous research must finish first
     if (!site) out.push(['lab', [sp.x, sp.y]]);
-    else if (site[0] !== sp.x || site[1] !== sp.y) out.push(['relocate', [sp.x, sp.y]]);
+    else if (site[0] !== sp.x || site[1] !== sp.y) { out.push(['movelab', [sp.x, sp.y]]); prev = site; }
     site = [sp.x, sp.y];
     for (const it of st.items) {
       if (RAW.has(it)) for (let k = 0; k < 1 + (p.feeds || 0); k++) out.push(['feed', it]);
       else for (let k = 0; k < 1 + (p.lines || 0); k++) out.push(['line', MAIN[it]]);
     }
+    if (p.relab && prev) { out.push(['lab', prev]); prev = null; }   // a lab back on the old site: its backlog arrives
     // pre-build for the next stage near its spot (filled while this research runs)
     const nx = stages[i + 1];
     if (nx && p.pre) {

@@ -26,7 +26,7 @@ export class Planner {
   }   // trunks: belt chains ending in a lab port
 
   labs() { return this.r.bs.filter(b => b.id === 3013); }
-  center() { const L = this.labs(); return L.length ? [L[0].x, L[0].y] : SITES.A; }
+  center() { const L = this.labs(); return L.length ? [L[L.length - 1].x, L[L.length - 1].y] : SITES.A; }
 
   // ---- routing to one of many goals: goals = Map(tileKey -> dir the last belt must point)
   occBase() {                                    // blocked tiles, cached until the layout changes
@@ -84,12 +84,13 @@ export class Planner {
     if (!sink.all) return this.goalsFor(sink.port, sink.chain);
     const g = new Map();                                        // the labs: every free port and every trunk
     for (const L of this.labs()) for (const p of ports(L).ins) for (const [k, d] of this.goalsFor(p, [])) g.set(k, d);
-    for (const t of this.trunks) for (const [k, d] of this.goalsFor(t.port, t.chain)) g.set(k, d);
+    const live = new Set(this.labs().flatMap(L => ports(L).ins.map(p => key(p.x, p.y))));
+    for (const t of this.trunks) if (live.has(key(t.port.x, t.port.y))) for (const [k, d] of this.goalsFor(t.port, t.chain)) g.set(k, d);
     return g;
   }
   // ---- a sink = {port, chain}: lab trunks and machine input ports
   labSink() {
-    const L = this.labs()[0];
+    const L = this.labs()[this.labs().length - 1];
     return L ? { all: true, port: ports(L).ins[0], chain: [] } : null;
   }
   labSinkOld() {
@@ -264,6 +265,19 @@ export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
     while (i < script.length) {
       const act = script[i];
       if (act[0] === 'waitTech') { if (run.done.has(act[1])) { i++; continue; } break; }
+      if (act[0] === 'movelab') {
+        // john 2026-11-17: only the lab moves; the old site's belts and machines stay and back up until a lab
+        // stands there again
+        const L = run.bs.filter(b => b.id === 3013);
+        const old = L[L.length - 1];
+        const lab = { id: 3013, x: act[1][0], y: act[1][1], o: 0 };
+        if (old && old.x === lab.x && old.y === lab.y) { i++; continue; }
+        if (!old) { if (!run.place([lab])) break; i++; continue; }
+        if (run.gold + buildCost(3013) < buildCost(3013)) break;
+        run.remove(b => b === old);
+        if (!run.place([lab])) { run.place([old]); break; }
+        i++; plan = null; continue;
+      }
       if (act[0] === 'relocate') {
         // move the lab: delete every lab, machine and belt (full refund), keep extractors as waiting ones (their
         // buffers fill until connected again), then a lab at the new spot
