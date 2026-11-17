@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 T = json.load(open(os.path.join(HERE, 'data', 'tables.json')))
 
 SETTINGS = dict(
-    gen='gen2', boost='0', world='2CCJhI', start_gold=2000, start_gems=100, refund=1.0, gem_trade=False, boosted_start=False, start_labs=0, first_lab_free=False, lab_xy=(0, 0),
+    gen='gen2', boost='0', world='2CCJhI', start_gold=2000, start_gems=100, refund=1.0, gem_trade=False, boosted_start=False, start_labs=0, first_lab_free=False, lab_xy='auto',
     act_seconds=1.0,          # game time a build/upgrade action costs (player taps)
     wait_seconds=10.0,        # one "wait" step
     max_minutes=600.0, max_steps=6000, goal='first_et', progress='all', lab_inputs=4, belt_tiles_per_building=6,
@@ -126,7 +126,40 @@ A_VAULT = A_LAB + 1
 A_GEMS = A_VAULT + 1                     # trade 50 gems for 12500 gold (in-game offer; 100 for 25000 is the same rate)
 A_REMOVE = A_GEMS + 1                    # + recipe index: delete one machine, gold back
 A_REMOVE_X = A_REMOVE + NR               # + resource index: delete the farthest extractor of that resource
-NA = A_REMOVE_X + NX
+A_PREX = A_REMOVE_X + NX                 # + resource: extractor with no belt yet; fills its 10-item buffer
+A_CONN = A_PREX + NX                     # + resource: belt one waiting extractor to the lab; its buffer arrives
+NS = 3                                   # lab sites: 0 best overall, 1 best for wood+stone, 2 best for iron+copper
+A_LABAT = A_CONN + NX                    # + site (1, 2): a lab there (A_LAB = site 0)
+A_DLAB = A_LABAT + NS                    # + site: delete a lab there, gold back (john: runners move the lab)
+NA = A_DLAB + NS
+EXT_BUFFER = 10                          # extractor output cap (FUN_140ee7e90: stops at 10 waiting items)
+
+
+def lab_belts(x, y, lx, ly):
+    """belt tiles from a node to the 3x3 lab centred at (lx, ly): 0 when the extractor touches the lab"""
+    dx = np.maximum(np.abs(x - lx) - 1, 0); dy = np.maximum(np.abs(y - ly) - 1, 0)
+    return np.maximum(dx + dy - 1, 0)
+
+
+def best_lab_spot(nodes, reach=40, k=5, flags=(1, 2, 4, 8)):
+    """where a runner puts the first lab: free 3x3 near the start whose k nearest wood, iron, copper and stone
+    nodes need the fewest belt tiles"""
+    occ = {(int(x), int(y)) for x, y, f in nodes}
+    best, spot = np.inf, (0, 0)
+    for lx in range(-reach, reach + 1):
+        for ly in range(-reach, reach + 1):
+            if any((lx + i, ly + j) in occ for i in (-1, 0, 1) for j in (-1, 0, 1)):
+                continue
+            sc = 0.0
+            for f in flags:
+                m = nodes[:, 2] == f
+                sc += np.sort(lab_belts(nodes[m, 0], nodes[m, 1], lx, ly))[:k].sum()
+            if sc < best:
+                best, spot = sc, (lx, ly)
+    return spot
+
+
+_SITES = {}
 
 
 class EconEnv:
@@ -143,11 +176,24 @@ class EconEnv:
         self.ext_rate = np.array(T['extractor_per_min'][self.cfg['gen']], np.float64)
         worlds = json.load(open(os.path.join(HERE, 'data', 'worlds.json')))
         n = np.array(worlds[self.cfg['world']]['nodes']).reshape(-1, 3)
-        lx, ly = self.cfg['lab_xy']
-        self.node_dist = []                                 # per resource: sorted tile distances to the lab
+        key = (self.cfg['world'], str(self.cfg['lab_xy']))
+        if key not in _SITES:
+            s0 = tuple(self.cfg['lab_xy']) if self.cfg['lab_xy'] != 'auto' else best_lab_spot(n)
+            _SITES[key] = [s0, best_lab_spot(n, flags=(1, 8)), best_lab_spot(n, flags=(2, 4))]
+        self.sites = _SITES[key]
+        self.lab_pos = self.sites[0]
+        # node_dist[x][mask]: sorted belt tiles from each node of resource x to the nearest lab among the sites in
+        # mask (row 0 = no lab: inf)
+        self.node_dist = []
         for f in RES_FLAGS:
             m = n[:, 2] == f
-            self.node_dist.append(np.sort(np.abs(n[m, 0] - lx) + np.abs(n[m, 1] - ly)).astype(np.float64))
+            per = np.array([lab_belts(n[m, 0], n[m, 1], lx, ly) for lx, ly in self.sites], np.float64)
+            rows = [np.full(m.sum(), np.inf)]
+            for mask in range(1, 1 << NS):
+                sel = [i for i in range(NS) if mask >> i & 1]
+                rows.append(np.sort(per[sel].min(0)))
+            self.node_dist.append(np.array(rows))
+        self.n_nodes = [d.shape[1] for d in self.node_dist]
         g = self.cfg['goal']
         # goal 'items': per-item speedruns (john 2026-11-16): every run gets one target item from cfg['targets']
         # and ends when it is first made; the target is part of the observation
@@ -168,8 +214,12 @@ class EconEnv:
         self.prog = np.zeros((B, NT, NI))
         self.n_rec = np.zeros((B, NR))
         self.n_ext = np.zeros((B, NX), np.int64)
+        self.n_free = np.zeros((B, NX), np.int64)          # extractors placed without a belt
+        self.buf = np.zeros((B, NX))                       # items waiting in them
         self.tier = np.zeros((B, NK), np.int64)              # current tier index of every building in the class
         self.labs = np.full(B, self.cfg['start_labs'], np.int64)
+        self.lab_at = np.zeros((B, NS), np.int64); self.lab_at[:, 0] = self.labs
+        self.bufc = np.zeros((B, NX))                      # items backed up in belted extractors while no lab stands
         self.vaults = np.zeros(B, np.int64)
         self.finished = np.zeros(B, bool)
         self.first = np.full((B, NI), np.inf)               # game second each item was first made (milestones)
@@ -187,7 +237,8 @@ class EconEnv:
         self.t[m] = 0; self.gold[m] = self.cfg['start_gold']; self.gems[m] = self.cfg['start_gems']
         self.done_t[m] = False; self.done_t[m, LAB_TECH] = True
         self.prog[m] = 0; self.n_rec[m] = 0; self.n_ext[m] = 0; self.tier[m] = 0
-        self.labs[m] = self.cfg['start_labs']; self.vaults[m] = 0; self.finished[m] = False; self.first[m] = np.inf; self.steps[m] = 0; self.rs_r[m] = np.inf; self.rs_x[m] = np.inf
+        self.n_free[m] = 0; self.buf[m] = 0
+        self.labs[m] = self.cfg['start_labs']; self.lab_at[m] = 0; self.lab_at[m, 0] = self.cfg['start_labs']; self.bufc[m] = 0; self.vaults[m] = 0; self.finished[m] = False; self.first[m] = np.inf; self.steps[m] = 0; self.rs_r[m] = np.inf; self.rs_x[m] = np.inf
         if self.cfg['goal'] == 'items':
             self.target[m] = self.rng.choice(self.targets, int(m.sum()))
         self._flow()
@@ -227,7 +278,7 @@ class EconEnv:
         self.x_period = np.full((B, NX), np.inf)
         for x in range(NX):
             r = T['uranium_per_min'][self.cfg['gen']] if x == 6 else self.ext_rate[self.tier[:, 0]]
-            self.x_period[:, x] = np.where(self.n_ext[:, x] > 0, 1.0 / r, np.inf)
+            self.x_period[:, x] = np.where(self.n_ext[:, x] + self.n_free[:, x] > 0, 1.0 / r, np.inf)
         used = (crafts * util) @ R_IN
         surplus = np.maximum(sup - used, 0.0)
         # sinks: labs pay gold AND research, gold vaults pay gold only (john 2026-11-16). Items open research
@@ -254,12 +305,29 @@ class EconEnv:
         ups = np.cumsum([0] + UPCOST[CLASSES[cls]])
         return base + ups[self.tier[:, cls]]
 
-    def _ext_cost(self, x):
-        k = self.n_ext[:, x]
+    def _site_mask(self):
+        return ((self.lab_at > 0) * (1 << np.arange(NS))[None]).sum(1)
+
+    def _dist(self, x, k):
+        """belt tiles for the k-th nearest node of resource x to the nearest standing lab (inf: none left/no lab)"""
         d = self.node_dist[x]
-        dist = np.where(k < len(d), d[np.minimum(k, len(d) - 1)], np.inf)
+        n = d.shape[1]
+        return np.where(k < n, d[self._site_mask(), np.minimum(k, n - 1)], np.inf)
+
+    def _ext_cost(self, x):
+        dist = self._dist(x, self.n_ext[:, x])
         base = BCOST['building_uranium_extractor'] if x == 6 else self._build_cost(0)
         return base + T['buildings']['belt_straight']['cost']['Gold'] * dist
+
+    def _conn_cost(self, x):
+        return T['buildings']['belt_straight']['cost']['Gold'] * self._dist(x, self.n_ext[:, x])
+
+    def _burst(self, items):
+        """items arriving at the labs all at once (a waiting extractor's buffer): gold and research"""
+        self.gold += (items * SELL).sum(1)
+        avail = self._available()
+        need = np.maximum(TECH_COST[None] - self.prog, 0) * avail[:, :, None]
+        self.prog += np.minimum(need, items[:, None, :])
 
     def _lab_cost(self):
         # john 2026-11-16: start with 2000 gold and no lab; the tutorial has you place one (1000 gold)
@@ -299,11 +367,21 @@ class EconEnv:
         for x in range(NX):
             ok = self.gold >= self._ext_cost(x)
             if x == 6: ok &= self.done_t[:, URANIUM_TECH]
-            m[:, A_EXTRACT + x] = ok
+            m[:, A_EXTRACT + x] = ok & (self.n_free[:, x] == 0)          # waiting ones get connected first
+            k = self.n_ext[:, x] + self.n_free[:, x]
+            free_node = k < self.n_nodes[x]
+            base = BCOST['building_uranium_extractor'] if x == 6 else self._build_cost(0)
+            pre_ok = free_node & (self.gold >= base)
+            m[:, A_PREX + x] = pre_ok & ((x != 6) | self.done_t[:, URANIUM_TECH])
+            m[:, A_CONN + x] = (self.n_free[:, x] > 0) & (self.gold >= self._conn_cost(x))
         for k in range(NK):
             m[:, A_UPGRADE + k] = (self._unlocked_tier(k) > self.tier[:, k]) & (self.gold >= self._up_cost(k)) \
                 & (self._n_class(k) > 0)
         m[:, A_LAB] = (self.labs < 3) & (self.gold >= self._lab_cost())
+        for i in range(1, NS):
+            m[:, A_LABAT + i] = m[:, A_LAB] & (self.sites[i] != self.sites[0])
+        for i in range(NS):
+            m[:, A_DLAB + i] = self.lab_at[:, i] > 0
         m[:, A_VAULT] = (self.vaults < 3) & self.done_t[:, VAULT_TECH] & (self.gold >= BCOST['building_gold_vault'])
         m[:, A_GEMS] = self.cfg['gem_trade'] & (self.gems >= 50)
         m[:, A_REMOVE:A_REMOVE + NR] = self.n_rec > 0
@@ -339,8 +417,18 @@ class EconEnv:
                 self.gold -= np.where(s, self._up_cost(k), 0)
                 self.tier[s, k] += 1
                 changed |= s
-        s = (a == A_LAB) & live
-        self.gold -= np.where(s, self._lab_cost(), 0); self.labs += s; changed |= s
+        for i in range(NS):
+            s = (a == (A_LAB if i == 0 else A_LABAT + i)) & live
+            if s.any():
+                back = s & (self.labs == 0)                      # belts get re-laid to it: backed-up items arrive
+                self.gold -= np.where(s, self._lab_cost(), 0); self.labs += s; self.lab_at[:, i] += s; changed |= s
+                items = np.zeros((B, NI)); items[:, RES_ITEM] = self.bufc * back[:, None]
+                self.bufc[back] = 0
+                self._burst(items)
+            s = (a == A_DLAB + i) & live & (self.lab_at[:, i] > 0)
+            if s.any():
+                self.lab_at[:, i] -= s; self.labs -= s
+                self.gold += np.where(s, self.cfg['refund'] * BCOST['research_lab'], 0); changed |= s
         s = (a == A_VAULT) & live
         self.gold -= np.where(s, BCOST['building_gold_vault'], 0); self.vaults += s; changed |= s
         f = self.cfg['refund']
@@ -356,6 +444,23 @@ class EconEnv:
             if s.any():
                 self.n_ext[s, x] -= 1
                 self.gold += np.where(s, f * self._ext_cost(x), 0)     # cost of the node just freed (the farthest)
+                changed |= s
+        for x in range(NX):
+            s = (a == A_PREX + x) & live
+            if s.any():
+                base = BCOST['building_uranium_extractor'] if x == 6 else self._build_cost(0)
+                self.gold -= np.where(s, base, 0)
+                self.n_free[s, x] += 1
+                changed |= s
+            s = (a == A_CONN + x) & live & (self.n_free[:, x] > 0)
+            if s.any():
+                self.gold -= np.where(s, self._conn_cost(x), 0)
+                share = np.where(s, self.buf[:, x] / np.maximum(self.n_free[:, x], 1), 0)
+                items = np.zeros((B, NI)); items[:, RES_ITEM[x]] = share
+                self.buf[:, x] -= share
+                self.n_free[s, x] -= 1
+                self.n_ext[s, x] += 1
+                self._burst(items * (self.labs > 0)[:, None])
                 changed |= s
         s = (a == A_GEMS) & live
         self.gems -= 50 * s; self.gold += 12500 * s
@@ -414,6 +519,10 @@ class EconEnv:
     def _advance(self, dt):
         mins = dt / 60.0
         self.gold += self.gold_rate * mins
+        r = np.where(np.arange(NX)[None] == 6, T['uranium_per_min'][self.cfg['gen']], self.ext_rate[self.tier[:, 0]][:, None])
+        self.buf = np.minimum(self.buf + r * self.n_free * mins[:, None], EXT_BUFFER * self.n_free)
+        nolab = (self.labs == 0)[:, None]
+        self.bufc = np.where(nolab, np.minimum(self.bufc + r * self.n_ext * mins[:, None], EXT_BUFFER * self.n_ext), self.bufc)
         lab_items = self.lab_in * mins[:, None]                              # (B, NI) items into labs
         avail = self._available()
         need = np.maximum(TECH_COST[None] - self.prog, 0) * avail[:, :, None]

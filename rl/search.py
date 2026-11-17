@@ -36,7 +36,7 @@ def put(env, i, R, st):
 def key_of(st, R):
     d = dict(((o.__class__.__name__, k), v) for (o, k), v in zip(R, st))
     parts = []
-    for name in ('n_rec', 'n_ext', 'tier', 'labs', 'vaults', 'done_t'):
+    for name in ('n_rec', 'n_ext', 'n_free', 'tier', 'lab_at', 'vaults', 'done_t'):
         parts.append(d[('EconEnv', name)].tobytes())
     parts.append(np.round(d[('MacroEnv', 'plan_r')], 6).tobytes())
     parts.append(np.round(d[('MacroEnv', 'plan_x')], 6).tobytes())
@@ -100,7 +100,7 @@ def search(target, batch=256, max_nodes=200000, max_minutes=120, world='2CCJhI',
 
 
 def describe(path):
-    from .macro import M_ADD1, M_ADD4, M_LAB, M_UP, M_VAULT
+    from .macro import M_ADD1, M_ADD4, M_CONN, M_DLAB, M_LAB, M_LABAT, M_PRE, M_UP, M_VAULT
     out = []
     for a in path:
         if a == 0: out.append('wait')
@@ -110,7 +110,11 @@ def describe(path):
         elif a == M_LAB: out.append('lab')
         elif a == M_VAULT: out.append('vault')
         elif M_X1 <= a < M_X4: out.append('+1 extractor ' + E.ITEMS[E.RES_ITEM[a - M_X1]])
-        elif M_X4 <= a < NM: out.append('+4 extractor ' + E.ITEMS[E.RES_ITEM[a - M_X4]])
+        elif M_X4 <= a < M_PRE: out.append('+4 extractor ' + E.ITEMS[E.RES_ITEM[a - M_X4]])
+        elif M_PRE <= a < M_CONN: out.append('pre-extractor ' + E.ITEMS[E.RES_ITEM[a - M_PRE]])
+        elif M_CONN <= a < M_LABAT: out.append('connect ' + E.ITEMS[E.RES_ITEM[a - M_CONN]])
+        elif M_LABAT <= a < M_DLAB: out.append('lab@%s' % ('base', 'wood', 'iron')[a - M_LABAT])
+        elif M_DLAB <= a < NM: out.append('del lab@%s' % ('base', 'wood', 'iron')[a - M_DLAB])
         else: out.append(str(a))
     return out
 

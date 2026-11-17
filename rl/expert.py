@@ -248,15 +248,19 @@ def run_paths(target, paths, minutes=60):
 def polish(target, path, minutes=60, rounds=30, batch=256, rng=None):
     """local search on a decision list: drop, duplicate, swap neighbours, x1<->x4, insert an extra line or
     extractor; keep any change that makes the target sooner"""
-    from .macro import M_ADD1, M_ADD4, M_UP, M_X1, M_X4
+    from .macro import M_ADD1, M_ADD4, M_CONN, M_DLAB, M_LAB, M_LABAT, M_PRE, M_UP, M_X1, M_X4
     rng = rng or np.random.default_rng(0)
     best_t = run_paths(target, [path], minutes)[0]
+    # runner moves (john 2026-11-17): extractors placed before the belt (buffers fill), lab sites, moving the lab
+    extra = [M_PRE + x for x in range(6)] + [M_CONN + x for x in range(6)] + [M_LAB, M_LABAT + 1, M_LABAT + 2] \
+        + [M_DLAB + i for i in range(E.NS)]
     pool = sorted(set([a for a in path if a not in (0,)]))
+    pool2 = sorted(set(pool + extra))
     for r in range(rounds):
         muts = []
         for _ in range(batch):
             p = list(path)
-            kind = rng.integers(6)
+            kind = rng.integers(8)
             i = rng.integers(len(p)) if p else 0
             if kind == 0 and len(p) > 1: del p[i]
             elif kind == 1: p.insert(i, p[i])
@@ -269,7 +273,15 @@ def polish(target, path, minutes=60, rounds=30, batch=256, rng=None):
                 elif M_X1 <= a < M_X4: p[i] = a + (M_X4 - M_X1)
                 elif M_X4 <= a < M_X4 + E.NX: p[i] = a - (M_X4 - M_X1)
             elif kind == 4: p.insert(i, int(rng.choice(pool)))
-            else: p.insert(i, 0)
+            elif kind == 5: p.insert(i, 0)
+            elif kind == 6: p.insert(i, int(rng.choice(pool2)))
+            else:                                       # swap a lab for another site, or extractors -> pre-built
+                a = p[i]
+                if a == M_LAB or M_LABAT <= a < M_DLAB: p[i] = int(rng.choice([M_LAB, M_LABAT + 1, M_LABAT + 2]))
+                elif M_X1 <= a < M_X4:
+                    x = a - M_X1; p[i] = M_PRE + x; p.insert(rng.integers(i, len(p) + 1), M_CONN + x)
+                elif M_X4 <= a < M_X4 + E.NX:
+                    x = a - M_X4; p[i:i + 1] = [M_PRE + x] * 4; p.insert(rng.integers(i + 4, len(p) + 1), M_CONN + x)
             muts.append(p)
         ts = run_paths(target, muts, minutes)
         k = int(np.argmin(ts))

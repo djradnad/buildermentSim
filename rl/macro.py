@@ -21,7 +21,11 @@ M_GEMS = M_VAULT + 1
 M_DEL = M_GEMS + 1                           # + recipe
 M_X1 = M_DEL + E.NR                          # + resource: one more extractor in the plan (raw straight to the lab)
 M_X4 = M_X1 + E.NX
-NM = M_X4 + E.NX
+M_PRE = M_X4 + E.NX                          # + resource: place an extractor with no belt (fills its buffer)
+M_CONN = M_PRE + E.NX                        # + resource: belt every waiting extractor of it (buffers arrive)
+M_LABAT = M_CONN + E.NX                      # + site: a lab at lab site 1..2 (M_LAB = site 0)
+M_DLAB = M_LABAT + E.NS                      # + site: delete a lab there (runners move the lab, john 2026-11-17)
+NM = M_DLAB + E.NS
 
 MAIN = {}
 for _j, _r in enumerate(E.RECIPES):
@@ -141,13 +145,14 @@ class MacroEnv:
         m = self.e.action_mask()
         dr, dx = self._deficit()
         a = np.full(self.B, -1)
-        blocked = np.zeros(self.B, bool)                     # a shallower shortfall we can't afford yet: wait
         for kind, idx in BUILD_ORDER:
             need = (dx[:, idx] if kind == 'x' else dr[:, idx]) > 0
-            act = (E.A_EXTRACT + idx) if kind == 'x' else (E.A_BUILD + idx)
-            ok = need & m[:, act] & (a < 0)                 # any affordable shortfall, shallow first
+            if kind == 'x':
+                act = np.where(self.e.n_free[:, idx] > 0, E.A_CONN + idx, E.A_EXTRACT + idx)
+            else:
+                act = np.full(self.B, E.A_BUILD + idx)
+            ok = need & m[np.arange(self.B), act] & (a < 0)  # any affordable shortfall, shallow first
             a = np.where(ok, act, a)
-            blocked |= need & ~m[:, act] & (a < 0)
         return a
 
     # ---------- interface ----------
@@ -170,8 +175,13 @@ class MacroEnv:
         xok[:, 6] = (e.labs > 0) & e.done_t[:, E.URANIUM_TECH]
         m[:, M_X1:M_X1 + E.NX] = xok
         m[:, M_X4:M_X4 + E.NX] = xok
+        m[:, M_PRE:M_PRE + E.NX] = em[:, E.A_PREX:E.A_PREX + E.NX]
+        m[:, M_CONN:M_CONN + E.NX] = em[:, E.A_CONN:E.A_CONN + E.NX]
         m[:, M_UP:M_UP + E.NK] = em[:, E.A_UPGRADE:E.A_UPGRADE + E.NK]
         m[:, M_LAB] = em[:, E.A_LAB] & ((e.labs == 0) | (e.gold_rate > 0))   # a 2nd lab with no income = dead end
+        for i in range(1, E.NS):
+            m[:, M_LABAT + i] = em[:, E.A_LABAT + i] & ((e.labs == 0) | (e.gold_rate > 0))
+        m[:, M_DLAB:M_DLAB + E.NS] = em[:, E.A_DLAB:E.A_DLAB + E.NS]
         m[:, M_VAULT] = em[:, E.A_VAULT]
         m[:, M_GEMS] = em[:, E.A_GEMS]
         m[e.finished] = False
@@ -199,9 +209,15 @@ class MacroEnv:
         for x in range(E.NX):
             self.plan_x[(a == M_X1 + x) & live, x] += 1
             self.plan_x[(a == M_X4 + x) & live, x] += 4
+        for x in range(E.NX):
+            prim = np.where((a == M_PRE + x) & live, E.A_PREX + x, prim)
+            prim = np.where((a == M_CONN + x) & live, E.A_CONN + x, prim)
         for k in range(E.NK):
             prim = np.where((a == M_UP + k) & live, E.A_UPGRADE + k, prim)
         prim = np.where((a == M_LAB) & live, E.A_LAB, prim)
+        for i in range(E.NS):
+            prim = np.where((a == M_LABAT + i) & live, E.A_LABAT + i, prim)
+            prim = np.where((a == M_DLAB + i) & live, E.A_DLAB + i, prim)
         prim = np.where((a == M_VAULT) & live, E.A_VAULT, prim)
         prim = np.where((a == M_GEMS) & live, E.A_GEMS, prim)
         done = np.zeros(B, bool)
@@ -221,6 +237,12 @@ class MacroEnv:
         direct = prim != E.A_WAIT
         if direct.any():
             run(np.where(direct, prim, E.A_WAIT) if True else prim)
+        for x in range(E.NX):                                # "connect" means all waiting extractors of that resource
+            for _ in range(32):
+                go = (a == M_CONN + x) & live & ~done & (e.n_free[:, x] > 0) & e.action_mask()[:, E.A_CONN + x]
+                if not go.any():
+                    break
+                run(np.where(go, E.A_CONN + x, E.A_WAIT))
         for _ in range(self.max_builds):                     # build the plan's shortfalls while gold allows
             b = self._build_action()
             go = (b >= 0) & ~done & live
