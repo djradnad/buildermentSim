@@ -1,0 +1,84 @@
+<title>Builderment Speedrun Replays</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control bar on top, map canvas left, run state + build log right; stacks on phones */
+:root{
+  --bg:#eef1ec; --panel:#ffffff; --ink:#1d2622; --muted:#5d6b64; --line:#d3dad5; --accent:#2f7d5b; --grass:#dfe8dc; --belt:#1d2622;
+  --wood:#8a5a2b; --iron:#5b7290; --copper:#c8682a; --stone:#9a9a90; --coal:#2b2b2b; --wolf:#7a5aa0;
+  --display:"Chakra Petch",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#141a17;--panel:#1c2420;--ink:#e3ebe6;--muted:#93a39a;--line:#2e3a34;--accent:#5cc493;--grass:#18211c;--belt:#e3ebe6;--coal:#c9c9c9;--stone:#b9b9ae;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#141a17;--panel:#1c2420;--ink:#e3ebe6;--muted:#93a39a;--line:#2e3a34;--accent:#5cc493;--grass:#18211c;--belt:#e3ebe6;--coal:#c9c9c9;--stone:#b9b9ae;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px}
+h1{font-family:var(--display);font-weight:700;font-size:1.6rem;margin:0;letter-spacing:.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0;max-width:70ch;line-height:1.45}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+select,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--panel);font-weight:600;min-width:74px}
+input[type=range]{flex:1 1 220px;accent-color:var(--accent);min-width:0}
+.clock{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:1.05rem;min-width:9ch;text-align:right}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px}
+@media (max-width:860px){.main{grid-template-columns:minmax(0,1fr)}}
+.mapbox{align-self:start;background:var(--grass);border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
+canvas{display:block;width:100%;height:auto;max-width:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;color:var(--muted);padding:8px 12px;background:var(--panel);border-top:1px solid var(--line)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.side{display:grid;gap:14px;align-content:start;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}
+.card h2{font-family:var(--display);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px;font-weight:500}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}
+.stat b{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:1.15rem;font-weight:500}
+.stat span{font-size:.75rem;color:var(--muted)}
+.goal{font-family:var(--display);font-size:1.05rem}
+.goal em{font-style:normal;color:var(--accent);font-family:var(--mono)}
+.log{max-height:300px;overflow-y:auto;font-size:.84rem;display:grid;gap:2px}
+.log div{display:grid;grid-template-columns:5ch minmax(0,1fr);gap:8px;padding:3px 4px;border-radius:4px;color:var(--muted)}
+.log div.past{color:var(--ink)}
+.log div.now{background:var(--grass);color:var(--ink);font-weight:600}
+.log time{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+.log .mile{color:var(--accent)}
+.mach{font-size:.84rem;display:flex;flex-wrap:wrap;gap:6px}
+.mach span{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-family:var(--mono);font-size:.78rem}
+.note{font-size:.8rem;color:var(--muted);line-height:1.45;max-width:80ch}
+.chart{display:block;width:100%;height:70px}
+</style>
+<div class="wrap">
+  <header>
+    <h1>Builderment Speedrun Replays</h1>
+    <p class="sub">The AI's best run for each item on seed 2CCJhI (Gen 2, 2000 gold, no gem trades). Pick an item and press play to watch it place extractors, labs and machines until the first item comes out.</p>
+  </header>
+  <div class="bar">
+    <select id="run" aria-label="Item"></select>
+    <button id="play" class="primary">Play</button>
+    <select id="speed" aria-label="Speed"><option value="2">2×</option><option value="5" selected>5×</option><option value="15">15×</option><option value="40">40×</option></select>
+    <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Time">
+    <span class="clock" id="clock">0:00</span>
+  </div>
+  <div class="main">
+    <div class="mapbox">
+      <canvas id="map" width="1000" height="760"></canvas>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="side">
+      <div class="card"><div class="goal" id="goal"></div></div>
+      <div class="card">
+        <h2>Right now</h2>
+        <div class="stats">
+          <div class="stat"><b id="gold">0</b><span>gold</span></div>
+          <div class="stat"><b id="rate">0</b><span>gold per minute</span></div>
+          <div class="stat"><b id="ext">0</b><span>extractors (belted / waiting)</span></div>
+          <div class="stat"><b id="buf">0</b><span>items in buffers</span></div>
+        </div>
+        <svg class="chart" id="chart" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="Gold over time"></svg>
+      </div>
+      <div class="card"><h2>Machines</h2><div class="mach" id="mach"></div></div>
+      <div class="card"><h2>Build log</h2><div class="log" id="log"></div></div>
+    </div>
+  </div>
+  <p class="note">Belts are drawn as straight lines from each belted extractor to the nearest lab; the sim prices them by tile distance but doesn't route them. Lab sites A, B and C are the best spots overall, near wood and stone, and near iron and copper. Not modelled yet: belt travel time and machine output buffers, so real runs will be a few seconds slower.</p>
+</div>
+<script>
+const DATA = 

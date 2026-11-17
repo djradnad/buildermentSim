@@ -1,0 +1,89 @@
+;
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const RESV = ['--wood','--iron','--copper','--stone','--coal','--wolf'];
+const FLAG = {1:0,2:1,4:2,8:3,16:4,32:5};
+const nodes = []; for (let i=0;i<DATA.nodes.length;i+=3) nodes.push([DATA.nodes[i],DATA.nodes[i+1],DATA.nodes[i+2]]);
+const fmt = s => { s=Math.max(0,s); const m=Math.floor(s/60), r=Math.floor(s%60); return m+':'+String(r).padStart(2,'0'); };
+let run, T=0, playing=false, last=null;
+DATA.runs.forEach((r,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=r.item+'  ·  '+fmt(r.time); $('run').appendChild(o); });
+$('legend').innerHTML = DATA.resources.slice(0,5).map((n,i)=>`<span><i style="background:var(${RESV[i]})"></i>${n}</span>`).join('')
+  + '<span><i style="border:2px solid var(--muted);background:transparent"></i>waiting extractor (no belt)</span><span><i style="background:var(--accent)"></i>lab</span>';
+function frameAt(t){ let f=run.frames[0]; for (const g of run.frames){ if (g.t<=t+1e-6) f=g; else break; } return f; }
+function view(){ // fit sites plus every node ever used
+  const pts = run.sites.slice(); const seen=new Set();
+  run.frames.forEach(f=>f.used.forEach(([n])=>seen.add(n)));
+  seen.forEach(n=>pts.push([nodes[n][0],nodes[n][1]]));
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  pts.forEach(([x,y])=>{x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);});
+  const pad=6; x0-=pad;x1+=pad;y0-=pad;y1+=pad;
+  const W=1000,H=760, s=Math.min(W/(x1-x0),H/(y1-y0));
+  return {s, ox:(W-(x1-x0)*s)/2 - x0*s, oy:(H-(y1-y0)*s)/2 - y0*s, x0,x1,y0,y1};
+}
+let V;
+function draw(){
+  const c=$('map'), g=c.getContext('2d'), f=frameAt(T);
+  g.clearRect(0,0,c.width,c.height);
+  const P=(x,y)=>[V.ox+x*V.s, V.oy+y*V.s], s=V.s;
+  g.strokeStyle=css('--line'); g.globalAlpha=.5; g.lineWidth=1;
+  for (let x=Math.ceil(V.x0/10)*10;x<=V.x1;x+=10){const [a]=P(x,0); g.beginPath(); g.moveTo(a,0); g.lineTo(a,c.height); g.stroke();}
+  for (let y=Math.ceil(V.y0/10)*10;y<=V.y1;y+=10){const [,b]=P(0,y); g.beginPath(); g.moveTo(0,b); g.lineTo(c.width,b); g.stroke();}
+  g.globalAlpha=1;
+  const used = new Map(f.used.map(([n,b])=>[n,b]));
+  const labs = run.sites.map((p,i)=>[p,f.labs[i]]);
+  const standing = labs.filter(l=>l[1]>0).map(l=>l[0]);
+  // belts
+  g.strokeStyle=css('--belt'); g.globalAlpha=.55; g.lineWidth=Math.max(1.5,s*.35);
+  used.forEach((b,n)=>{ if(!b||!standing.length) return; const [x,y]=nodes[n];
+    let best=standing[0],bd=1e9; standing.forEach(p=>{const d=Math.abs(p[0]-x)+Math.abs(p[1]-y); if(d<bd){bd=d;best=p;}});
+    const [a,bq]=P(x+.5,y+.5), [cx,cy]=P(best[0]+.5,best[1]+.5);
+    g.beginPath(); g.moveTo(a,bq); g.lineTo(cx,bq); g.lineTo(cx,cy); g.stroke(); });
+  g.globalAlpha=1;
+  // nodes
+  nodes.forEach(([x,y,fl],n)=>{ const r=FLAG[fl]; if(r===undefined) return; if(x<V.x0||x>V.x1||y<V.y0||y>V.y1) return;
+    const [a,b]=P(x,y), col=css(RESV[r]);
+    const u=used.get(n);
+    if (u===undefined){ g.globalAlpha=.28; g.fillStyle=col; g.fillRect(a+s*.15,b+s*.15,s*.7,s*.7); g.globalAlpha=1; }
+    else if (u===1){ g.fillStyle=col; g.fillRect(a,b,s,s); g.strokeStyle=css('--ink'); g.lineWidth=1; g.strokeRect(a,b,s,s); }
+    else { g.fillStyle=col; g.globalAlpha=.5; g.fillRect(a,b,s,s); g.globalAlpha=1; g.strokeStyle=col; g.lineWidth=Math.max(2,s*.18); g.setLineDash([s*.3,s*.2]); g.strokeRect(a+1,b+1,s-2,s-2); g.setLineDash([]); }
+  });
+  // labs
+  labs.forEach(([p,k],i)=>{ const [a,b]=P(p[0]-1,p[1]-1);
+    g.lineWidth=2; g.strokeStyle=css('--accent');
+    if(k>0){ g.fillStyle=css('--accent'); g.fillRect(a,b,3*s,3*s); }
+    else { g.setLineDash([5,4]); g.strokeRect(a,b,3*s,3*s); g.setLineDash([]); }
+    g.fillStyle=k>0?css('--panel'):css('--accent'); g.font=`700 ${Math.max(12,s*1.4)}px Chakra Petch, sans-serif`; g.textAlign='center'; g.textBaseline='middle';
+    g.fillText('ABC'[i]+(k>1?'×'+k:''), a+1.5*s, b+1.5*s); });
+  // panel
+  const nb=f.used.filter(u=>u[1]).length, nw=f.used.length-nb;
+  $('gold').textContent=Math.round(f.gold).toLocaleString(); $('rate').textContent=Math.round(f.rate).toLocaleString();
+  $('ext').textContent=nb+' / '+nw; $('buf').textContent=Math.round(f.buf);
+  $('clock').textContent=fmt(T);
+  const done = T>=run.time-1e-6;
+  $('goal').innerHTML = done ? `First ${run.item} at <em>${fmt(run.time)}</em> (${run.time.toFixed(0)} s)` : `Goal: first ${run.item} · best <em>${fmt(run.time)}</em>`;
+  $('mach').innerHTML = Object.entries(f.mach).map(([k,v])=>`<span>${v}× ${k.replace(/_/g,' ')}</span>`).join('') || '<span>none yet</span>';
+  $('scrub').value = Math.round(1000*T/run.time);
+  document.querySelectorAll('#log div').forEach(d=>{ const t=+d.dataset.t; d.className=(d.dataset.i==curIdx(T)?'now':(t<=T?'past':'')); });
+  const ph=$('ph'); if(ph){ const x=300*T/run.time; ph.setAttribute('x1',x); ph.setAttribute('x2',x); }
+}
+let events=[];
+function curIdx(t){ let k=-1; events.forEach((e,i)=>{ if(e.t<=t+1e-6) k=i; }); return k; }
+function load(i){
+  run=DATA.runs[i]; T=0; V=view();
+  events=[]; run.frames.forEach(f=>{ if(f.act) events.push({t:f.t,txt:f.act}); f.new.forEach(n=>events.push({t:f.t,txt:'first '+n,mile:1})); });
+  $('log').innerHTML = events.map((e,i)=>`<div data-t="${e.t}" data-i="${i}"><time>${fmt(e.t)}</time><span class="${e.mile?'mile':''}">${e.txt}</span></div>`).join('');
+  const gmax=Math.max(...run.frames.map(f=>f.gold),1);
+  const pts=run.frames.map(f=>`${(300*f.t/run.time).toFixed(1)},${(66-62*f.gold/gmax).toFixed(1)}`).join(' ');
+  $('chart').innerHTML=`<polyline points="0,66 ${pts} 300,66" fill="var(--accent)" fill-opacity=".14" stroke="none"/><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/><line id="ph" x1="0" x2="0" y1="0" y2="70" stroke="var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+  draw();
+}
+function tick(ts){ if(!playing){last=null;return;} if(last!==null){ T+=(ts-last)/1000*(+$('speed').value); if(T>=run.time){T=run.time; playing=false; $('play').textContent='Replay';} draw(); } last=ts; requestAnimationFrame(tick); }
+$('play').onclick=()=>{ if(T>=run.time) T=0; playing=!playing; $('play').textContent=playing?'Pause':'Play'; if(playing) requestAnimationFrame(tick); };
+$('scrub').oninput=e=>{ T=run.time*e.target.value/1000; draw(); };
+$('run').onchange=e=>{ playing=false; $('play').textContent='Play'; load(+e.target.value); };
+$('log').onclick=e=>{ const d=e.target.closest('div[data-t]'); if(d){ T=+d.dataset.t; draw(); } };
+const emIdx = DATA.runs.findIndex(r=>r.item==='Electromagnet'); $('run').value = emIdx>=0?emIdx:0;
+load(+$('run').value); T=run.time; draw();
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+</script>
