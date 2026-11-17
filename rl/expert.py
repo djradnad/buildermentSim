@@ -200,6 +200,10 @@ def main(rounds=6, out='runs/expert', exact_nodes=60000, minutes=60):
             old = best.get(it, (np.inf,))[0]
             if path and t < old:
                 best[it] = (t, path, 'beam r%d' % r)
+            if it in best and best[it][2] != 'exact':          # local search on the best list found so far
+                t2, p2 = polish(it, best[it][1], minutes, rounds=15)
+                if t2 < best[it][0]:
+                    best[it] = (t2, p2, best[it][2].split('+')[0] + '+polish')
             print('  %-14s beam %7.1f s  best %7.1f s  (%.0f s search)' % (it, t, best.get(it, (np.inf,))[0],
                                                                           time.time() - t0), flush=True)
             json.dump(best, open(path_db, 'w'))
@@ -216,3 +220,53 @@ if __name__ == '__main__':
     b = main(a.rounds, a.out)
     for it, (t, path, src) in b.items():
         print('%-14s %7.1f s  %-8s %s' % (it, t, src, ' > '.join(describe(path))))
+
+
+def run_paths(target, paths, minutes=60):
+    """replay many decision lists at once; returns the time each first makes the target (inf if never).
+    After its list ends a run keeps taking event waits, so a list may stop early."""
+    n = len(paths)
+    env = make_env(n, [target], minutes)
+    env.reset()
+    env.e.target[:] = E.IX[target]
+    ti = E.IX[target]
+    L = max(len(p) for p in paths)
+    for k in range(L + 40):
+        acts = np.array([p[k] if k < len(p) else 0 for p in paths])
+        env.step(acts)
+        if np.isfinite(env.e.first[:, ti]).all() or env.e.finished.all():
+            break
+    return env.e.first[:, ti].copy()
+
+
+def polish(target, path, minutes=60, rounds=30, batch=256, rng=None):
+    """local search on a decision list: drop, duplicate, swap neighbours, x1<->x4, insert an extra line or
+    extractor; keep any change that makes the target sooner"""
+    from .macro import M_ADD1, M_ADD4, M_UP, M_X1, M_X4
+    rng = rng or np.random.default_rng(0)
+    best_t = run_paths(target, [path], minutes)[0]
+    pool = sorted(set([a for a in path if a not in (0,)]))
+    for r in range(rounds):
+        muts = []
+        for _ in range(batch):
+            p = list(path)
+            kind = rng.integers(6)
+            i = rng.integers(len(p)) if p else 0
+            if kind == 0 and len(p) > 1: del p[i]
+            elif kind == 1: p.insert(i, p[i])
+            elif kind == 2 and len(p) > 1:
+                j = min(i + 1, len(p) - 1); p[i], p[j] = p[j], p[i]
+            elif kind == 3:
+                a = p[i]
+                if M_ADD1 <= a < M_ADD4: p[i] = a + (M_ADD4 - M_ADD1)
+                elif M_ADD4 <= a < M_UP: p[i] = a - (M_ADD4 - M_ADD1)
+                elif M_X1 <= a < M_X4: p[i] = a + (M_X4 - M_X1)
+                elif M_X4 <= a < M_X4 + E.NX: p[i] = a - (M_X4 - M_X1)
+            elif kind == 4: p.insert(i, int(rng.choice(pool)))
+            else: p.insert(i, 0)
+            muts.append(p)
+        ts = run_paths(target, muts, minutes)
+        k = int(np.argmin(ts))
+        if ts[k] < best_t - 1e-9:
+            best_t, path = float(ts[k]), muts[k]
+    return float(best_t), path
