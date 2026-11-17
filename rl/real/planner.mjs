@@ -18,7 +18,12 @@ for (const [k, r] of Object.entries(REC)) if (!r.alt && !MAIN[r.out[0].item]) MA
 const BID = Object.fromEntries(Object.values(GAMEDATA.buildings).map(d => [d.id, d]));
 
 export class Planner {
-  constructor(run) { this.r = run; this.waiting = []; this.trunks = []; }   // trunks: belt chains ending in a lab port
+  constructor(run) {
+    this.r = run; this.waiting = []; this.trunks = [];
+    this.feeds = [];          // lab feeds {res, ext, belts, deps}: an unused one can be re-routed into a machine
+    this.owner = new Map();   // belt tile -> feed that laid it
+    this.freed = new Set();   // tiles of feeds being re-routed in the plan being built
+  }   // trunks: belt chains ending in a lab port
 
   labs() { return this.r.bs.filter(b => b.id === 3013); }
   center() { const L = this.labs(); return L.length ? [L[0].x, L[0].y] : SITES.A; }
@@ -31,7 +36,8 @@ export class Planner {
   }
   routeTo(starts, goals, extra = new Set(), maxLen = 40) {
     const base = this.occBase();
-    const occ = { has: k => base.has(k) || extra.has(k) };
+    const fr = this.freed;
+    const occ = { has: k => (base.has(k) && !fr.has(k)) || extra.has(k) };
     const prev = new Map(); let q = [];
     for (const s of starts) if (!occ.has(key(...s))) { prev.set(key(...s), null); q.push(s); }
     let hit = null;
@@ -71,6 +77,9 @@ export class Planner {
     return goals;
   }
 
+  markDeps(belts) {              // a belt ending against another feed's belt makes that feed busy
+    for (const b of belts) { const f = this.owner.get(key(b.x + DV[b.o][0], b.y + DV[b.o][1])); if (f && !belts.includes(f.belts[0])) f.deps++; }
+  }
   sinkGoals(sink) {
     if (!sink.all) return this.goalsFor(sink.port, sink.chain);
     const g = new Map();                                        // the labs: every free port and every trunk
@@ -105,86 +114,104 @@ export class Planner {
     const c = sink.port;
     let cands = this.waiting.filter(e => this.r.node.get(key(e.x, e.y)) === res).map(e => [e, true]);
     for (const n of this.nearestNodes(res, [c.x, c.y]).slice(0, 4)) for (const o of [0, 1, 2, 3]) cands.push([{ id: 3004, x: n[0], y: n[1], o }, false]);
+    // re-route an existing lab feed of this resource that nothing else joins (players reroute ore like this)
+    for (const f of this.feeds) if (f.res === res && !f.deps && !f.taken) cands.push([f.ext, 'feed', f]);
     let best = null;
-    for (const [e, old] of cands) {
+    for (const [e, old, f] of cands) {
+      if (f) for (const b of f.belts) this.freed.add(key(b.x, b.y));
       const os = old ? [e.o] : [0, 1, 2, 3];
       for (const o of os) {
         const ex = { ...e, o }, out = ports(ex).outs[0];
         const bl = this.routeTo([[out.x + DV[out.dir][0], out.y + DV[out.dir][1]]], this.sinkGoals(sink), extra, best ? best.belts.length : 60);
-        if (bl && (!best || bl.length < best.belts.length)) best = { ext: ex, old, belts: bl };
+        if (bl && (!best || bl.length < best.belts.length)) best = { ext: ex, old, belts: bl, feed: f };
       }
-      if (best && old) break;
+      if (f && !(best && best.feed === f)) for (const b of f.belts) this.freed.delete(key(b.x, b.y));
+      if (best && old === true) break;
     }
+    if (best && best.feed) best.feed.taken = true;
     return best;
   }
 
-  machineSpot(bid, recipeId, sink, extra) {
-    // a free spot near the sink whose output can reach it; returns {b, belts}
-    const c = [sink.port.x, sink.port.y], d = BID[bid];
-    let best = null;
-    for (let r = 2; r <= 16 && !best; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+  machineSpots(bid, recipeId, sink, extra, K = 6) {
+    // free spots near the sink whose output can reach it, shortest output belt first; [{b, belts}]
+    const c = [sink.port.x, sink.port.y];
+    const found = [];
+    const base = this.occBase();
+    for (let r = 2; r <= 16 && found.length < K; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       for (const o of [0, 1, 2, 3]) {
         const b = { id: bid, x: c[0] + dx, y: c[1] + dy, o, recipe: recipeId, tier: 1 };
-        const base = this.occBase();
-        if (footprint(b).some(([x, y]) => base.has(key(x, y)) || extra.has(key(x, y)) || this.r.node.has(key(x, y)))) continue;
+        const fp = footprint(b).map(t => key(...t));
+        if (fp.some(k => base.has(k) || extra.has(k) || this.r.node.has(k))) continue;
         const P = ports(b);
-        const ex2 = new Set([...extra, ...footprint(b).map(t => key(...t))]);
+        const ex2 = new Set([...extra, ...fp]);
         const out = P.outs[0];
-        // every input needs a free tile in front of it, and room around it for its feed
-        const inT = P.ins.map(p => key(p.x + DV[p.dir][0], p.y + DV[p.dir][1]));
-        if (inT.some(k => base.has(k) || ex2.has(k))) continue;
-        const ex3 = new Set([...ex2, ...inT]);
-        const bl = this.routeTo([[out.x + DV[out.dir][0], out.y + DV[out.dir][1]]], this.sinkGoals(sink), ex3, best ? best.belts.length : 40);
-        if (bl && (!best || bl.length < best.belts.length)) best = { b, belts: bl };
+        // every input needs a free tile in front of it with a free way out
+        const inT = P.ins.map(p => [p.x + DV[p.dir][0], p.y + DV[p.dir][1]]);
+        if (inT.some(([x, y]) => base.has(key(x, y)) || ex2.has(key(x, y)))) continue;
+        const ex3 = new Set([...ex2, ...inT.map(t => key(...t))]);
+        if (inT.some(([x, y]) => DV.every(([ddx, ddy]) => { const k = key(x + ddx, y + ddy); return base.has(k) || ex3.has(k); }))) continue;
+        const bl = this.routeTo([[out.x + DV[out.dir][0], out.y + DV[out.dir][1]]], this.sinkGoals(sink), ex3, 40);
+        if (bl) found.push({ b, belts: bl });
       }
     }
-    return best;
+    return found.sort((p, q) => p.belts.length - q.belts.length).slice(0, K);
   }
 
-  // full chain for one machine of recipe k feeding sink; returns list of pieces or null
-  line(k, sink, extra = new Set(), pieces = [], connect = []) {
+  // full chain for one machine of recipe k feeding sink; pieces appended, null if it can't be laid out
+  line(k, sink, extra = new Set(), pieces = [], connect = [], depth = 0) {
     const rec = REC[k], bid = GAMEDATA.buildings[rec.building].id;
-    const m = this.machineSpot(bid, rec.id, sink, extra);
-    if (!m) return null;
+    const cands = this.machineSpots(bid, rec.id, sink, extra, depth ? 3 : 6);
+    for (const m of cands) {
+      const before = pieces.length, waiting0 = [...this.waiting];
+      if (this.feedMachine(rec, m, extra, pieces, connect, depth)) {
+        if (sink.top) this.topOut = m.belts;
+        this.lastOut = m.belts;
+        return pieces;
+      }
+      pieces.length = before; this.waiting = waiting0;
+    }
+    return null;
+  }
+
+  feedMachine(rec, m, extra, pieces, connect, depth) {
     pieces.push(m.b, ...m.belts);
-    if (sink.top) this.topOut = m.belts;
-    this.lastOut = m.belts;
     const ex = new Set([...extra, ...footprint(m.b).map(t => key(...t)), ...m.belts.map(t => key(t.x, t.y))]);
     const P = ports(m.b);
     for (let i = 0; i < rec.in.length; i++) {
       const inp = rec.in[i];
-      const port = P.ins[i];
-      const s = { port, chain: [], top: false };
+      const s = { port: P.ins[i], chain: [], top: false };
       const per = inp.amount * 60 / rec.seconds;               // items/min at tier 1
       if (RAW.has(inp.item)) {
         const n = Math.max(1, Math.ceil(per / 15 - 1e-9));
         for (let j = 0; j < n; j++) {
           const e = this.extractorInto(inp.item, s, ex);
-          if (!e) { if (j) break; return null; }          // extra feeds are best effort
-          if (!e.old) pieces.push(e.ext); else connect.push(e.ext);
+          if (!e) { if (j) break; return false; }          // extra feeds are best effort
+          if (e.feed) this.rewired.push(e.feed);
+          else if (!e.old) pieces.push(e.ext); else connect.push(e.ext);
           pieces.push(...e.belts); s.chain.push(...e.belts);
           for (const t of [e.ext, ...e.belts]) ex.add(key(t.x, t.y));
-          if (e.old) this.waiting = this.waiting.filter(w => w !== e.ext);
+          if (e.old === true) this.waiting = this.waiting.filter(w => w !== e.ext);
         }
       } else {
-        const up = MAIN[inp.item];
-        const r2 = REC[up];
+        const up = MAIN[inp.item], r2 = REC[up];
         const n = Math.max(1, Math.ceil(per / (r2.out[0].amount * 60 / r2.seconds) - 1e-9));
         for (let j = 0; j < n; j++) {
           const before = pieces.length;
-          if (!this.line(up, s, ex, pieces, connect)) { pieces.length = before; if (j) break; return null; }
-          for (const t of pieces.slice(before)) { for (const f of footprint(t)) ex.add(key(...f)); }
+          if (!this.line(up, s, ex, pieces, connect, depth + 1)) { pieces.length = before; if (j) break; return false; }
+          for (const t of pieces.slice(before)) for (const f of footprint(t)) ex.add(key(...f));
           s.chain.push(...this.lastOut);
         }
       }
     }
-    return pieces;
+    return true;
   }
 
   // ---- script actions -> pieces to place now (null: not possible)
   build(act) {
     const [a, x] = act;
+    for (const f of this.feeds) f.taken = false;
+    this.freed = new Set(); this.rewired = [];
     if (a === 'lab') return { pieces: [{ id: 3013, x: SITES[x][0], y: SITES[x][1], o: 0 }] };
     if (a === 'pre') {
       const n = this.nearestNodes(x, this.center())[0];
@@ -196,7 +223,14 @@ export class Planner {
       const s = this.labSink(); if (!s) return null;
       const e = this.extractorInto(x, s);
       if (!e) return null;
-      return { pieces: e.old ? e.belts : [e.ext, ...e.belts], after: () => { this.trunks.push({ port: s.port, chain: e.belts }); if (e.old) this.waiting = this.waiting.filter(w => w !== e.ext); } };
+      if (e.feed) return null;                                   // a feed never steals another feed
+      return { pieces: e.old ? e.belts : [e.ext, ...e.belts], after: () => {
+        this.trunks.push({ port: s.port, chain: e.belts });
+        this.markDeps(e.belts);
+        const f = { res: x, ext: e.ext, belts: e.belts, deps: 0 };
+        this.feeds.push(f); for (const b of e.belts) this.owner.set(key(b.x, b.y), f);
+        if (e.old) this.waiting = this.waiting.filter(w => w !== e.ext);
+      } };
     }
     if (a === 'line') {
       const s = this.labSink(); if (!s) return null;
@@ -205,8 +239,13 @@ export class Planner {
       const pieces = this.line(x, s);
       s.top = false;
       if (!pieces) { this.waiting = saveWaiting; return null; }
-      const out = this.topOut;
-      return { pieces, undo: () => { this.waiting = saveWaiting; }, after: () => this.trunks.push({ port: s.port, chain: out }) };
+      const out = this.topOut, rew = [...this.rewired];
+      const gone = new Set(rew.flatMap(f => f.belts.map(b => key(b.x, b.y))));
+      return { pieces, remove: gone, undo: () => { this.waiting = saveWaiting; }, after: () => {
+        this.trunks.push({ port: s.port, chain: out });
+        for (const f of rew) { this.feeds = this.feeds.filter(g => g !== f); for (const t of this.trunks) t.chain = t.chain.filter(b => !gone.has(key(b.x, b.y))); }
+        this.markDeps(pieces.filter(b => b.id === 3000));
+      } };
     }
     return null;
   }
@@ -229,7 +268,12 @@ export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
       }
       if (plan.pieces.some(b => run.canPlace(b))) break;         // still locked: wait for research
       const cost = plan.pieces.reduce((s, b) => s + buildCost(b.id, b.tier || 1), 0);
-      if (cost > run.gold) break;
+      if (cost > run.gold && !(plan.remove && plan.remove.size)) break;
+      if (plan.remove && plan.remove.size) {
+        const refund = run.bs.filter(b => b.id === 3000 && plan.remove.has(key(b.x, b.y))).reduce((s, b) => s + buildCost(b.id), 0);
+        if (cost > run.gold + refund) break;
+        run.remove(b => b.id === 3000 && plan.remove.has(key(b.x, b.y)));
+      }
       if (!run.place(plan.pieces)) { if (plan.undo) plan.undo(); plan = null; break; }
       if (plan.after) plan.after();
       plan = null; i++;
