@@ -158,9 +158,13 @@ def _copy_window(win):
     return copy.copy(win)
 
 
-def build(net, win, assign=None):
+def build(net, win, assign=None, open_ends=False):
     """The placement model of net in win: Model(win, flows=False) plus edge labels.
-    Every link carries its edge number in binary (k bits); rules are plain clauses."""
+    Every link carries its edge number in binary (k bits); rules are plain clauses.
+    open_ends: every node j gets a presence literal mod.R[j] (pass them as assumptions). An absent node is not
+    placed and its edges are open: a belt carrying an edge whose end node is absent may stop dead on any tile, one
+    whose start node is absent may begin on any tile. Looser than the network, so a set of present nodes that is
+    already infeasible (an assumption core) rules out every network that contains it."""
     mod = Model(win, flows=False)
     m, X = mod.m, mod.X
     E = net['edges']
@@ -222,9 +226,30 @@ def build(net, win, assign=None):
             m.AddBoolOr(neg(conds) + [x for b in range(k) for x in
                                       ((bits[t][b].Not(), bits[u][b].Not()) if (v >> b) & 1 else (bits[t][b], bits[u][b]))])
 
+    for t, a in act.items():                            # unused links: bits 0 (no empty-slot duplicates)
+        if a is not True:
+            for x in bits[t]:
+                m.AddImplication(a.Not(), x.Not())
     nact = lambda ts: sum(1 if act[t] is True else act[t] for t in ts)
     A = {}
     nodes = [('S', [a], list(b)) for a, b in net['split']] + [('M', list(a), [b]) for a, b in net['merge']]
+    R, IS, cons, prod = {}, {}, {}, {}
+    if open_ends:
+        R = {j: m.NewBoolVar('r%d' % j) for j in range(len(nodes))}
+        for j, (kind, ins_e, outs_e) in enumerate(nodes):
+            for e in ins_e:
+                cons[e] = j
+            for e in outs_e:
+                prod[e] = j
+
+    def is_e(t, e):                                     # literal: term t carries edge e (bits spell e)
+        if (t, e) not in IS:
+            v = IS[t, e] = m.NewBoolVar('')
+            lits = [bits[t][b] if (e >> b) & 1 else bits[t][b].Not() for b in range(k)]
+            for x in lits:
+                m.AddImplication(v, x)
+            m.AddBoolOr([x.Not() for x in lits] + [v])
+        return IS[t, e]
     for p in mod.cells:
         sp = [X[p, 'S%d' % o] for o in range(4)]
         bl = [X[p, 'B%d' % o] for o in range(4)]
@@ -249,15 +274,29 @@ def build(net, win, assign=None):
         # its edge on
         plain = m.NewBoolVar('')
         others = bl + sp + [X[p, kk + str(o)] for kk in 'IO' for o in range(4) if (p, kk + str(o)) in X]
-        m.Add(plain + msum + ssum == sum(others))
-        m.Add(nact(tin[p]) == 1).OnlyEnforceIf(plain)
-        m.Add(nact(tout[p]) == 1).OnlyEnforceIf(plain)
+        if not open_ends:
+            m.Add(plain + msum + ssum == sum(others))
+            m.Add(nact(tin[p]) == 1).OnlyEnforceIf(plain)
+            m.Add(nact(tout[p]) == 1).OnlyEnforceIf(plain)
+        else:                                           # pass on, dead end (1 in, 0 out) or fresh start (0 in, 1 out)
+            dead, start = m.NewBoolVar(''), m.NewBoolVar('')
+            m.Add(plain + dead + start + msum + ssum == sum(others))
+            for v, a, b in ((plain, 1, 1), (dead, 1, 0), (start, 0, 1)):
+                m.Add(nact(tin[p]) == a).OnlyEnforceIf(v)
+                m.Add(nact(tout[p]) == b).OnlyEnforceIf(v)
+            for e in range(E):                          # only an edge whose end (start) node is absent
+                for t in tin[p]:
+                    m.AddBoolOr([dead.Not(), act[t].Not() if act[t] is not True else dead.Not(), is_e(t, e).Not()]
+                                + ([R[cons[e]].Not()] if e in cons else []))
+                for u in tout[p]:
+                    m.AddBoolOr([start.Not(), act[u].Not() if act[u] is not True else start.Not(), is_e(u, e).Not()]
+                                + ([R[prod[e]].Not()] if e in prod else []))
         for t in tin[p]:
             for u in tout[p]:
                 same([plain, act[t], act[u]], t, u)
     for j in range(len(nodes)):
-        m.Add(sum(A[p, j] for p in mod.cells) == 1)
-    mod.A, mod.bits = A, bits
+        m.Add(sum(A[p, j] for p in mod.cells) == (R[j] if open_ends else 1))
+    mod.A, mod.bits, mod.R = A, bits, R
     return mod
 
 
@@ -489,6 +528,10 @@ def build_cls(net, win, assign=None):
             m.AddBoolOr([x.Not() for x in lits] + ([a.Not()] if a is not True else []) + [v])
         return IS[t, c]
 
+    for t, a in act.items():                            # an unused link carries no label: its bits are 0, so
+        if a is not True:                               # the solver never tells apart two empty slots
+            for x in bits[t]:
+                m.AddImplication(a.Not(), x.Not())
     nact = lambda ts: sum(1 if act[t] is True else act[t] for t in ts)
     A = {}
     for p in mod.cells:
