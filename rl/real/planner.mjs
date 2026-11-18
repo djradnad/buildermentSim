@@ -392,11 +392,33 @@ export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
         if (!run.place([lab])) break;
         i++; plan = null; continue;
       }
+      if (act[0] === 'clean') {
+        // delete everything whose output no longer reaches a standing lab (old stage lines backed up for good),
+        // full refund; waiting (pre-built) extractors stay
+        const useful = new Set(), fp = new Map();
+        for (const b of run.bs) for (const [x, y] of footprint(b)) fp.set(key(x, y), b);
+        const outTile = b => { if (b.id === 3000) return key(b.x + DV[b.o][0], b.y + DV[b.o][1]); const o = ports(b).outs[0]; return o ? key(o.x + DV[o.dir][0], o.y + DV[o.dir][1]) : null; };
+        for (const b of run.bs) if (b.id === 3013) useful.add(b);
+        for (let changed = true; changed;) {
+          changed = false;
+          for (const b of run.bs) if (!useful.has(b)) { const t = outTile(b), nb = t && fp.get(t); if (nb && useful.has(nb)) { useful.add(b); changed = true; } }
+        }
+        const keepW = new Set(P.waiting.map(e => key(e.x, e.y)));
+        const gone = new Set(run.bs.filter(b => !useful.has(b) && !(b.id === 3004 && keepW.has(key(b.x, b.y)))));
+        if (gone.size) {
+          const gk = new Set([...gone].map(b => key(b.x, b.y)));
+          run.remove(b => gone.has(b));
+          P.trunks = P.trunks.filter(t => !t.chain.some(b => gk.has(key(b.x, b.y))));
+          P.feeds = P.feeds.filter(f => !gk.has(key(f.ext.x, f.ext.y)));
+          for (const k of gk) P.owner.delete(k);
+        }
+        i++; plan = null; continue;
+      }
       if (act[0] === 'dellab') { const [sx, sy] = SITES[act[1]]; run.remove(b => b.id === 3013 && b.x === sx && b.y === sy); i++; plan = null; continue; }
       if (!plan) {
         if (run.tick < (act.next || 0)) break;                  // re-plan at most once a second
         const _t0 = Date.now(); plan = P.build(act);
-        if (process.env.PEXIT && !plan && act[0] === "line") {
+        if (process.env.PEXIT && !plan && act[0] === "line" && (process.env.PEXIT === "1" || act[1] === process.env.PEXIT)) {
           const c = P.center(); fs.writeSync(2, 'labs ' + JSON.stringify(P.labs().map(L => [L.x, L.y])) + ' bs ' + run.bs.length + ' waiting ' + JSON.stringify(P.waiting.map(e => [e.x, e.y, run.node.get(key(e.x, e.y))])) + '\n');
           for (const r of ['Copper Ore', 'Iron Ore']) fs.writeSync(2, r + ' ' + JSON.stringify(P.nearestNodes(r, c).slice(0, 12)) + '\n');
           const occ = P.occBase(); let rows = [];

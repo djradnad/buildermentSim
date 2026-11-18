@@ -68,6 +68,7 @@ export function script(item, params = []) {
     if (!site) out.push(['lab', [sp.x, sp.y]]);
     else if (site[0] !== sp.x || site[1] !== sp.y) { out.push(['movelab', [sp.x, sp.y]]); prev = site; }
     site = [sp.x, sp.y];
+    if (p.clean && i > 0) out.push(['clean']);             // old stage lines no lab can take from: delete for gold
     for (const it of st.items) {
       const mult = RAW.has(it) ? 1 + (p.feeds || 0) : 1 + (p.lines || 0);
       for (const [r, n] of Object.entries(rawNeeds(it))) for (const k of nearestUnused(run, r, sp.x, sp.y, n * mult, used)) used.add(k);
