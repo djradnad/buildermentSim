@@ -1,3 +1,4 @@
+import fs from 'fs';
 // Turns high-level speedrun decisions into real placements for the runner.
 // Script actions (each waits until it is affordable and unlocked, like the abstract replays):
 //   ['lab', site]           research lab at lab site A/B/C (same sites as rl/econ.py)
@@ -62,6 +63,24 @@ export class Planner {
       return { id: 3000, x: t[0], y: t[1], o: d };
     });
   }
+  // tiles that can reach one of the goals within maxLen steps (grid moves are reversible, so one BFS from the goals);
+  // a route from a start outside this set is impossible, so routeTo can be skipped
+  reach(goals, extra = new Set(), maxLen = 60) {
+    const base = this.occBase(), fr = this.freed;
+    const occ = k => (base.has(k) && !fr.has(k)) || extra.has(k);
+    const seen = new Set(); let q = [];
+    for (const k of goals.keys()) if (!occ(k)) { seen.add(k); q.push(k.split(',').map(Number)); }
+    for (let depth = 0; q.length && depth < maxLen; depth++) {
+      const nq = [];
+      for (const [x, y] of q) for (let d = 0; d < 4; d++) {
+        const nx = x + DV[d][0], ny = y + DV[d][1], k = key(nx, ny);
+        if (seen.has(k) || occ(k)) continue;
+        seen.add(k); nq.push([nx, ny]);
+      }
+      q = nq;
+    }
+    return seen;
+  }
   // goals that deliver into an input port, or side-load into a belt chain already feeding it
   goalsFor(port, chain = []) {
     const goals = new Map(), occ = this.occBase();
@@ -114,30 +133,45 @@ export class Planner {
   extractorInto(res, sink, extra = new Set()) {
     const c = sink.port;
     let cands = this.waiting.filter(e => this.r.node.get(key(e.x, e.y)) === res).map(e => [e, true]);
-    for (const n of this.nearestNodes(res, [c.x, c.y]).slice(0, 4)) for (const o of [0, 1, 2, 3]) cands.push([{ id: 3004, x: n[0], y: n[1], o }, false]);
+    for (const n of this.nearestNodes(res, [c.x, c.y]).slice(0, 10)) for (const o of [0, 1, 2, 3]) cands.push([{ id: 3004, x: n[0], y: n[1], o }, false]);
     // re-route an existing lab feed of this resource that nothing else joins (players reroute ore like this)
     for (const f of this.feeds) if (f.res === res && !f.deps && !f.taken) cands.push([f.ext, 'feed', f]);
     let best = null;
+    const goals = this.sinkGoals(sink), can0 = this.reach(goals, extra, 60);
     for (const [e, old, f] of cands) {
+      const can = f ? null : can0;                               // freeing a feed's belts opens tiles: no filter
       if (f) for (const b of f.belts) this.freed.add(key(b.x, b.y));
-      const os = old ? [e.o] : [0, 1, 2, 3];
+      // a waiting extractor facing a blocked side can be deleted and placed again turned (full refund, its buffer
+      // is lost); its own facing is tried first
+      const os = old === true ? [e.o, ...[0, 1, 2, 3].filter(o => o !== e.o)] : old ? [e.o] : [0, 1, 2, 3];
       for (const o of os) {
         const ex = { ...e, o }, out = ports(ex).outs[0];
-        const bl = this.routeTo([[out.x + DV[out.dir][0], out.y + DV[out.dir][1]]], this.sinkGoals(sink), extra, best ? best.belts.length : 60);
-        if (bl && (!best || bl.length < best.belts.length)) best = { ext: ex, old, belts: bl, feed: f };
+        const st = [out.x + DV[out.dir][0], out.y + DV[out.dir][1]];
+        if (process.env.PDEBUG3 && res === process.env.PDEBUG3) { const occ = this.occBase(); fs.writeSync(2, `   cand ${e.x},${e.y} old=${old} o=${o} st=${st} reach=${can ? can.has(key(...st)) : '-'} occ=${occ.has(key(...st))} extra=${extra.has(key(...st))} goals=${goals.size} canN=${can0.size}\n`); }
+        if (can && !can.has(key(...st))) continue;
+        const bl = this.routeTo([st], goals, extra, best ? best.belts.length : 60);
+        if (bl && (!best || bl.length < best.belts.length)) best = old === true && o !== e.o ? { ext: { id: e.id, x: e.x, y: e.y, o }, old: 'rot', prev: e, belts: bl } : { ext: ex, old, belts: bl, feed: f };
       }
       if (f && !(best && best.feed === f)) for (const b of f.belts) this.freed.delete(key(b.x, b.y));
-      if (best && old === true) break;
+      if (best && (best.old === true || best.old === 'rot')) break;
     }
     if (best && best.feed) best.feed.taken = true;
     return best;
   }
 
+  rawInReach(res, R) {
+    const near = (x, y) => DV.some(([dx, dy]) => R.has(key(x + dx, y + dy)));
+    if (this.waiting.some(e => this.r.node.get(key(e.x, e.y)) === res && near(e.x, e.y))) return true;
+    const occ = this.occBase();
+    for (const t of R) { const [x, y] = t.split(',').map(Number); for (const [dx, dy] of DV) { const k = key(x + dx, y + dy); if (this.r.node.get(k) === res && !occ.has(k)) return true; } }
+    return false;
+  }
   machineSpots(bid, recipeId, sink, extra, K = 6) {
     // free spots near the sink whose output can reach it, shortest output belt first; [{b, belts}]
     const c = [sink.port.x, sink.port.y];
     const found = [];
     const base = this.occBase();
+    const goals = this.sinkGoals(sink), can = this.reach(goals, extra, 40);
     for (let r = 2; r <= 16 && found.length < K; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       for (const o of [0, 1, 2, 3]) {
@@ -152,8 +186,20 @@ export class Planner {
         if (inT.some(([x, y]) => base.has(key(x, y)) || ex2.has(key(x, y)))) continue;
         const ex3 = new Set([...ex2, ...inT.map(t => key(...t))]);
         if (inT.some(([x, y]) => DV.every(([ddx, ddy]) => { const k = key(x + ddx, y + ddy); return base.has(k) || ex3.has(k); }))) continue;
-        const bl = this.routeTo([[out.x + DV[out.dir][0], out.y + DV[out.dir][1]]], this.sinkGoals(sink), ex3, 40);
-        if (bl) found.push({ b, belts: bl });
+        if (!can.has(key(out.x + DV[out.dir][0], out.y + DV[out.dir][1]))) continue;
+        const bl = this.routeTo([[out.x + DV[out.dir][0], out.y + DV[out.dir][1]]], goals, ex3, 40);
+        if (!bl) continue;
+        // each input must open onto room to bring its feed in: a raw input needs a usable node of its resource in
+        // reach (a free node or a waiting extractor), any other input a pocket big enough for a machine line
+        const ex4 = new Set([...ex2, ...bl.map(t => key(t.x, t.y))]);
+        const rec = Object.values(REC).find(r => r.id === recipeId);
+        let ok = true;
+        for (let i = 0; i < P.ins.length && ok; i++) {
+          const R = this.reach(this.goalsFor(P.ins[i]), ex4, 60), item = rec && rec.in[i] && rec.in[i].item;
+          if (RAW.has(item)) ok = this.rawInReach(item, R);
+          else ok = R.size >= 80;
+        }
+        if (ok) found.push({ b, belts: bl });
       }
     }
     return found.sort((p, q) => p.belts.length - q.belts.length).slice(0, K);
@@ -162,8 +208,12 @@ export class Planner {
   // full chain for one machine of recipe k feeding sink; pieces appended, null if it can't be laid out
   line(k, sink, extra = new Set(), pieces = [], connect = [], depth = 0) {
     const rec = REC[k], bid = GAMEDATA.buildings[rec.building].id;
+    if (depth === 0) this.budget = 400;                      // backtracking budget per top-level line (machine spot searches)
+    if (--this.budget < 0) return null;
     const cands = this.machineSpots(bid, rec.id, sink, extra, depth ? 3 : 6);
+    if (process.env.PDEBUG2) fs.writeSync(2, `${' '.repeat(depth*2)}line ${k} cands ${cands.length} budget ${this.budget}\n`);
     for (const m of cands) {
+      if (this.budget < 0) break;
       const before = pieces.length, waiting0 = [...this.waiting];
       if (this.feedMachine(rec, m, extra, pieces, connect, depth)) {
         if (sink.top) this.topOut = m.belts;
@@ -187,9 +237,11 @@ export class Planner {
         const n = Math.max(1, Math.ceil(per / 15 - 1e-9));
         for (let j = 0; j < n; j++) {
           const e = this.extractorInto(inp.item, s, ex);
-          if (!e) { if (j) break; return false; }          // extra feeds are best effort
+          if (!e) { if (process.env.PDEBUG2) fs.writeSync(2, `${' '.repeat(depth*2)} no extractor ${inp.item} j=${j}\n`); if (j) break; return false; }          // extra feeds are best effort
           if (e.feed) this.rewired.push(e.feed);
-          else if (!e.old) pieces.push(e.ext); else connect.push(e.ext);
+          else if (!e.old) pieces.push(e.ext);
+          else if (e.old === 'rot') { pieces.push(e.ext); this.replaced.push(e.prev); this.waiting = this.waiting.filter(w => w !== e.prev); }
+          else connect.push(e.ext);
           pieces.push(...e.belts); s.chain.push(...e.belts);
           for (const t of [e.ext, ...e.belts]) ex.add(key(t.x, t.y));
           if (e.old === true) this.waiting = this.waiting.filter(w => w !== e.ext);
@@ -212,7 +264,7 @@ export class Planner {
   build(act) {
     const [a, x] = act;
     for (const f of this.feeds) f.taken = false;
-    this.freed = new Set(); this.rewired = [];
+    this.freed = new Set(); this.rewired = []; this.replaced = [];
     if (a === 'lab') { const p = Array.isArray(x) ? x : SITES[x]; return { pieces: [{ id: 3013, x: p[0], y: p[1], o: 0 }] }; }
     if (a === 'pre') {
       const n = this.nearestNodes(x, act[2] || this.center())[0];
@@ -228,12 +280,12 @@ export class Planner {
       const e = this.extractorInto(x, s);
       if (!e) return null;
       if (e.feed) return null;                                   // a feed never steals another feed
-      return { pieces: e.old ? e.belts : [e.ext, ...e.belts], after: () => {
+      return { pieces: e.old === true ? e.belts : [e.ext, ...e.belts], removeB: e.old === 'rot' ? [e.prev] : [], after: () => {
         this.trunks.push({ port: s.port, chain: e.belts });
         this.markDeps(e.belts);
         const f = { res: x, ext: e.ext, belts: e.belts, deps: 0 };
         this.feeds.push(f); for (const b of e.belts) this.owner.set(key(b.x, b.y), f);
-        if (e.old) this.waiting = this.waiting.filter(w => w !== e.ext);
+        if (e.old) this.waiting = this.waiting.filter(w => w !== e.ext && w !== e.prev);
       } };
     }
     if (a === 'line') {
@@ -245,7 +297,7 @@ export class Planner {
       if (!pieces) { this.waiting = saveWaiting; return null; }
       const out = this.topOut, rew = [...this.rewired];
       const gone = new Set(rew.flatMap(f => f.belts.map(b => key(b.x, b.y))));
-      return { pieces, remove: gone, undo: () => { this.waiting = saveWaiting; }, after: () => {
+      return { pieces, remove: gone, removeB: [...this.replaced], undo: () => { this.waiting = saveWaiting; }, after: () => {
         this.trunks.push({ port: s.port, chain: out });
         for (const f of rew) { this.feeds = this.feeds.filter(g => g !== f); for (const t of this.trunks) t.chain = t.chain.filter(b => !gone.has(key(b.x, b.y))); }
         this.markDeps(pieces.filter(b => b.id === 3000));
@@ -256,6 +308,7 @@ export class Planner {
 }
 
 // play a script; returns {first, log, gold}
+function footprintHas(b, x, y) { return footprint(b).some(t => t[0] === x && t[1] === y); }
 export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
   const P = new Planner(run);
   let i = 0, plan = null;
@@ -293,18 +346,27 @@ export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
       if (act[0] === 'dellab') { const [sx, sy] = SITES[act[1]]; run.remove(b => b.id === 3013 && b.x === sx && b.y === sy); i++; plan = null; continue; }
       if (!plan) {
         if (run.tick < (act.next || 0)) break;                  // re-plan at most once a second
-        plan = P.build(act);
+        const _t0 = Date.now(); plan = P.build(act);
+        if (process.env.PEXIT && !plan && act[0] === "line") {
+          const c = P.center(); fs.writeSync(2, 'labs ' + JSON.stringify(P.labs().map(L => [L.x, L.y])) + ' bs ' + run.bs.length + ' waiting ' + JSON.stringify(P.waiting.map(e => [e.x, e.y, run.node.get(key(e.x, e.y))])) + '\n');
+          for (const r of ['Copper Ore', 'Iron Ore']) fs.writeSync(2, r + ' ' + JSON.stringify(P.nearestNodes(r, c).slice(0, 12)) + '\n');
+          const occ = P.occBase(); let rows = [];
+          for (let y = c[1] - 14; y <= c[1] + 14; y++) { let row = ''; for (let x = c[0] - 20; x <= c[0] + 20; x++) { const k = key(x, y), b = run.bs.find(b => footprintHas(b, x, y)); row += b ? (b.id === 3000 ? '=' : b.id === 3013 ? 'L' : b.id === 3004 ? 'E' : 'M') : run.node.has(k) ? run.node.get(k)[0].toLowerCase() : '.'; } rows.push(row); }
+          fs.writeSync(2, rows.join('\n') + '\n'); process.exit(0); }
+        if (process.env.PDEBUG) fs.writeSync(2, `t=${(run.tick/60).toFixed(1)} ${JSON.stringify(act)} ${plan ? 'ok' : 'fail'} ${Date.now()-_t0}ms\n`);
         if (!plan) { act.tries = (act.tries || 0) + 1; act.next = run.tick + 60; if (act.tries > 20) i++; break; }
       }
       if (plan.pieces.some(b => run.canPlace(b))) break;         // still locked: wait for research
-      const cost = plan.pieces.reduce((s, b) => s + buildCost(b.id, b.tier || 1), 0);
+      const rb = plan.removeB || [];
+      const cost = plan.pieces.reduce((s, b) => s + buildCost(b.id, b.tier || 1), 0) - rb.reduce((s, b) => s + buildCost(b.id, b.tier || 1), 0);
       if (cost > run.gold && !(plan.remove && plan.remove.size)) break;
       if (plan.remove && plan.remove.size) {
         const refund = run.bs.filter(b => b.id === 3000 && plan.remove.has(key(b.x, b.y))).reduce((s, b) => s + buildCost(b.id), 0);
         if (cost > run.gold + refund) break;
         run.remove(b => b.id === 3000 && plan.remove.has(key(b.x, b.y)));
       }
-      if (!run.place(plan.pieces)) { if (plan.undo) plan.undo(); plan = null; break; }
+      if (rb.length) run.remove(b => rb.includes(b));
+      if (!run.place(plan.pieces)) { if (rb.length) run.place(rb); if (plan.undo) plan.undo(); plan = null; break; }
       if (plan.after) plan.after();
       plan = null; i++;
     }
