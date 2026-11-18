@@ -12,6 +12,19 @@ for (const it of items) {
   if (out[it] && out[it].done) { P_('SKIP', it, out[it].seconds.toFixed(1)); continue; }
   const n = techsFor(it).length + 1;
   let params = out[it] ? out[it].params : Array.from({ length: n }, () => ({ site: 0, feeds: 1, lines: 0, pre: 4 }));
+  // seed (SEED=file of solved items): the stages a solved item shares with this one (same tech prefix) start
+  // from its found params
+  if (!out[it] && process.env.SEED && fs.existsSync(process.env.SEED)) {
+    const seeds = JSON.parse(fs.readFileSync(process.env.SEED)), mine = techsFor(it).map(t => t.id);
+    let bestK = 0, bestP = null;
+    for (const [o, v] of Object.entries(seeds)) {
+      if (o === it || !v.params) continue;
+      const th = techsFor(o).map(t => t.id);
+      let k = 0; while (k < th.length && k < mine.length && th[k] === mine[k]) k++;
+      if (k === th.length && k > bestK) { bestK = k; bestP = v.params; }   // its whole tech list is my prefix
+    }
+    if (bestP) { for (let i = 0; i < bestK; i++) params[i] = { ...bestP[i] }; P_(it, 'seeded', bestK, 'stages'); }
+  }
   const ev = (p, lim = CAP) => { try { return evaluate(it, script(it, p).script, Math.min(CAP, lim)); } catch (e) { return Infinity; } };
   let best = ev(params), evals = 1;
   for (let pass = 0; pass < 4; pass++) {
