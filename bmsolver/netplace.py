@@ -296,8 +296,31 @@ def build(net, win, assign=None, open_ends=False):
                 same([plain, act[t], act[u]], t, u)
     for j in range(len(nodes)):
         m.Add(sum(A[p, j] for p in mod.cells) == (R[j] if open_ends else 1))
+    if not assign:
+        _mirror_break(m, A, nodes, win, mod)
     mod.A, mod.bits, mod.R = A, bits, R
     return mod
+
+
+def _mirror_break(m, A, nodes, win, mod):
+    """Top/bottom mirror symmetry break (NETPLACE_MIRROR=1). The game is mirror symmetric and ports are
+    interchangeable, so the mirror image of a layout of net is again a layout of net when the window's port set is
+    mirror symmetric. Any layout or its mirror has the chosen node in the top half (middle row allowed), so asking
+    for that keeps one of each pair: sound for proofs."""
+    import os
+    if os.environ.get('NETPLACE_MIRROR', '0') != '1' or win.blocked or getattr(win, 'port_options', None):
+        return
+    H = win.H
+    flip = {0: 2, 2: 0, 1: 1, 3: 3}
+    ports = {(p, d) for (p, d) in win.ports}
+    if {((p[0], H - 1 - p[1]), flip[d]) for (p, d) in ports} != ports:
+        return
+    # the node with the most freedom: a 2-way splitter if any (3-way ones are pinned to middle rows anyway)
+    cand = [j for j, n in enumerate(nodes) if n[0] == 'S' and len(n[2]) == 2] or list(range(len(nodes)))
+    j0 = cand[0]
+    for p in mod.cells:
+        if 2 * p[1] > H - 1:
+            m.Add(A[p, j0] == 0)
 
 
 def build1(net, win):
