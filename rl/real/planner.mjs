@@ -215,7 +215,7 @@ export class Planner {
   // full chain for one machine of recipe k feeding sink; pieces appended, null if it can't be laid out
   line(k, sink, extra = new Set(), pieces = [], connect = [], depth = 0) {
     const rec = REC[k], bid = GAMEDATA.buildings[rec.building].id;
-    if (depth === 0) this.budget = 400;                      // backtracking budget per top-level line (machine spot searches)
+    if (depth === 0) this.budget = this.robust ? 150 : 400;                      // backtracking budget per top-level line (machine spot searches)
     if (--this.budget < 0) return null;
     const cands = this.machineSpots(bid, rec.id, sink, extra, depth ? 3 : 6);
     if (process.env.PDEBUG2) fs.writeSync(2, `${' '.repeat(depth*2)}line ${k} cands ${cands.length} budget ${this.budget}\n`);
@@ -302,7 +302,7 @@ export class Planner {
     const [a, x] = act;
     for (const f of this.feeds) f.taken = false;
     this.freed = new Set(); this.rewired = []; this.replaced = [];
-    if (a === 'lab') { const p = Array.isArray(x) ? x : SITES[x]; return { pieces: [{ id: 3013, x: p[0], y: p[1], o: 0 }] }; }
+    if (a === 'lab') { const p = Array.isArray(x) ? x : SITES[x]; const lab = freeLabSpot(this.r, p[0], p[1]); return lab ? { pieces: [lab] } : null; }
     if (a === 'pre') {
       const n = this.nearestNodes(x, act[2] || this.center())[0];
       if (!n) return null;
@@ -345,6 +345,17 @@ export class Planner {
 }
 
 // play a script; returns {first, log, gold}
+// nearest spot to (x, y) where a lab fits (no building or ore node under it); `ignore` = a building about to go
+function freeLabSpot(run, x, y, ignore = null) {
+  const occ = new Set();
+  for (const b of run.bs) if (b !== ignore) for (const [bx, by] of footprint(b)) occ.add(key(bx, by));
+  for (let r = 0; r <= 10; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    const lab = { id: 3013, x: x + dx, y: y + dy, o: 0 };
+    if (footprint(lab).every(([fx, fy]) => !occ.has(key(fx, fy)) && !run.node.has(key(fx, fy)))) return lab;
+  }
+  return null;
+}
 function footprintHas(b, x, y) { return footprint(b).some(t => t[0] === x && t[1] === y); }
 export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
   const P = new Planner(run);
@@ -360,8 +371,9 @@ export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
         // stands there again
         const L = run.bs.filter(b => b.id === 3013);
         const old = L[L.length - 1];
-        const lab = { id: 3013, x: act[1][0], y: act[1][1], o: 0 };
-        if (old && old.x === lab.x && old.y === lab.y) { i++; continue; }
+        if (old && old.x === act[1][0] && old.y === act[1][1]) { i++; continue; }
+        const lab = freeLabSpot(run, act[1][0], act[1][1], old);
+        if (!lab) { i++; continue; }
         if (!old) { if (!run.place([lab])) break; i++; continue; }
         if (run.gold + buildCost(3013) < buildCost(3013)) break;
         run.remove(b => b === old);
@@ -402,7 +414,8 @@ export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
         if (cost > run.gold + refund) break;
         run.remove(b => b.id === 3000 && plan.remove.has(key(b.x, b.y)));
       }
-      if (rb.length) run.remove(b => rb.includes(b));
+      const same = b => rb.some(o => o.id === b.id && o.x === b.x && o.y === b.y);   // run.bs holds copies
+      if (rb.length) run.remove(same);
       if (!run.place(plan.pieces)) { if (rb.length) run.place(rb); if (plan.undo) plan.undo(); plan = null; break; }
       if (plan.after) plan.after();
       plan = null; i++;

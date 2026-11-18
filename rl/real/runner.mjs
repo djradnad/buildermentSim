@@ -9,7 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Factory, GAMEDATA, RECIPES } from '../../site/js/gamesim.js';
+import { Factory, GAMEDATA, RECIPES, footprint } from '../../site/js/gamesim.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const T = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'data', 'tables.json')));
@@ -56,6 +56,9 @@ export class Run {
     let cost = 0;
     for (const b of list) { if (this.canPlace(b)) return false; cost += buildCost(b.id, b.tier || 1); }
     if (cost > this.gold) return false;
+    // the game refuses a building on a tile that is taken
+    const taken = new Set(); for (const b of this.bs) for (const [x, y] of footprint(b)) taken.add(key(x, y));
+    for (const b of list) for (const [x, y] of footprint(b)) { const k = key(x, y); if (taken.has(k)) { if (process.env.OVDEBUG) fs.writeSync(2, `overlap t=${(this.tick/60).toFixed(1)} ${JSON.stringify(b)} at ${k} by ${JSON.stringify(this.bs.filter(o => footprint(o).some(([ox, oy]) => key(ox, oy) === k)))}\n`); return false; } taken.add(k); }
     this.gold -= cost;
     for (const b of list) this.bs.push({ tier: 1, recipe: 0, filter: 0, ...b });
     this.log.push([this.tick, 'place', list.length, cost]);
