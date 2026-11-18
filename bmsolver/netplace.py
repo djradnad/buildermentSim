@@ -200,10 +200,20 @@ def build(net, win):
             m.AddBoolOr(neg(conds) + [bits[t][b], bits[u][b].Not()])
 
     def member(conds, t, allowed):
-        for v in range(1 << k):
-            if v in allowed:
-                continue
-            m.AddBoolOr(neg(conds) + [bits[t][b].Not() if (v >> b) & 1 else bits[t][b] for b in range(k)])
+        # forbid every value outside allowed with prefix cubes (high bit first): a prefix no allowed value starts
+        # with is one short clause, so about k * len(allowed) clauses instead of 2^k (memory on 6+ rows)
+        allowed = set(allowed)
+        def rec(prefix, depth):
+            b = k - 1 - depth
+            for bit in (0, 1):
+                pre = prefix + [(b, bit)]
+                lo = sum(v << bb for bb, v in pre)
+                hit = [a for a in allowed if all(((a >> bb) & 1) == v for bb, v in pre)]
+                if not hit:
+                    m.AddBoolOr(neg(conds) + [bits[t][bb].Not() if v else bits[t][bb] for bb, v in pre])
+                elif depth + 1 < k:
+                    rec(pre, depth + 1)
+        rec([], 0)
 
     def differ(conds, t, u, values):
         for v in values:
@@ -249,6 +259,82 @@ def build(net, win):
     return mod
 
 
+def build1(net, win):
+    """Same rules as build(), one-hot edge labels instead of binary bits: one boolean per (link, edge). Membership is
+    one clause per (node, tile, link) and 'outputs differ' is node-free (no tile may send or take one edge twice),
+    so the model stays small for 6+ rows (the binary model ran out of memory on a 6:6 at 27x6)."""
+    mod = Model(win, flows=False)
+    m, X = mod.m, mod.X
+    E = net['edges']
+    links = mod.links
+    terms = _port_terms(mod, win)
+    act, L = {}, {}
+    for i, (p, q, l, kind) in enumerate(links):
+        act['L', i] = l
+    for j, (p, kind, l) in enumerate(terms):
+        act['P', j] = l
+    src, snk = set(net['src']), set(net['snk'])
+    port_ok = {}
+    for j, (p, kind, l) in enumerate(terms):
+        port_ok['P', j] = src if kind == 'in' else snk
+    for t, l in act.items():
+        allowed = port_ok.get(t, range(E))
+        L[t] = {e: m.NewBoolVar('') for e in allowed}
+        m.Add(sum(L[t].values()) == (1 if l is True else l))
+    for e in src | snk:                                  # every port edge used exactly once
+        m.Add(sum(L[t][e] for t in L if t[0] == 'P' and e in L[t]) == 1)
+    tin = {p: [('L', i) for i in mod.lin[p]] for p in mod.cells}
+    tout = {p: [('L', i) for i in mod.lout[p]] for p in mod.cells}
+    for j, (p, kind, l) in enumerate(terms):
+        (tin if kind == 'in' else tout)[p].append(('P', j))
+    lit = lambda t, e: L[t].get(e)
+    nact = lambda ts: sum(1 if act[t] is True else act[t] for t in ts)
+    for p in mod.cells:                                  # no tile sends or takes one edge twice
+        for ts in (tin[p], tout[p]):
+            for e in range(E):
+                vs = [lit(t, e) for t in ts if lit(t, e) is not None]
+                if len(vs) > 1:
+                    m.AddAtMostOne(vs)
+    A = {}
+    nodes = [('S', [a], list(b)) for a, b in net['split']] + [('M', list(a), [b]) for a, b in net['merge']]
+    for p in mod.cells:
+        sp = [X[p, 'S%d' % o] for o in range(4)]
+        bl = [X[p, 'B%d' % o] for o in range(4)]
+        for j, (kind, ins_e, outs_e) in enumerate(nodes):
+            v = A[p, j] = m.NewBoolVar('')
+            ol = [X[p, 'O%d' % o] for o in range(4) if (p, 'O%d' % o) in X]
+            m.AddBoolOr(sp if kind == 'S' else bl + ol).OnlyEnforceIf(v)
+            m.Add(nact(tin[p]) == len(ins_e)).OnlyEnforceIf(v)
+            m.Add(nact(tout[p]) == len(outs_e)).OnlyEnforceIf(v)
+            for ts, es in ((tin[p], ins_e), (tout[p], outs_e)):
+                for t in ts:
+                    ok = [lit(t, e) for e in es if lit(t, e) is not None]
+                    cond = [v.Not()] + ([act[t].Not()] if act[t] is not True else [])
+                    m.AddBoolOr(cond + ok)
+        msum = sum(A[p, j] for j, n in enumerate(nodes) if n[0] == 'M')
+        ssum = sum(A[p, j] for j, n in enumerate(nodes) if n[0] == 'S')
+        plain = m.NewBoolVar('')
+        others = bl + sp + [X[p, kk + str(o)] for kk in 'IO' for o in range(4) if (p, kk + str(o)) in X]
+        m.Add(plain + msum + ssum == sum(others))
+        m.Add(nact(tin[p]) == 1).OnlyEnforceIf(plain)
+        m.Add(nact(tout[p]) == 1).OnlyEnforceIf(plain)
+        # a plain tile passes its edge on: tile edge vars T[e] tie its one input and one output
+        T = {e: m.NewBoolVar('') for e in range(E)}
+        m.Add(sum(T.values()) == 1).OnlyEnforceIf(plain)
+        for t in tin[p] + tout[p]:
+            for e in range(E):
+                x = lit(t, e)
+                if x is None:
+                    continue
+                cond = [plain.Not()] + ([act[t].Not()] if act[t] is not True else [])
+                m.AddBoolOr(cond + [x.Not(), T[e]])
+                m.AddBoolOr(cond + [x, T[e].Not()])
+    for j in range(len(nodes)):
+        m.Add(sum(A[p, j] for p in mod.cells) == 1)
+    mod.A, mod.L = A, L
+    return mod
+
+
 def shares(net):
     """For every src edge, the share of it that reaches each snk edge (exact fractions)."""
     from fractions import Fraction as F
@@ -269,10 +355,13 @@ def shares(net):
     return out
 
 
-def place(net, win, timeout=60, workers=1, engine='cpsat'):
+def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None):
     """Is there a layout of net in win? Returns dict(status, time, grid?, same_network?).
     A found layout is read back with extract() and its network compared with net."""
-    res = _place(net, win, timeout, workers, engine)
+    import os
+    if onehot is None:
+        onehot = os.environ.get('NETPLACE_ONEHOT', '0') == '1'
+    res = _place(net, win, timeout, workers, engine, onehot)
     if 'grid' in res:
         try:
             got = extract(res['grid'], win)
@@ -284,9 +373,9 @@ def place(net, win, timeout=60, workers=1, engine='cpsat'):
     return res
 
 
-def _place(net, win, timeout, workers, engine):
+def _place(net, win, timeout, workers, engine, onehot=False):
     t0 = time.time()
-    mod = build(net, win)
+    mod = (build1 if onehot else build)(net, win)
     if engine == 'cpsat':
         sv = cp_model.CpSolver()
         sv.parameters.max_time_in_seconds = timeout
