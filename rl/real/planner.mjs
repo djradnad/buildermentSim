@@ -133,7 +133,7 @@ export class Planner {
   extractorInto(res, sink, extra = new Set()) {
     const c = sink.port;
     let cands = this.waiting.filter(e => this.r.node.get(key(e.x, e.y)) === res).map(e => [e, true]);
-    for (const n of this.nearestNodes(res, [c.x, c.y]).slice(0, 10)) for (const o of [0, 1, 2, 3]) cands.push([{ id: 3004, x: n[0], y: n[1], o }, false]);
+    for (const n of this.nearestNodes(res, [c.x, c.y]).slice(0, this.robust ? 10 : 4)) for (const o of [0, 1, 2, 3]) cands.push([{ id: 3004, x: n[0], y: n[1], o }, false]);
     // re-route an existing lab feed of this resource that nothing else joins (players reroute ore like this)
     for (const f of this.feeds) if (f.res === res && !f.deps && !f.taken) cands.push([f.ext, 'feed', f]);
     let best = null;
@@ -143,7 +143,7 @@ export class Planner {
       if (f) for (const b of f.belts) this.freed.add(key(b.x, b.y));
       // a waiting extractor facing a blocked side can be deleted and placed again turned (full refund, its buffer
       // is lost); its own facing is tried first
-      const os = old === true ? [e.o, ...[0, 1, 2, 3].filter(o => o !== e.o)] : old ? [e.o] : [0, 1, 2, 3];
+      const os = old === true && this.robust ? [e.o, ...[0, 1, 2, 3].filter(o => o !== e.o)] : old ? [e.o] : [0, 1, 2, 3];
       for (const o of os) {
         const ex = { ...e, o }, out = ports(ex).outs[0];
         const st = [out.x + DV[out.dir][0], out.y + DV[out.dir][1]];
@@ -172,7 +172,7 @@ export class Planner {
     const found = [];
     const base = this.occBase();
     const goals = this.sinkGoals(sink), can = this.reach(goals, extra, 40);
-    for (let r = 2; r <= 16 && found.length < K; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+    for (let r = 2; r <= 16 && found.length < (this.robust ? 15 : 1) * K; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       for (const o of [0, 1, 2, 3]) {
         const b = { id: bid, x: c[0] + dx, y: c[1] + dy, o, recipe: recipeId, tier: 1 };
@@ -188,21 +188,28 @@ export class Planner {
         if (inT.some(([x, y]) => DV.every(([ddx, ddy]) => { const k = key(x + ddx, y + ddy); return base.has(k) || ex3.has(k); }))) continue;
         if (!can.has(key(out.x + DV[out.dir][0], out.y + DV[out.dir][1]))) continue;
         const bl = this.routeTo([[out.x + DV[out.dir][0], out.y + DV[out.dir][1]]], goals, ex3, 40);
-        if (!bl) continue;
-        // each input must open onto room to bring its feed in: a raw input needs a usable node of its resource in
-        // reach (a free node or a waiting extractor), any other input a pocket big enough for a machine line
-        const ex4 = new Set([...ex2, ...bl.map(t => key(t.x, t.y))]);
-        const rec = Object.values(REC).find(r => r.id === recipeId);
-        let ok = true;
-        for (let i = 0; i < P.ins.length && ok; i++) {
-          const R = this.reach(this.goalsFor(P.ins[i]), ex4, 60), item = rec && rec.in[i] && rec.in[i].item;
-          if (RAW.has(item)) ok = this.rawInReach(item, R);
-          else ok = R.size >= 80;
-        }
-        if (ok) found.push({ b, belts: bl });
+        if (bl) found.push({ b, belts: bl, ex2 });
       }
     }
-    return found.sort((p, q) => p.belts.length - q.belts.length).slice(0, K);
+    // each input must open onto room to bring its feed in: a raw input needs a usable node of its resource in
+    // reach (a free node or a waiting extractor), any other input a pocket big enough for a machine line.
+    // checked shortest-first and only until K spots pass (the reach floods are the costly part)
+    found.sort((p, q) => p.belts.length - q.belts.length);
+    if (process.env.PDEBUG2) fs.writeSync(2, `      spots ${recipeId}: routed ${found.length} canN ${can.size}\n`);
+    const rec = Object.values(REC).find(r => r.id === recipeId), good = [];
+    for (const { b, belts: bl, ex2 } of found) {
+      if (good.length >= K) break;
+      if (!this.robust) { good.push({ b, belts: bl }); continue; }
+      const P = ports(b), ex4 = new Set([...ex2, ...bl.map(t => key(t.x, t.y))]);
+      let ok = true;
+      for (let i = 0; i < P.ins.length && ok; i++) {
+        const R = this.reach(this.goalsFor(P.ins[i]), ex4, 60), item = rec && rec.in[i] && rec.in[i].item;
+        ok = RAW.has(item) ? this.rawInReach(item, R) : R.size >= 80;
+      }
+      if (ok) good.push({ b, belts: bl });
+      else if (process.env.PDEBUG2 === '2') fs.writeSync(2, `      reject ${recipeId} at ${b.x},${b.y} o${b.o} belt ${bl.length}\n`);
+    }
+    return good;
   }
 
   // full chain for one machine of recipe k feeding sink; pieces appended, null if it can't be laid out
@@ -226,11 +233,30 @@ export class Planner {
   }
 
   feedMachine(rec, m, extra, pieces, connect, depth) {
+    // inputs are fed one after another; when one boxes in another's front, try the other order
+    const n = rec.in.length, orders = n === 2 && this.robust ? [[0, 1], [1, 0]] : [[...Array(n).keys()]];
+    for (const ord of orders) {
+      const before = pieces.length, waiting0 = [...this.waiting], conn0 = connect.length, rew0 = this.rewired.length, rep0 = this.replaced.length;
+      if (this.feedOrdered(rec, m, extra, pieces, connect, depth, ord)) return true;
+      pieces.length = before; this.waiting = waiting0; connect.length = conn0; this.rewired.length = rew0; this.replaced.length = rep0;
+      if (this.budget < 0) break;
+    }
+    return false;
+  }
+  feedOrdered(rec, m, extra, pieces, connect, depth, ord) {
     pieces.push(m.b, ...m.belts);
     const ex = new Set([...extra, ...footprint(m.b).map(t => key(...t)), ...m.belts.map(t => key(t.x, t.y))]);
     const P = ports(m.b);
-    for (let i = 0; i < rec.in.length; i++) {
+    // keep every input's front tile free for its own feed: other feeds' belts may not cross it
+    const fronts = P.ins.map(p => key(p.x + DV[p.dir][0], p.y + DV[p.dir][1]));
+    // and an apron around each waiting front (its free neighbours) so a belt can't wrap it shut
+    const APRON = +(process.env.APRON || 3);
+    const aprons = !this.robust ? P.ins.map(() => []) : P.ins.map(p => [...this.reach(new Map([[key(p.x + DV[p.dir][0], p.y + DV[p.dir][1]), 0]]), ex, APRON)]);
+    const held = new Set();
+    if (this.robust) for (let i = 0; i < fronts.length; i++) for (const k of [fronts[i], ...aprons[i]]) if (!ex.has(k)) { ex.add(k); held.add(k); }
+    for (const i of ord) {
       const inp = rec.in[i];
+      for (const k of [fronts[i], ...aprons[i]]) if (held.has(k)) { ex.delete(k); held.delete(k); }
       const s = { port: P.ins[i], chain: [], top: false };
       const per = inp.amount * 60 / rec.seconds;               // items/min at tier 1
       if (RAW.has(inp.item)) {
@@ -261,7 +287,18 @@ export class Planner {
   }
 
   // ---- script actions -> pieces to place now (null: not possible)
+  // the plain planner first (exact results so far came from it); the robust one (inputs kept reachable, turned
+  // extractors, more nodes, both input orders) only when the plain one finds nothing
   build(act) {
+    this.robust = false;
+    const p = this.build1(act);
+    if (p || (act[0] !== 'line' && act[0] !== 'feed')) return p;
+    this.robust = true;
+    const q = this.build1(act);
+    this.robust = false;
+    return q;
+  }
+  build1(act) {
     const [a, x] = act;
     for (const f of this.feeds) f.taken = false;
     this.freed = new Set(); this.rewired = []; this.replaced = [];

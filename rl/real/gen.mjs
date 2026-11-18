@@ -6,7 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GAMEDATA } from '../../site/js/gamesim.js';
 import { Run } from './runner.mjs';
-import { bestSpots } from './sites.mjs';
+import { bestSpots, nearestUnused } from './sites.mjs';
+const SPOT = { K: 3, near: 6, gap: 12 };   // lab spots anywhere on the map, near the stage's nodes
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const T = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'data', 'tables.json')));
 const RAW = new Set(['Wood Log', 'Iron Ore', 'Copper Ore', 'Stone', 'Coal', 'Wolframite', 'Uranium Ore']);
@@ -52,16 +53,25 @@ export function script(item, params = []) {
   stages.push({ name: 'goal', items: [item] });
   const out = [];
   let site = null, prev = null;
+  const used = new Set();                                   // nodes earlier stages' extractors take
   stages.forEach((st, i) => {
     const p = params[i] || {};
     const needs = {};
     for (const it of st.items) for (const [r, n] of Object.entries(rawNeeds(it))) needs[r] = (needs[r] || 0) + n;
-    const spots = bestSpots(run, needs, { K: 3 });
-    const sp = spots[Math.min(p.site || 0, spots.length - 1)];
+    const spots = bestSpots(run, needs, { ...SPOT, used, center: site || [0, 0] });
+    let sp = spots[Math.min(p.site || 0, spots.length - 1)];
+    if (site && !p.site) {                                  // stay put unless the move saves real belt length
+      const here = bestSpots(run, needs, { reach: 0, K: 1, center: site, used })[0];
+      if (here && here.score <= spots[0].score + 8) sp = here;
+    }
     if (i > 0) out.push(['waitTech', stages[i - 1].id]);   // the previous research must finish first
     if (!site) out.push(['lab', [sp.x, sp.y]]);
     else if (site[0] !== sp.x || site[1] !== sp.y) { out.push(['movelab', [sp.x, sp.y]]); prev = site; }
     site = [sp.x, sp.y];
+    for (const it of st.items) {
+      const mult = RAW.has(it) ? 1 + (p.feeds || 0) : 1 + (p.lines || 0);
+      for (const [r, n] of Object.entries(rawNeeds(it))) for (const k of nearestUnused(run, r, sp.x, sp.y, n * mult, used)) used.add(k);
+    }
     for (const it of st.items) {
       if (RAW.has(it)) for (let k = 0; k < 1 + (p.feeds || 0); k++) out.push(['feed', it]);
       else for (let k = 0; k < 1 + (p.lines || 0); k++) out.push(['line', MAIN[it]]);
@@ -72,7 +82,8 @@ export function script(item, params = []) {
     if (nx && p.pre) {
       const nneeds = {};
       for (const it of nx.items) for (const [r, n] of Object.entries(rawNeeds(it))) nneeds[r] = (nneeds[r] || 0) + n;
-      const ns = bestSpots(run, nneeds, { K: 3 })[Math.min((params[i + 1] || {}).site || 0, 2)];
+      const nsp = bestSpots(run, nneeds, { ...SPOT, used, center: site });
+      const ns = nsp[Math.min((params[i + 1] || {}).site || 0, nsp.length - 1)];
       for (const [r, n] of Object.entries(nneeds)) for (let k = 0; k < Math.min(n, p.pre); k++) out.splice(out.length, 0, ['pre', r, [ns.x, ns.y]]);
     }
   });
