@@ -5,7 +5,7 @@ const lab_belts = (x, y, lx, ly) => Math.max(Math.max(Math.abs(x - lx) - 1, 0) +
 
 // needs: {res: count of extractors wanted}; returns up to K spots [{x, y, score}] (score = belt tiles to the
 // needed nodes, nearest first), at least `gap` tiles apart
-export function bestSpots(run, needs, { reach = 60, K = 3, gap = 6, center = [0, 0], used = new Set(), near = 0 } = {}) {
+export function bestSpots(run, needs, { reach = 60, K = 3, gap = 6, center = [0, 0], used = new Set(), near = 0, maxBelt = 40 } = {}) {
   // near > 0: lab spots anywhere on the map within `near` tiles of a needed node (runners use any cluster);
   // otherwise the square of `reach` around center. `used`: node keys earlier stages already took.
   const occ = new Set();
@@ -35,7 +35,7 @@ export function bestSpots(run, needs, { reach = 60, K = 3, gap = 6, center = [0,
         if (best.length < n) { best.push(d); best.sort((a, b) => a - b); }
         else if (d < best[n - 1]) { best[n - 1] = d; best.sort((a, b) => a - b); }
       }
-      for (const d of best) sc += d;
+      for (const d of best) sc += d > maxBelt ? Infinity : d;   // the planner routes at most ~60 tiles
       if (sc === Infinity) break;
     }
     out.push({ x: lx, y: ly, score: sc });
