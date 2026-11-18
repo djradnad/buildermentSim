@@ -19,7 +19,7 @@ for (const it of items) {
       if (params[i][k] === v) continue;
       const c = params.map(p => ({ ...p })); c[i][k] = v;
       const t = ev(c, isFinite(best) ? best + 1 : 1800); evals++;
-      if (t < best - 1e-9) { best = t; params = c; improved = true; }
+      if (t < best - 1e-9) { best = t; params = c; improved = true; out[it] = { seconds: best, params, done: false }; fs.writeFileSync(dst, JSON.stringify(out)); }
     }
     P_(it, 'pass', pass, 'best', best.toFixed(1), 'evals', evals);
     out[it] = { seconds: best, params, done: false }; fs.writeFileSync(dst, JSON.stringify(out));
