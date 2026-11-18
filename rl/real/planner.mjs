@@ -221,13 +221,13 @@ export class Planner {
     if (process.env.PDEBUG2) fs.writeSync(2, `${' '.repeat(depth*2)}line ${k} cands ${cands.length} budget ${this.budget}\n`);
     for (const m of cands) {
       if (this.budget < 0) break;
-      const before = pieces.length, waiting0 = [...this.waiting];
+      const before = pieces.length, waiting0 = [...this.waiting], rep0 = this.replaced.length, rew0 = this.rewired.length, conn0 = connect.length;
       if (this.feedMachine(rec, m, extra, pieces, connect, depth)) {
         if (sink.top) this.topOut = m.belts;
         this.lastOut = m.belts;
         return pieces;
       }
-      pieces.length = before; this.waiting = waiting0;
+      pieces.length = before; this.waiting = waiting0; this.replaced.length = rep0; this.rewired.length = rew0; connect.length = conn0;
     }
     return null;
   }
@@ -416,7 +416,12 @@ export function play(run, script, { maxSeconds = 1800, until = null } = {}) {
       }
       const same = b => rb.some(o => o.id === b.id && o.x === b.x && o.y === b.y);   // run.bs holds copies
       if (rb.length) run.remove(same);
-      if (!run.place(plan.pieces)) { if (rb.length) run.place(rb); if (plan.undo) plan.undo(); plan = null; break; }
+      { const seen = new Set(); plan.pieces = plan.pieces.filter(b => { const k = b.id + '@' + b.x + ',' + b.y; if (seen.has(k)) return false; seen.add(k); return true; }); }
+      if (!run.place(plan.pieces)) {                          // refused (a tile is taken): back off like a failed plan
+        if (rb.length) run.place(rb); if (plan.undo) plan.undo(); plan = null;
+        act.tries = (act.tries || 0) + 1; act.next = run.tick + 60; if (act.tries > 20) i++;
+        break;
+      }
       if (plan.after) plan.after();
       plan = null; i++;
     }
