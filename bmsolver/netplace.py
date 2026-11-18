@@ -357,12 +357,203 @@ def shares(net):
     return out
 
 
-def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None, assign=None):
+def flows_exact(net):
+    """Exact steady-state flow of every edge as a vector over inputs (Fractions, solved, so loops are exact).
+    Raises if the system is singular (a closed ring)."""
+    from fractions import Fraction as F
+    E, n = net['edges'], len(net['src'])
+    # x_e = [e is src_i] + sum over producers: splitter (a, bs) gives x_a / len(bs) to each b; merge gives sum
+    A = [[F(0)] * E for _ in range(E)]
+    for e in range(E):
+        A[e][e] = F(1)
+    for a, bs in net['split']:
+        for b in bs:
+            A[b][a] -= F(1, len(bs))
+    for as_, b in net['merge']:
+        for a in as_:
+            A[b][a] -= F(1)
+    B = [[F(1) if net['src'][i] == e else F(0) for i in range(n)] for e in range(E)]
+    M = [A[r] + B[r] for r in range(E)]
+    for c in range(E):
+        piv = next(r for r in range(c, E) if M[r][c] != 0)
+        M[c], M[piv] = M[piv], M[c]
+        pv = M[c][c]
+        M[c] = [v / pv for v in M[c]]
+        for r in range(E):
+            if r != c and M[r][c] != 0:
+                f = M[r][c]
+                M[r] = [a - f * b for a, b in zip(M[r], M[c])]
+    return [tuple(M[e][E:]) for e in range(E)]
+
+
+def classify(net):
+    """Edges grouped by mixture: cls[e] = class id, vecs[c] = flow vector, types = {(kind, ins, outs): count}
+    with ins/outs sorted class tuples. Input classes are unit vectors, output classes all the uniform 1/n."""
+    fl = flows_exact(net)
+    vecs, cls = [], []
+    for v in fl:
+        if v not in vecs:
+            vecs.append(v)
+        cls.append(vecs.index(v))
+    types = {}
+    for a, bs in net['split']:
+        t = ('S', (cls[a],), tuple(sorted(cls[b] for b in bs)))
+        types[t] = types.get(t, 0) + 1
+    for as_, b in net['merge']:
+        t = ('M', tuple(sorted(cls[a] for a in as_)), (cls[b],))
+        types[t] = types.get(t, 0) + 1
+    return dict(vecs=vecs, cls=cls, types=types)
+
+
+def build_cls(net, win, assign=None):
+    """Like build(), but links carry the MIX they hold (flow class) instead of the edge: belts with the same mix
+    share a label, nodes are typed by the mixes they take and give, and only the count of each node type is
+    fixed. A relaxation of build(): every layout of net is a layout here, so INFEASIBLE here covers net and every
+    network with the same typed nodes. A FEASIBLE layout must still be checked (extract + exact shares): a
+    closed ring could hold mixes that the real layout never gets."""
+    C = classify(net)
+    cls, types = C['cls'], list(C['types'].items())
+    nc = len(C['vecs'])
+    mod = Model(win, flows=False)
+    m, X = mod.m, mod.X
+    k = max(1, (nc - 1).bit_length())
+    links = mod.links
+    terms = _port_terms(mod, win)
+    act, bits = {}, {}
+    for i, (p, q, l, kind) in enumerate(links):
+        act['L', i] = l
+        bits['L', i] = [m.NewBoolVar('') for _ in range(k)]
+    src_c = [cls[e] for e in net['src']]
+    out_c = cls[net['snk'][0]]
+    assert all(cls[e] == out_c for e in net['snk'])
+    PL = {}
+    for j, (p, kind, l) in enumerate(terms):
+        t = ('P', j)
+        act[t] = l
+        bits[t] = [m.NewBoolVar('') for _ in range(k)]
+        if kind == 'out':
+            for b in range(k):
+                lit = bits[t][b] if (out_c >> b) & 1 else bits[t][b].Not()
+                if l is True:
+                    m.AddBoolOr([lit])
+                else:
+                    m.AddImplication(l, lit)
+            continue
+        vs = []
+        for i, c in enumerate(src_c):
+            v = PL[t, i] = m.NewBoolVar('')
+            vs.append(v)
+            for b in range(k):
+                m.AddImplication(v, bits[t][b] if (c >> b) & 1 else bits[t][b].Not())
+        m.Add(sum(vs) == (1 if l is True else l))
+        if assign and p[1] in assign:
+            m.Add(PL[t, net['src'].index(assign[p[1]])] == 1)
+    for i in range(len(src_c)):
+        m.Add(sum(v for (t, i2), v in PL.items() if i2 == i) == 1)
+    tin = {p: [('L', i) for i in mod.lin[p]] for p in mod.cells}
+    tout = {p: [('L', i) for i in mod.lout[p]] for p in mod.cells}
+    for j, (p, kind, l) in enumerate(terms):
+        (tin if kind == 'in' else tout)[p].append(('P', j))
+
+    def neg(conds):
+        return [c.Not() for c in conds if c is not True]
+
+    def same(conds, t, u):
+        for b in range(k):
+            m.AddBoolOr(neg(conds) + [bits[t][b].Not(), bits[u][b]])
+            m.AddBoolOr(neg(conds) + [bits[t][b], bits[u][b].Not()])
+
+    def member(conds, t, allowed):
+        allowed = set(allowed)
+        def rec(prefix, depth):
+            b = k - 1 - depth
+            for bit in (0, 1):
+                pre = prefix + [(b, bit)]
+                hit = [a for a in allowed if all(((a >> bb) & 1) == v for bb, v in pre)]
+                if not hit:
+                    m.AddBoolOr(neg(conds) + [bits[t][bb].Not() if v else bits[t][bb] for bb, v in pre])
+                elif depth + 1 < k:
+                    rec(pre, depth + 1)
+        rec([], 0)
+
+    IS = {}
+    def is_c(t, c):                                     # literal: term t is active and carries class c
+        if (t, c) not in IS:
+            v = IS[t, c] = m.NewBoolVar('')
+            lits = [bits[t][b] if (c >> b) & 1 else bits[t][b].Not() for b in range(k)]
+            a = act[t]
+            for x in lits:
+                m.AddImplication(v, x)
+            if a is not True:
+                m.AddImplication(v, a)
+            m.AddBoolOr([x.Not() for x in lits] + ([a.Not()] if a is not True else []) + [v])
+        return IS[t, c]
+
+    nact = lambda ts: sum(1 if act[t] is True else act[t] for t in ts)
+    A = {}
+    for p in mod.cells:
+        sp = [X[p, 'S%d' % o] for o in range(4)]
+        bl = [X[p, 'B%d' % o] for o in range(4)]
+        for j, ((kind, ins_c, outs_c), cnt) in enumerate(types):
+            v = A[p, j] = m.NewBoolVar('')
+            ol = [X[p, 'O%d' % o] for o in range(4) if (p, 'O%d' % o) in X]
+            m.AddBoolOr(sp if kind == 'S' else bl + ol).OnlyEnforceIf(v)
+            m.Add(nact(tin[p]) == len(ins_c)).OnlyEnforceIf(v)
+            m.Add(nact(tout[p]) == len(outs_c)).OnlyEnforceIf(v)
+            for side, want in ((tin[p], ins_c), (tout[p], outs_c)):
+                for t in side:
+                    member([v, act[t]], t, set(want))
+                if len(set(want)) > 1:                  # a mix of classes: each class as often as the type says
+                    for c in set(want):
+                        m.Add(sum(is_c(t, c) for t in side) == want.count(c)).OnlyEnforceIf(v)
+        msum = sum(A[p, j] for j, (ty, _) in enumerate(types) if ty[0] == 'M')
+        ssum = sum(A[p, j] for j, (ty, _) in enumerate(types) if ty[0] == 'S')
+        plain = m.NewBoolVar('')
+        others = bl + sp + [X[p, kk + str(o)] for kk in 'IO' for o in range(4) if (p, kk + str(o)) in X]
+        m.Add(plain + msum + ssum == sum(others))
+        m.Add(nact(tin[p]) == 1).OnlyEnforceIf(plain)
+        m.Add(nact(tout[p]) == 1).OnlyEnforceIf(plain)
+        for t in tin[p]:
+            for u in tout[p]:
+                same([plain, act[t], act[u]], t, u)
+    for j, (ty, cnt) in enumerate(types):
+        m.Add(sum(A[p, j] for p in mod.cells) == cnt)
+    mod.A, mod.bits, mod.classes = A, bits, C
+    return mod
+
+
+def check_layout(grid, win, n):
+    """Does a finished layout balance n:n exactly? (extract its network, exact flows, every output 1/n of every
+    input). False on closed rings, wrong mixes or anything extract can't read."""
+    from fractions import Fraction as F
+    try:
+        got = extract(grid, win)
+        fl = flows_exact(got)
+    except Exception:
+        return False
+    return all(fl[e] == tuple([F(1, n)] * n) for e in got['snk']) and len(got['src']) == n
+
+
+def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None, assign=None, classes=None):
     """Is there a layout of net in win? Returns dict(status, time, grid?, same_network?).
     A found layout is read back with extract() and its network compared with net."""
     import os
     if onehot is None:
         onehot = os.environ.get('NETPLACE_ONEHOT', '0') == '1'
+    if classes is None:
+        classes = os.environ.get('NETPLACE_CLASSES', '0') == '1'
+    if classes:
+        t0 = time.time()
+        mod = build_cls(net, win, assign)
+        sv = cp_model.CpSolver()
+        sv.parameters.max_time_in_seconds = timeout
+        sv.parameters.num_workers = workers
+        st = sv.Solve(mod.m)
+        res = dict(status=sv.StatusName(st), time=time.time() - t0, classes=len(mod.classes['vecs']))
+        if st in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            res['grid'] = mod.grid(sv)
+            res['valid'] = check_layout(res['grid'], win, len(net['src']))
+        return res
     res = _place(net, win, timeout, workers, engine, onehot, assign)
     if 'grid' in res:
         try:
