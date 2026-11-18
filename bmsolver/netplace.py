@@ -158,7 +158,7 @@ def _copy_window(win):
     return copy.copy(win)
 
 
-def build(net, win):
+def build(net, win, assign=None):
     """The placement model of net in win: Model(win, flows=False) plus edge labels.
     Every link carries its edge number in binary (k bits); rules are plain clauses."""
     mod = Model(win, flows=False)
@@ -184,6 +184,8 @@ def build(net, win):
             for b in range(k):                          # v -> bits spell e
                 m.AddImplication(v, bits[t][b] if (e >> b) & 1 else bits[t][b].Not())
         m.Add(sum(vs) == (1 if l is True else l))
+        if assign and kind == 'in' and p[1] in assign:  # a cube: this input row carries this src edge
+            m.Add(PL[t, assign[p[1]]] == 1)
     for e in set(src) | set(snk):                       # every port edge used exactly once
         m.Add(sum(v for (t, e2), v in PL.items() if e2 == e) == 1)
     tin = {p: [('L', i) for i in mod.lin[p]] for p in mod.cells}
@@ -355,13 +357,13 @@ def shares(net):
     return out
 
 
-def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None):
+def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None, assign=None):
     """Is there a layout of net in win? Returns dict(status, time, grid?, same_network?).
     A found layout is read back with extract() and its network compared with net."""
     import os
     if onehot is None:
         onehot = os.environ.get('NETPLACE_ONEHOT', '0') == '1'
-    res = _place(net, win, timeout, workers, engine, onehot)
+    res = _place(net, win, timeout, workers, engine, onehot, assign)
     if 'grid' in res:
         try:
             got = extract(res['grid'], win)
@@ -373,9 +375,9 @@ def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None):
     return res
 
 
-def _place(net, win, timeout, workers, engine, onehot=False):
+def _place(net, win, timeout, workers, engine, onehot=False, assign=None):
     t0 = time.time()
-    mod = (build1 if onehot else build)(net, win)
+    mod = build1(net, win) if onehot else build(net, win, assign)
     if engine == 'cpsat':
         sv = cp_model.CpSolver()
         sv.parameters.max_time_in_seconds = timeout
@@ -387,3 +389,45 @@ def _place(net, win, timeout, workers, engine, onehot=False):
         return res
     from . import cnf
     return cnf.solve(mod, engine=engine, timeout=timeout)
+
+
+def input_cubes(net, rows):
+    """Cubes for cube-and-conquer: which input row carries which src edge, one per orbit of the network's
+    automorphisms (relabellings that keep the network the same give the same placement problem)."""
+    import itertools
+    import networkx as nx
+    from networkx.algorithms.isomorphism import DiGraphMatcher
+    g = nx.DiGraph()
+    head, tail = {}, {}
+    for k, a in enumerate(net['src']):
+        g.add_node(('i', a), t='in'); head[a] = ('i', a)
+    for k, b in enumerate(net['snk']):
+        g.add_node(('o', k), t='out'); tail[b] = ('o', k)
+    for j, (a, bs) in enumerate(net['split']):
+        g.add_node(('s', j), t='s%d' % len(bs)); tail[a] = ('s', j)
+        for x in bs:
+            head[x] = ('s', j)
+    for j, (as_, b) in enumerate(net['merge']):
+        g.add_node(('m', j), t='m'); head[b] = ('m', j)
+        for x in as_:
+            tail[x] = ('m', j)
+    mult = {}
+    for e in range(net['edges']):
+        mult[head[e], tail[e]] = mult.get((head[e], tail[e]), 0) + 1
+    for (u, v), c in mult.items():
+        g.add_edge(u, v, c=c)
+    gm = DiGraphMatcher(g, g, node_match=lambda a, b: a['t'] == b['t'], edge_match=lambda a, b: a['c'] == b['c'])
+    perms = []
+    for iso in gm.isomorphisms_iter():
+        perms.append({a: iso[('i', a)][1] for a in net['src']})
+        if len(perms) > 5000:
+            break
+    seen, cubes = set(), []
+    for order in itertools.permutations(net['src']):
+        key = tuple(order)
+        if key in seen:
+            continue
+        for pm in perms:
+            seen.add(tuple(pm[a] for a in order))
+        cubes.append(dict(zip(rows, order)))
+    return cubes
