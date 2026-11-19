@@ -113,3 +113,44 @@ def test_staged_model_accepts_known_balancers():
         win.fixed = {(x, y): lay.design.tiles.get((x, y)) for x in range(W) for y in range(H)}
         r = radix.solve(win, arity, 'cpsat', 60)
         assert r['status'] in ('OPTIMAL', 'FEASIBLE'), (name, r['status'])
+
+
+def test_handrules_keep_known_layouts():
+    """Every optional hand rule (bmsolver/handrules.py, BM_RULES) must accept the known layouts with every tile
+    fixed, in the netplace models (edge labels and mix classes) and in the flow model."""
+    from ortools.sat.python import cp_model
+    from bmsolver import netplace as NP, handrules as HR
+    from bmsolver.design import Design
+    g18 = ('B1B1B1S1O1B2B1B1B1B1B1I1B1B1B1S1B1B1\n'
+           'O1B0I1B1S1B1B2S1O1B0S1B1..B0I1B1B2B1\n'
+           'O1B0B1B1B1I1B1B1B1B1B1B0O1B0B1S1B1I1\n')
+    cases = []
+    for f in DESIGNS:
+        lay = layout_of(f)
+        if len(lay.design) <= 400:
+            cases.append(lay)
+    d = Design.from_text(g18).normalized()
+    ins, outs = find_ports(d)
+    cases.append(Layout(d, ins, outs, mix=True))
+    old = os.environ.get('BM_RULES')
+    try:
+        for lay in cases:
+            W, H = lay.design.size
+            win, sub = cut_window(lay, 0, W - 1)
+            grid = {(x, y): lay.design.tiles.get((x, y)) for x in range(W) for y in range(H)}
+            os.environ['BM_RULES'] = ''
+            net = NP.extract(grid, win)
+            win.fixed = dict(grid)
+            os.environ['BM_RULES'] = 'f1,p1,static,adj3,hop3'
+            assert HR.prefilter(net, win) is None
+            for mod in (NP.build(net, win), NP.build_cls(net, win), model.Model(win, flows=True)):
+                sv = cp_model.CpSolver()
+                sv.parameters.max_time_in_seconds = 60
+                sv.parameters.num_workers = 2
+                st = sv.StatusName(sv.Solve(mod.m))
+                assert st in ('OPTIMAL', 'FEASIBLE'), (W, H, st)
+    finally:
+        if old is None:
+            os.environ.pop('BM_RULES', None)
+        else:
+            os.environ['BM_RULES'] = old

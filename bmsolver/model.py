@@ -507,6 +507,9 @@ class Model:
                     continue
                 m.Add(as_int(a) == as_int(b))
 
+        from .handrules import model_rules     # optional hand-proven rules (BM_RULES, default off)
+        model_rules(self, win)
+
         # ---- optional limits and the objective
         splitters = [X[p, 'S%d' % o] for p in cells for o in range(4)]
         self.n_splitters = sum(splitters)

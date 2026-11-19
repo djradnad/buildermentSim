@@ -298,6 +298,8 @@ def build(net, win, assign=None, open_ends=False):
         m.Add(sum(A[p, j] for p in mod.cells) == (R[j] if open_ends else 1))
     if not assign:
         _mirror_break(m, A, nodes, win, mod)
+    from .handrules import net_rules
+    net_rules(mod, win, nodes, A, src, snk)
     mod.A, mod.bits, mod.R = A, bits, R
     return mod
 
@@ -395,6 +397,8 @@ def build1(net, win):
                 m.AddBoolOr(cond + [x, T[e].Not()])
     for j in range(len(nodes)):
         m.Add(sum(A[p, j] for p in mod.cells) == 1)
+    from .handrules import net_rules
+    net_rules(mod, win, nodes, A, src, snk)
     mod.A, mod.L = A, L
     return mod
 
@@ -584,6 +588,9 @@ def build_cls(net, win, assign=None):
                 same([plain, act[t], act[u]], t, u)
     for j, (ty, cnt) in enumerate(types):
         m.Add(sum(A[p, j] for p in mod.cells) == cnt)
+    from .handrules import net_rules
+    net_rules(mod, win, [(ty[0], list(ty[1]), list(ty[2])) for ty, c in types], A, set(src_c), {out_c},
+              counts=[c for ty, c in types])
     mod.A, mod.bits, mod.classes = A, bits, C
     return mod
 
@@ -611,16 +618,22 @@ def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None, assign=N
     if classes:
         t0 = time.time()
         mod = build_cls(net, win, assign)
+        if _mono_on():
+            mono_west(mod)
         sv = cp_model.CpSolver()
         sv.parameters.max_time_in_seconds = timeout
         sv.parameters.num_workers = workers
         st = sv.Solve(mod.m)
         res = dict(status=sv.StatusName(st), time=time.time() - t0, classes=len(mod.classes['vecs']))
+        if _mono_on():
+            res['restricted'] = 'mono'
         if st in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             res['grid'] = mod.grid(sv)
             res['valid'] = check_layout(res['grid'], win, len(net['src']))
         return res
     res = _place(net, win, timeout, workers, engine, onehot, assign)
+    if _mono_on():
+        res['restricted'] = 'mono'      # INFEASIBLE here is not a proof
     if 'grid' in res:
         try:
             got = extract(res['grid'], win)
@@ -632,9 +645,25 @@ def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None, assign=N
     return res
 
 
+def _mono_on():
+    import os
+    return os.environ.get('NETPLACE_MONO', '0') == '1'
+
+
+def mono_west(mod):
+    """A RESTRICTION (NETPLACE_MONO=1), not a proof rule: no piece that pushes east (no B3/I3/O3/S3, no splitter
+    facing N or S, whose side output points east). Many west-flowing layouts have this form, so it is a quick first
+    pass for finding layouts; INFEASIBLE under it proves nothing."""
+    for (p, code), v in list(mod.X.items()):
+        if code in ('B3', 'I3', 'O3', 'S3', 'S0', 'S2'):
+            mod.m.Add(v == 0)
+
+
 def _place(net, win, timeout, workers, engine, onehot=False, assign=None):
     t0 = time.time()
     mod = build1(net, win) if onehot else build(net, win, assign)
+    if _mono_on():
+        mono_west(mod)
     if engine == 'cpsat':
         sv = cp_model.CpSolver()
         sv.parameters.max_time_in_seconds = timeout
