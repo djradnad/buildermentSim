@@ -320,7 +320,10 @@ class Model:
             lits = [m.NewBoolVar('opt') for _ in group]
             m.AddExactlyOne(lits)
             self.option_lits.append(lits)
-        if getattr(win, 'sym_break', False) and win.port_options:
+        # the mirror break assumes every building maps onto a rotation of itself under a mirror: true for 1x1 and 3x3
+        # (centred output), false for 2x2 forges / shops whose output tile is off-centre, so skip it there
+        sym_ok = all(len(MACHINES[str(mt['bid'])]['rots'][0]['tiles']) in (1, 9) for mt in (win.machines or []))
+        if getattr(win, 'sym_break', False) and win.port_options and sym_ok:
             # Free ports on a bare window: (1) groups with the same options are interchangeable, so their choices are
             # ordered; (2) the window mirrored left-right or top-bottom is again a window of the same problem, so
             # one port of the first such family may be asked into the top left quarter. Both hold together: mirror
