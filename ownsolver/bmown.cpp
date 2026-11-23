@@ -2,6 +2,7 @@
 // Semantics follow bmsolver/model.py (pieces, links, ports) and bmsolver/check.py (exact steady-state flows).
 // See TEAM_LOG.md "DESIGN NOTE" for the propagators and why each is sound.
 #include <algorithm>
+#include <random>
 #include <functional>
 #include <map>
 #include <chrono>
@@ -90,7 +91,7 @@ vector<pair<int, Mask>> trail;
 long long nodes = 0, fails = 0, leaves = 0, uncertain = 0;
 chrono::steady_clock::time_point t0;
 double timeout = 60;
-bool use_lp = true;
+bool use_lp = true, use_sat = true;
 int lp_every = 1;
 static size_t path_depth();
 struct Lit;
@@ -783,6 +784,152 @@ static bool lp_check(int maxvars) {
     return true;
 }
 
+// ------------------------------------------------------------------ saturation and full-output rules (exact, integer)
+// A tile that certainly receives a full belt (D units) from one feeder can take no other in-link, because every link
+// carries a positive amount (every piece carries flow, and a splitter shares its flow over all its used outputs).
+// Saturated: an in-port tile whose port brings exactly D; the definite target of a forced belt / exit / entrance that
+// is saturated. Then any other possible feeder of that tile must not push into it.
+static bool sat_rules(bool& changed) {
+    static int satfrom[MAXN];       // -2 not saturated, -1 fed by its in port, else feeder tile
+    for (int p = 0; p < N; p++) satfrom[p] = -2;
+    for (auto& ip : ins) {
+        long long t = 0;
+        for (int c = 0; c < NC; c++) t += ip.vec[c];
+        if (t == D) satfrom[ip.cell] = -1;
+    }
+    bool grow = true;
+    while (grow) {
+        grow = false;
+        for (int r = 0; r < N; r++) {
+            if (satfrom[r] == -2 || !single(dom[r]) || dom[r] == BIT_E) continue;
+            int v = only(dom[r]), k = KIND(v), o = DIRV(v);
+            int q = -1;
+            if (k == KB || k == KO) { q = nb(r, o); if (q >= 0 && !(single(dom[q]) && (dom[q] & ACC[o]))) q = -1; }
+            else if (k == KI) {
+                Mask od = BIT(VAL(KO, o));
+                for (int n = 1; n <= REACH; n++) {
+                    int t = nbn(r, o, n);
+                    if (t < 0) break;
+                    if (dom[t] & od) { if (dom[t] == od) q = t; break; }
+                }
+            }
+            if (q >= 0 && satfrom[q] == -2) { satfrom[q] = r; grow = true; }
+        }
+    }
+    for (int q = 0; q < N; q++) {
+        if (satfrom[q] == -2) continue;
+        int f = satfrom[q];
+        // a full in-port tile with more than one in port is overfull
+        if (f == -1) {
+            long long t = 0;
+            for (int d = 0; d < 4; d++) if (portKind[q][d] == 1) for (int c = 0; c < NC; c++) t += portVec[q][d][c];
+            if (t > D) return false;
+        } else {
+            for (int d = 0; d < 4; d++) if (portKind[q][d] == 1) {
+                long long t = 0;
+                for (int c = 0; c < NC; c++) t += portVec[q][d][c];
+                if (t > 0 && (dom[q] & ~ACC[OPP(d)]) == 0) return false;     // that port feeds it for sure
+            }
+        }
+        for (int e = 0; e < 4; e++) {
+            int r = nb(q, OPP(e));
+            if (r < 0 || r == f) continue;
+            if ((dom[q] & ~ACC[e]) == 0) {                    // q certainly accepts e: r must not push e
+                if (!setdom(r, dom[r] & ~PUSH[e], changed)) return false;
+            } else if (single(dom[r]) && (dom[r] & PUSH[e])) { // r certainly pushes e: q must not accept e
+                if (!setdom(q, dom[q] & ~ACC[e], changed)) return false;
+            }
+        }
+        if (single(dom[q]) && KIND(only(dom[q])) == KO) {
+            int d = DIRV(only(dom[q]));
+            Mask od = BIT(VAL(KO, d)), id = BIT(VAL(KI, d));
+            bool between_possible = false;                    // some tile between could still become O d
+            for (int n = 1; n <= REACH; n++) {
+                int r = nbn(q, OPP(d), n);
+                if (r < 0) break;
+                if (r != f && (dom[r] & id) && !between_possible)
+                    if (!setdom(r, dom[r] & ~id, changed)) return false;
+                if (dom[r] == od) break;
+                if (dom[r] & od) between_possible = true;
+            }
+        }
+    }
+    return true;
+}
+// A splitter at an out port sends exactly the port's total t through every used output, so it has at most D / t
+// used outputs (its tile carries at most D).
+static bool outsplit_rules(bool& changed) {
+    for (auto& op : outs) {
+        long long t = 0;
+        for (int c = 0; c < NC; c++) t += op.vec[c];
+        if (t <= 0) continue;
+        long long kmax = D / t;
+        if (kmax >= 3) continue;
+        int p = op.cell;
+        for (int o = 0; o < 4; o++) {
+            int v = VAL(KS, o);
+            if (!(dom[p] & BIT(v))) continue;
+            int ds[3] = {o, (o + 1) & 3, (o + 3) & 3};
+            bool pushes = false;
+            for (int d : ds) if (d == op.d) pushes = true;
+            if (!pushes) continue;
+            int sure = 0;
+            vector<int> maybe;
+            for (int d : ds) {
+                int q = nb(p, d);
+                if (q < 0) { if (portKind[p][d] == 2) sure++; continue; }
+                if ((dom[q] & ACC[d]) == 0) continue;
+                if ((dom[q] & ~ACC[d]) == 0) sure++; else maybe.push_back(d);
+            }
+            if (sure > kmax) { if (!setdom(p, dom[p] & ~BIT(v), changed)) return false; continue; }
+            if (sure == kmax && dom[p] == BIT(v))
+                for (int d : maybe) { int q = nb(p, d); if (!setdom(q, dom[q] & ~ACC[d], changed)) return false; }
+        }
+    }
+    return true;
+}
+// Upper bounds per commodity (doubles, valid at every iterate from min(D, total input)): a tile gets at most its
+// source plus what every possible feeder could send (a forced splitter sends at most 1/(certainly used outputs)).
+// An out port whose upper bound is below its demand fails.
+static double ub[MAXN][MAXC], ubn[MAXN][MAXC];
+static bool flow_ub() {
+    static double tot[MAXC];
+    for (int c = 0; c < NC; c++) { tot[c] = 0; for (auto& ip : ins) tot[c] += ip.vec[c]; }
+    static double msh[MAXN];
+    for (int r = 0; r < N; r++) {
+        msh[r] = 1;
+        if (single(dom[r]) && dom[r] != BIT_E && KIND(only(dom[r])) == KS) {
+            int o = DIRV(only(dom[r]));
+            int ds[3] = {o, (o + 1) & 3, (o + 3) & 3}, sure = 0;
+            for (int d : ds) {
+                int q = nb(r, d);
+                if (q < 0) { if (portKind[r][d] == 2) sure++; continue; }
+                if ((dom[q] & ACC[d]) && (dom[q] & ~ACC[d]) == 0) sure++;
+            }
+            if (sure > 1) msh[r] = 1.0 / sure;
+        }
+        for (int c = 0; c < NC; c++) ub[r][c] = dom[r] == BIT_E ? 0 : min((double)D, tot[c]);
+    }
+    vector<pair<int, int>> L = possible_links();
+    for (int it = 0; it < 4 * N + 10; it++) {
+        for (int q = 0; q < N; q++) for (int c = 0; c < NC; c++) ubn[q][c] = srcv[q][c];
+        for (auto& l : L) for (int c = 0; c < NC; c++) ubn[l.second][c] += ub[l.first][c] * msh[l.first];
+        double diff = 0;
+        for (int q = 0; q < N; q++) for (int c = 0; c < NC; c++) {
+            double v = min(ub[q][c], ubn[q][c]);
+            diff = max(diff, ub[q][c] - v);
+            ub[q][c] = v;
+        }
+        if (diff < 1e-9 * D) break;
+    }
+    for (auto& op : outs) {
+        int p = op.cell;
+        for (int c = 0; c < NC; c++)
+            if (ub[p][c] * (1 + 1e-9) + 1e-9 < op.vec[c]) return false;
+    }
+    return true;
+}
+
 // ------------------------------------------------------------------ propagation fixpoint
 static bool propagate() {
     while (true) {
@@ -798,6 +945,8 @@ static bool propagate() {
                 if (!setdom(p, nm, changed)) return false;
             }
             if (!unit_rules(changed)) return false;
+            if (use_sat && !sat_rules(changed)) return false;
+            if (use_sat && !outsplit_rules(changed)) return false;
             if (!nogoods.empty() && !nogood_prop(changed)) return false;
         }
         bool ch2 = false;
@@ -805,6 +954,7 @@ static bool propagate() {
         if (!ch2) break;
     }
     if (!flow_lb()) return false;
+    if (use_sat && !flow_ub()) return false;
     if (!flow_relax()) return false;
     if (use_lp && (lp_every <= 1 || path_depth() % lp_every == 0) && !lp_check(lp_maxvars)) return false;
     return true;
@@ -885,7 +1035,9 @@ static int leaf_check() {
 }
 
 // ------------------------------------------------------------------ search
-int branch_mode = 0, wmode = 0;
+int branch_mode = 1, wmode = 0;
+bool rnd_on = false;
+std::mt19937 rng(12345);
 double wdeg[MAXN];
 static int choose(int& bestv_order_dir) {
     int best = -1, bestscore = 1 << 30;
@@ -900,7 +1052,7 @@ static int choose(int& bestv_order_dir) {
         }
         int score;
         if (branch_mode == 0) score = popc(dom[p]) + (fed >= 0 ? 0 : 100) + ((dom[p] & BIT_E) ? 20 : 0);
-        else if (branch_mode == 1) score = (int)(1000.0 * popc(dom[p]) / (1.0 + wdeg[p]));
+        else if (branch_mode == 1) score = (int)(1000.0 * popc(dom[p]) / (1.0 + wdeg[p])) * 64 + (rnd_on ? (int)(rng() & 63) : 0);
         else score = popc(dom[p]);
         if (score < bestscore) { bestscore = score; best = p; bestv_order_dir = fed; }
     }
@@ -970,6 +1122,40 @@ static bool nogood_prop(bool& changed) {
     }
     return true;
 }
+// ---- probing (singleton consistency): a value whose assignment fails propagation is removed. Sound because
+// propagation is sound. Run at the root of each port combo and at nodes up to --probedepth decisions deep.
+long long probes = 0, probe_removed = 0;
+int probe_depth = 0;
+static bool probe_all() {
+    bool again = true;
+    while (again) {
+        again = false;
+        for (int p = 0; p < N; p++) {
+            if (single(dom[p])) continue;
+            for (Mask r = dom[p]; r; r &= r - 1) {
+                int v = __builtin_ctz(r);
+                if (!(dom[p] & BIT(v))) continue;
+                size_t mk = trail.size();
+                bool ch = false;
+                setdom(p, BIT(v), ch);
+                probes++;
+                if ((probes & 7) == 0 && chrono::duration<double>(chrono::steady_clock::now() - t0).count() > timeout) { timed_out = true; undo(mk); return true; }
+                bool ok = propagate();
+                undo(mk);
+                if (timed_out) return true;
+                if (!ok) {
+                    probe_removed++;
+                    if (!setdom(p, dom[p] & ~BIT(v), ch)) return false;
+                    if (!propagate()) return false;
+                    again = true;
+                }
+            }
+        }
+        double el = chrono::duration<double>(chrono::steady_clock::now() - t0).count();
+        if (el > timeout) { timed_out = true; return true; }
+    }
+    return true;
+}
 // returns 1 found, 0 subtree exhausted, 2 aborted (timeout or restart)
 static int dfs() {
     nodes++;
@@ -979,6 +1165,10 @@ static int dfs() {
     }
     if (timed_out || restart_now) return 2;
     if (!propagate()) { note_fail(); return 0; }
+    if ((int)path.size() < probe_depth || (path.empty() && probe_depth >= 0)) {
+        if (!probe_all()) { note_fail(); return 0; }
+        if (timed_out) return 2;
+    }
     if (getenv("BMDUMP") && nodes % atoi(getenv("BMDUMP")) == 0) {
         fprintf(stderr, "node %lld\n", nodes);
         for (int y = 0; y < H; y++) {
@@ -1094,9 +1284,11 @@ int main(int argc, char** argv) {
     for (int i = 2; i < argc; i++) {
         string a = argv[i];
         if (a == "--timeout" && i + 1 < argc) timeout = atof(argv[++i]);
-        else if (a == "--seed" && i + 1 < argc) ++i;
+        else if (a == "--seed" && i + 1 < argc) { rng.seed(atoi(argv[++i])); rnd_on = true; }
         else if (a == "--nolp") use_lp = false;
-        else if (a == "--restarts") use_restarts = true;
+        else if (a == "--nosat") use_sat = false;
+        else if (a == "--probedepth" && i + 1 < argc) probe_depth = atoi(argv[++i]);
+        else if (a == "--restarts") { use_restarts = true; rnd_on = true; }
         else if (a == "--lpevery" && i + 1 < argc) lp_every = atoi(argv[++i]);
         else if (a == "--rbase" && i + 1 < argc) base_fails = atoll(argv[++i]);
         else if (a == "--wmode" && i + 1 < argc) wmode = atoi(argv[++i]);
@@ -1162,6 +1354,6 @@ int main(int argc, char** argv) {
         printf("\n");
     } else if (exhaustive && uncertain == 0) printf("STATUS INFEASIBLE\n");
     else printf("STATUS UNKNOWN\n");
-    printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld/%lld RESTARTS %lld NOGOODS %zu EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail, lp_warm, n_restarts, nogoods.size());
+    printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld/%lld RESTARTS %lld NOGOODS %zu PROBES %lld/%lld EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail, lp_warm, n_restarts, nogoods.size(), probes, probe_removed);
     return 0;
 }
