@@ -81,9 +81,10 @@ class Window:
 class Model:
     """Builds the CP-SAT model of a window. After solving, grid(solver) reads the layout back."""
 
-    def __init__(self, win, objective=False, weights=None, turn_weight=0, flows=True, pure_feeds=True):
+    def __init__(self, win, objective=False, weights=None, turn_weight=0, flows=True, pure_feeds=True, cpmodel=None):
         self.win = win
-        m = self.m = cp_model.CpModel()
+        # cpmodel: a stand-in with the CpModel interface (satnet.CnfModel writes clauses directly)
+        m = self.m = cp_model.CpModel() if cpmodel is None else cpmodel
         W, H, D, nc = win.W, win.H, win.D, win.ncom
         cells = self.cells = [(x, y) for x in range(W) for y in range(H) if (x, y) not in win.blocked]
         cellset = set(cells)

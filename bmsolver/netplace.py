@@ -158,14 +158,15 @@ def _copy_window(win):
     return copy.copy(win)
 
 
-def build(net, win, assign=None, open_ends=False):
+def build(net, win, assign=None, open_ends=False, cpmodel=None):
     """The placement model of net in win: Model(win, flows=False) plus edge labels.
     Every link carries its edge number in binary (k bits); rules are plain clauses.
     open_ends: every node j gets a presence literal mod.R[j] (pass them as assumptions). An absent node is not
     placed and its edges are open: a belt carrying an edge whose end node is absent may stop dead on any tile, one
     whose start node is absent may begin on any tile. Looser than the network, so a set of present nodes that is
-    already infeasible (an assumption core) rules out every network that contains it."""
-    mod = Model(win, flows=False)
+    already infeasible (an assumption core) rules out every network that contains it.
+    cpmodel: build on this CpModel stand-in instead (satnet.CnfModel writes the CNF directly)."""
+    mod = Model(win, flows=False, cpmodel=cpmodel)
     m, X = mod.m, mod.X
     E = net['edges']
     k = max(1, (E - 1).bit_length())
@@ -609,7 +610,9 @@ def check_layout(grid, win, n):
 
 def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None, assign=None, classes=None):
     """Is there a layout of net in win? Returns dict(status, time, grid?, same_network?).
-    A found layout is read back with extract() and its network compared with net."""
+    A found layout is read back with extract() and its network compared with net.
+    engine: 'cpsat' (default), 'kissat' (direct CNF, satnet.py; also NETPLACE_ENGINE=kissat, seeds tried in turn
+    from NETPLACE_SEEDS='0,1,..'), or a cnf.solve engine name (CP-SAT proto translated to CNF)."""
     import os
     if onehot is None:
         onehot = os.environ.get('NETPLACE_ONEHOT', '0') == '1'
@@ -631,7 +634,17 @@ def place(net, win, timeout=60, workers=1, engine='cpsat', onehot=None, assign=N
             res['grid'] = mod.grid(sv)
             res['valid'] = check_layout(res['grid'], win, len(net['src']))
         return res
-    res = _place(net, win, timeout, workers, engine, onehot, assign)
+    if engine == 'cpsat' and os.environ.get('NETPLACE_ENGINE'):
+        engine = os.environ['NETPLACE_ENGINE']
+    if engine == 'kissat' and not onehot:
+        # direct CNF + kissat (satnet.py): same rules, no CP-SAT; a find is checked exactly (status BADMODEL if not)
+        from . import satnet
+        seeds = tuple(int(x) for x in os.environ.get('NETPLACE_SEEDS', '0').split(','))
+        res = satnet.place(net, win, timeout=timeout, seeds=seeds, restrict=('mono',) if _mono_on() else (),
+                           assign=assign)
+        res.pop('restricted', None)
+    else:
+        res = _place(net, win, timeout, workers, engine, onehot, assign)
     if _mono_on():
         res['restricted'] = 'mono'      # INFEASIBLE here is not a proof
     if 'grid' in res:

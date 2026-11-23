@@ -96,6 +96,34 @@ def test_compose_4():
     assert lay.check()['ok']
 
 
+def test_satnet_accepts_known_layouts():
+    """The direct-CNF kissat path (bmsolver/satnet.py) must accept every known layout with all tiles fixed: test
+    designs, the 3:3 boxes in /root/data (when present) and a sample of the catalogue. Checked once (2026-11-23)
+    also for box66_28x6_fixed.txt (FEASIBLE, ~90 s and ~8 GB, so not repeated here) and all catalogue designs."""
+    import json
+    from bmsolver import satnet
+    if not os.path.exists(satnet.KISSAT):
+        print('skip: no kissat')
+        return
+    texts = [(f, open(f).read(), None) for f in DESIGNS] + \
+        [(f, open(f).read(), None) for f in sorted(glob.glob('/root/data/box33_*.txt'))]
+    cat = json.load(open(os.path.join(HERE, '..', 'site', 'catalogue.json')))['designs']
+    for d in [d for d in cat if d['kind'] == 'balance' and d['W'] * d['H'] <= 40][:12] + \
+            [d for d in cat if d['kind'] == 'split' and d['W'] * d['H'] <= 30][:6]:
+        texts.append((d['id'], '\n'.join(d['grid']), ([((x, y), q) for x, y, q in d['ins']],
+                                                     [((x, y), q) for x, y, q in d['outs']])))
+    for name, txt, ports in texts:
+        dsg = Design.from_text(txt).normalized()
+        ins, outs = ports or find_ports(dsg)
+        lay = Layout(dsg, ins, outs, mix=True)
+        if len(lay.design) > 400:
+            continue
+        W, H = lay.design.size
+        win, sub = cut_window(lay, 0, W - 1)
+        grid = {(x, y): lay.design.tiles.get((x, y)) for x in range(W) for y in range(H)}
+        assert satnet.pin(grid, win) == 'FEASIBLE', name
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
