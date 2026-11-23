@@ -888,7 +888,7 @@ static bool outsplit_rules(bool& changed) {
     }
     return true;
 }
-// Upper bounds per commodity (doubles, valid at every iterate from min(D, total input)): a tile gets at most its
+// Upper bounds per commodity (doubles, valid at every iterate from D: a loop can carry more than the input): a tile gets at most its
 // source plus what every possible feeder could send (a forced splitter sends at most 1/(certainly used outputs)).
 // An out port whose upper bound is below its demand fails.
 static double ub[MAXN][MAXC], ubn[MAXN][MAXC];
@@ -908,7 +908,7 @@ static bool flow_ub() {
             }
             if (sure > 1) msh[r] = 1.0 / sure;
         }
-        for (int c = 0; c < NC; c++) ub[r][c] = dom[r] == BIT_E ? 0 : min((double)D, tot[c]);
+        for (int c = 0; c < NC; c++) ub[r][c] = dom[r] == BIT_E ? 0 : (double)D;   // not min(D, input): loops carry more
     }
     vector<pair<int, int>> L = possible_links();
     for (int it = 0; it < 4 * N + 10; it++) {
