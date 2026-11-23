@@ -2,6 +2,8 @@
 // Semantics follow bmsolver/model.py (pieces, links, ports) and bmsolver/check.py (exact steady-state flows).
 // See TEAM_LOG.md "DESIGN NOTE" for the propagators and why each is sound.
 #include <algorithm>
+#include <functional>
+#include <map>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -89,6 +91,11 @@ long long nodes = 0, fails = 0, leaves = 0, uncertain = 0;
 chrono::steady_clock::time_point t0;
 double timeout = 60;
 bool use_lp = true;
+int lp_every = 1;
+static size_t path_depth();
+struct Lit;
+extern vector<vector<pair<int, int>>> nogoods;
+static bool nogood_prop(bool& changed);
 int lp_maxvars = 3000;
 bool timed_out = false;
 
@@ -470,7 +477,8 @@ static bool flow_relax() {
 // simplex only proposes a dual vector y; the node is pruned only if y, scaled to integers, satisfies A^T z <= 0 and
 // b^T z > 0 in exact integer arithmetic (Farkas), so rounding errors can only cost pruning, never soundness.
 struct LPRow { vector<pair<int, int>> a; long long b; };   // sparse integer row, sum a x = b
-long long lp_calls = 0, lp_prunes = 0, lp_cert_fail = 0;
+long long lp_calls = 0, lp_prunes = 0, lp_cert_fail = 0, lp_warm = 0;
+vector<double> lastsol;
 static bool lp_check(int maxvars) {
     lp_calls++;
     int nv = 0;
@@ -507,18 +515,21 @@ static bool lp_check(int maxvars) {
     // variable numbering: commodity-major blocks
     int per = 0;
     vector<int> lvar(NL);
-    for (int i = 0; i < NL; i++) lvar[i] = per++;
+    vector<int> vkey;
+    for (int i = 0; i < NL; i++) { lvar[i] = per++; vkey.push_back(L[i].first * 4 + Ldir[i]); }
     for (int p = 0; p < N; p++)
         for (int d = 0; d < 4; d++) {
             uvar[p][d] = ucan[p][d] ? per++ : -1;
+            if (uvar[p][d] >= 0) vkey.push_back(4 * N + p * 4 + d);
             evar[p][d] = (dom[p] & BIT(VAL(KI, d))) && ucan[p][d] ? per++ : -1;
+            if (evar[p][d] >= 0) vkey.push_back(8 * N + p * 4 + d);
             xvar[p][d] = -1;
         }
     for (int p = 0; p < N; p++)
         for (int d = 0; d < 4; d++) {
             if (!(dom[p] & BIT(VAL(KO, d)))) continue;
             int r = nb(p, OPP(d));
-            if (r >= 0 && uvar[r][d] >= 0) xvar[p][d] = per++;
+            if (r >= 0 && uvar[r][d] >= 0) { xvar[p][d] = per++; vkey.push_back(12 * N + p * 4 + d); }
         }
     nv = per * NC;
     if (nv > maxvars) return true;
@@ -602,47 +613,154 @@ static bool lp_check(int maxvars) {
     }
     int n = nv + nslack, m = rows.size();
     if (m == 0) return true;
+    // warm check: is the last LP solution still feasible here? then nothing to prune
+    if ((int)lastsol.size() == 16 * N * NC) {
+        vector<double> xv(nv);
+        for (int c = 0; c < NC; c++) for (int k = 0; k < per; k++) xv[k + c * per] = lastsol[vkey[k] + c * 16 * N];
+        // every key not in this LP must carry zero in the stored solution
+        double used = 0, tot = 0;
+        for (int k = 0; k < nv; k++) used += xv[k];
+        for (double v : lastsol) tot += v;
+        bool ok = fabs(used - tot) < 1e-9 * D;
+        for (size_t i = 0; ok && i < rows.size(); i++) {
+            double lhs = 0; bool hasslack = false;
+            for (auto& t : rows[i].a) { if (t.first >= nv) hasslack = true; else lhs += t.second * xv[t.first]; }
+            double res = rows[i].b - lhs;
+            if (hasslack ? res < -1e-9 * D : fabs(res) > 1e-9 * D) ok = false;
+        }
+        if (ok) { lp_warm++; return true; }
+    }
     if ((long long)m * (n + m) > 4000000) return true;
+    // presolve (exact, integer): substitute equality rows a - b = 0 (merge), a + b = 0 (both 0) and single-variable
+    // rows +-x = b (fix x). Any x >= 0 solving the original rows gives one of the reduced rows, so a Farkas
+    // certificate for the reduced system still proves the node infeasible.
+    vector<int> uf(n); for (int j = 0; j < n; j++) uf[j] = j;
+    vector<long long> fixv(n, -1);
+    function<int(int)> fnd = [&](int a) { while (uf[a] != a) { uf[a] = uf[uf[a]]; a = uf[a]; } return a; };
+    vector<char> alive(rows.size(), 1);
+    bool pch = true;
+    while (pch) {
+        pch = false;
+        for (size_t i = 0; i < rows.size(); i++) {
+            if (!alive[i]) continue;
+            LPRow& r = rows[i];
+            map<int, long long> acc;
+            long long b = r.b;
+            for (auto& t : r.a) { int v = fnd(t.first); if (fixv[v] >= 0) b -= (long long)t.second * fixv[v]; else acc[v] += t.second; }
+            r.a.clear();
+            for (auto& kv : acc) if (kv.second) r.a.push_back({kv.first, (int)kv.second});
+            r.b = b;
+            if (r.a.empty()) { if (b != 0) return false; alive[i] = 0; pch = true; continue; }
+            if (r.a.size() == 1 && abs(r.a[0].second) == 1) {
+                long long val = b * r.a[0].second;
+                if (val < 0) return false;
+                fixv[r.a[0].first] = val; alive[i] = 0; pch = true; continue;
+            }
+            if (r.a.size() == 2 && b == 0 && abs(r.a[0].second) == 1 && abs(r.a[1].second) == 1) {
+                if (r.a[0].second == -r.a[1].second) uf[r.a[1].first] = r.a[0].first;
+                else { fixv[r.a[0].first] = 0; fixv[r.a[1].first] = 0; }
+                alive[i] = 0; pch = true; continue;
+            }
+        }
+    }
+    vector<int> newidx(n, -1);
+    int n2 = 0;
+    vector<LPRow> rows2;
+    for (size_t i = 0; i < rows.size(); i++) if (alive[i]) {
+        LPRow r; r.b = rows[i].b;
+        map<int, long long> acc;
+        for (auto& t : rows[i].a) { int v = fnd(t.first); if (fixv[v] >= 0) r.b -= (long long)t.second * fixv[v]; else acc[v] += t.second; }
+        for (auto& kv : acc) if (kv.second) { if (newidx[kv.first] < 0) newidx[kv.first] = n2++; r.a.push_back({newidx[kv.first], (int)kv.second}); }
+        if (r.a.empty()) { if (r.b != 0) return false; continue; }
+        rows2.push_back(r);
+    }
+    rows.swap(rows2);
+    int n0 = n;
+    n = n2; m = rows.size();
+    if (m == 0) return true;
+    if (getenv("BMLPDBG")) fprintf(stderr, "lp m=%d n=%d nv=%d per=%d NL=%d\n", m, n, nv, per, NL);
     // flip rows so b >= 0
     for (auto& r : rows) if (r.b < 0) { r.b = -r.b; for (auto& t : r.a) t.second = -t.second; }
-    int cols = n + m + 1, RH = n + m;
+    // slack columns (+1 in exactly one row) start basic; other rows get an artificial (not stored as a column:
+    // the dual y is recomputed from the final basis at the end)
+    vector<int> colcount(n, 0);
+    for (auto& r : rows) for (auto& t : r.a) colcount[t.first]++;
+    int cols = n + 1, RH = n;
     vector<double> T((size_t)(m + 1) * cols, 0.0);
     auto at = [&](int i, int j) -> double& { return T[(size_t)i * cols + j]; };
     vector<int> basis(m);
+    vector<char> isart(m, 1);
+    vector<char> inbasis(n, 0);
     for (int i = 0; i < m; i++) {
         for (auto& t : rows[i].a) at(i, t.first) += t.second;
-        at(i, n + i) = 1; at(i, RH) = (double)rows[i].b; basis[i] = n + i;
+        at(i, RH) = (double)rows[i].b;
+        basis[i] = -1 - i;
+        for (auto& t : rows[i].a)
+            if (t.second == 1 && colcount[t.first] == 1 && !inbasis[t.first]) { basis[i] = t.first; isart[i] = 0; inbasis[t.first] = 1; break; }
     }
-    for (int j = 0; j < n; j++) { double s = 0; for (int i = 0; i < m; i++) s += at(i, j); at(m, j) = -s; }
-    { double s = 0; for (int i = 0; i < m; i++) s += at(i, RH); at(m, RH) = -s; }
+    for (int j = 0; j < n; j++) { double s2 = 0; for (int i = 0; i < m; i++) if (isart[i]) s2 += at(i, j); at(m, j) = -s2; }
+    { double s2 = 0; for (int i = 0; i < m; i++) if (isart[i]) s2 += at(i, RH); at(m, RH) = -s2; }
     const double eps = 1e-9;
     int iter = 0, maxit = 20 * (m + n);
+    vector<int> nzc;
     while (iter++ < maxit) {
         int ej = -1; double best = -eps;
-        for (int j = 0; j < n + m; j++) if (at(m, j) < best) { best = at(m, j); ej = j; }
+        for (int j = 0; j < n; j++) if (at(m, j) < best) { best = at(m, j); ej = j; }
         if (ej < 0) break;
         int pi = -1; double br = 0;
         for (int i = 0; i < m; i++) {
-            double a = at(i, ej);
-            if (a > eps) { double r = at(i, RH) / a; if (pi < 0 || r < br - 1e-12 || (r < br + 1e-12 && basis[i] < basis[pi])) { pi = i; br = r; } }
+            double a2 = at(i, ej);
+            if (a2 > eps) { double r = at(i, RH) / a2; if (pi < 0 || r < br - 1e-12 || (r < br + 1e-12 && basis[i] < basis[pi])) { pi = i; br = r; } }
         }
         if (pi < 0) return true;   // unbounded cannot happen in phase 1; be safe
         double pv = at(pi, ej);
-        for (int j = 0; j < cols; j++) at(pi, j) /= pv;
+        nzc.clear();
+        double* rp = &T[(size_t)pi * cols];
+        for (int j = 0; j < cols; j++) if (rp[j] != 0) { rp[j] /= pv; if (fabs(rp[j]) < 1e-14) rp[j] = 0; else nzc.push_back(j); }
         for (int i = 0; i <= m; i++) {
             if (i == pi) continue;
-            double f = at(i, ej);
+            double* ri = &T[(size_t)i * cols];
+            double f = ri[ej];
             if (f == 0) continue;
-            double* ri = &T[(size_t)i * cols]; double* rp = &T[(size_t)pi * cols];
-            for (int j = 0; j < cols; j++) ri[j] -= f * rp[j];
+            for (int j : nzc) { ri[j] -= f * rp[j]; if (fabs(ri[j]) < 1e-14) ri[j] = 0; }
+            ri[ej] = 0;
         }
         basis[pi] = ej;
     }
     double obj = -at(m, RH);
-    if (obj < 1e-7 * D) return true;
-    // dual y_i = 1 - reduced cost of artificial i (artificial cost 1)
-    vector<double> y(m);
-    for (int i = 0; i < m; i++) y[i] = 1.0 - at(m, n + i);
+    if (obj < 1e-7 * D) {
+        lastsol.assign(16 * N * NC, 0.0);
+        vector<double> val(n, 0.0);
+        for (int i = 0; i < m; i++) if (basis[i] >= 0) val[basis[i]] = max(0.0, at(i, RH));
+        for (int v = 0; v < nv && v < n0; v++) {
+            int r = fnd(v);
+            double x = fixv[r] >= 0 ? (double)fixv[r] : (newidx[r] >= 0 ? val[newidx[r]] : 0.0);
+            int k = v % per, c = v / per;
+            lastsol[vkey[k] + c * 16 * N] = x;
+        }
+        return true;
+    }
+    // dual y = c_B B^-1: solve B^T y = c_B (c = 1 for artificials) by dense Gauss with partial pivoting
+    vector<double> y(m, 0.0);
+    {
+        vector<vector<double>> Bt(m, vector<double>(m + 1, 0.0));   // row k of B^T = column basis[k] of A
+        vector<int> posof(n, -1);
+        for (int k = 0; k < m; k++) if (basis[k] >= 0) posof[basis[k]] = k;
+        for (int i = 0; i < m; i++) for (auto& t : rows[i].a) if (posof[t.first] >= 0) Bt[posof[t.first]][i] += t.second;
+        for (int k = 0; k < m; k++) if (basis[k] < 0) { Bt[k][-1 - basis[k]] = 1; Bt[k][m] = 1; }
+        for (int c = 0; c < m; c++) {
+            int pv = c;
+            for (int r = c + 1; r < m; r++) if (fabs(Bt[r][c]) > fabs(Bt[pv][c])) pv = r;
+            if (fabs(Bt[pv][c]) < 1e-12) { lp_cert_fail++; return true; }
+            swap(Bt[c], Bt[pv]);
+            for (int r = 0; r < m; r++) {
+                if (r == c || Bt[r][c] == 0) continue;
+                double f = Bt[r][c] / Bt[c][c];
+                for (int k = c; k <= m; k++) Bt[r][k] -= f * Bt[c][k];
+            }
+        }
+        for (int i = 0; i < m; i++) y[i] = Bt[i][m] / Bt[i][i];
+    }
     static const long long Ls[] = {1, 2, 3, 4, 6, 8, 12, 24, 60, 120, 360, 720, 2520, 5040, 27720};
     for (long long Lm : Ls) {
         vector<long long> z(m);
@@ -680,6 +798,7 @@ static bool propagate() {
                 if (!setdom(p, nm, changed)) return false;
             }
             if (!unit_rules(changed)) return false;
+            if (!nogoods.empty() && !nogood_prop(changed)) return false;
         }
         bool ch2 = false;
         if (!reach(ch2)) return false;
@@ -687,7 +806,7 @@ static bool propagate() {
     }
     if (!flow_lb()) return false;
     if (!flow_relax()) return false;
-    if (use_lp && !lp_check(lp_maxvars)) return false;
+    if (use_lp && (lp_every <= 1 || path_depth() % lp_every == 0) && !lp_check(lp_maxvars)) return false;
     return true;
 }
 
@@ -801,14 +920,65 @@ static vector<int> value_order(int p, int fed) {
 }
 
 bool found = false;
-static bool dfs() {
+// ---- restarts with nld-nogoods (Lecoutre et al.): when a restart cuts the search, every refuted value x_i != v_i on the
+// current branch means the subtree {positive decisions before i, x_i = v_i} was searched completely without success;
+// that set is stored as a nogood (it can never hold again). Sound for INFEASIBLE, and complete because restart limits grow.
+struct Lit { int p, v; bool pos; };
+vector<Lit> path;
+static size_t path_depth() { return path.size(); }
+vector<vector<pair<int, int>>> nogoods;
+bool use_restarts = false, restart_now = false;
+long long restart_limit = 0, fails_at_restart = 0, n_restarts = 0, base_fails = 100;
+static long long luby(long long i) {
+    long long k = 1;
+    while ((1LL << k) - 1 < i + 1) k++;
+    while (true) {
+        if (i + 1 == (1LL << k) - 1) return 1LL << (k - 1);
+        if (i + 1 >= (1LL << (k - 1))) { i -= (1LL << (k - 1)) - 1; k = 1; while ((1LL << k) - 1 < i + 1) k++; }
+        else k--;
+    }
+}
+static void record_nogoods() {
+    vector<pair<int, int>> pos;
+    for (auto& l : path) {
+        if (l.pos) { pos.push_back({l.p, l.v}); continue; }
+        vector<pair<int, int>> ng = pos;
+        ng.push_back({l.p, l.v});
+        nogoods.push_back(ng);
+    }
+}
+static void note_fail() {
+    fails++;
+    if (use_restarts && !restart_now && fails - fails_at_restart > restart_limit) {
+        restart_now = true;
+        record_nogoods();
+    }
+}
+static bool nogood_prop(bool& changed) {
+    for (auto& ng : nogoods) {
+        int und = -1, nund = 0;
+        bool sat = false;
+        for (auto& l : ng) {
+            Mask m = dom[l.first], b = BIT(l.second);
+            if (!(m & b)) { sat = true; break; }
+            if (m != b) { nund++; und = &l - &ng[0]; if (nund > 1) break; }
+        }
+        if (sat || nund > 1) continue;
+        if (nund == 0) return false;
+        auto& l = ng[und];
+        if (!setdom(l.first, dom[l.first] & ~BIT(l.second), changed)) return false;
+    }
+    return true;
+}
+// returns 1 found, 0 subtree exhausted, 2 aborted (timeout or restart)
+static int dfs() {
     nodes++;
-    if ((nodes & 255) == 0) {
+    if ((nodes & 15) == 0) {
         double el = chrono::duration<double>(chrono::steady_clock::now() - t0).count();
         if (el > timeout) timed_out = true;
     }
-    if (timed_out) return false;
-    if (!propagate()) { fails++; return false; }
+    if (timed_out || restart_now) return 2;
+    if (!propagate()) { note_fail(); return 0; }
     if (getenv("BMDUMP") && nodes % atoi(getenv("BMDUMP")) == 0) {
         fprintf(stderr, "node %lld\n", nodes);
         for (int y = 0; y < H; y++) {
@@ -825,38 +995,45 @@ static bool dfs() {
     if (p < 0) {
         leaves++;
         int r = leaf_check();
-        if (r == 1) return true;
+        if (r == 1) return 1;
         if (r < 0) uncertain++;
-        fails++;
-        return false;
+        note_fail();
+        return 0;
     }
     vector<int> order = value_order(p, fed);
-    size_t mark = trail.size();
+    size_t mark = trail.size(), pmark = path.size();
+    int result = 0;
     for (size_t i = 0; i < order.size(); i++) {
         int v = order[i];
         if (!(dom[p] & BIT(v))) continue;
         bool ch = false;
         size_t m2 = trail.size();
         setdom(p, BIT(v), ch);
+        path.push_back({p, v, true});
         long long f0 = fails;
-        if (dfs()) return true;
+        int r = dfs();
+        if (r == 1) return 1;
+        path.pop_back();
         if (wmode == 0) wdeg[p] += (fails - f0) > 0 ? 1 : 0;
         else if (wmode == 1) wdeg[p] += (fails - f0) == 1 ? 1 : 0;
         else wdeg[p] += (fails - f0);
-        if (timed_out) return false;
+        if (r == 2) { result = 2; break; }
         undo(m2);
         // refute v
-        if (!setdom(p, dom[p] & ~BIT(v), ch)) { undo(mark); return false; }
+        if (!setdom(p, dom[p] & ~BIT(v), ch)) { result = 0; break; }
+        path.push_back({p, v, false});
         if (single(dom[p])) {
-            bool r = dfs();
-            if (r) return true;
-            undo(mark);
-            return false;
+            r = dfs();
+            if (r == 1) return 1;
+            result = r;
+            break;
         }
-        if (!propagate()) { fails++; undo(mark); return false; }
+        if (!propagate()) { note_fail(); result = 0; break; }
+        if (restart_now) { result = 2; break; }
     }
     undo(mark);
-    return false;
+    path.resize(pmark);
+    return result;
 }
 
 // ------------------------------------------------------------------ input
@@ -919,6 +1096,9 @@ int main(int argc, char** argv) {
         if (a == "--timeout" && i + 1 < argc) timeout = atof(argv[++i]);
         else if (a == "--seed" && i + 1 < argc) ++i;
         else if (a == "--nolp") use_lp = false;
+        else if (a == "--restarts") use_restarts = true;
+        else if (a == "--lpevery" && i + 1 < argc) lp_every = atoi(argv[++i]);
+        else if (a == "--rbase" && i + 1 < argc) base_fails = atoll(argv[++i]);
         else if (a == "--wmode" && i + 1 < argc) wmode = atoi(argv[++i]);
         else if (a == "--branch" && i + 1 < argc) branch_mode = atoi(argv[++i]);
         else if (a == "--lpmax" && i + 1 < argc) lp_maxvars = atoi(argv[++i]);
@@ -947,7 +1127,18 @@ int main(int argc, char** argv) {
         vector<Port> ports = fixedPorts;
         for (size_t g = 0; g < portGroups.size(); g++) for (auto& pt : portGroups[g][sel[g]]) ports.push_back(pt);
         if (setup_ports(ports) && init_domains()) {
-            if (dfs()) { found = true; foundSel = sel; break; }
+            nogoods.clear();
+            int r;
+            long long k = 0;
+            while (true) {
+                restart_now = false; path.clear();
+                restart_limit = base_fails * luby(k++);
+                fails_at_restart = fails;
+                r = dfs();
+                if (r != 2 || timed_out) break;
+                n_restarts++;
+            }
+            if (r == 1) { found = true; foundSel = sel; break; }
             if (timed_out) { exhaustive = false; break; }
         }
         // next combination
@@ -971,6 +1162,6 @@ int main(int argc, char** argv) {
         printf("\n");
     } else if (exhaustive && uncertain == 0) printf("STATUS INFEASIBLE\n");
     else printf("STATUS UNKNOWN\n");
-    printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail);
+    printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld/%lld RESTARTS %lld NOGOODS %zu EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail, lp_warm, n_restarts, nogoods.size());
     return 0;
 }
