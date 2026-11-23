@@ -990,25 +990,29 @@ static bool bounds_prop(vector<LPRow>& rows, int n, int nv, int per, const vecto
 }
 
 // ------------------------------------------------------------------ propagation fixpoint
+static bool local_fix() {
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (int p = 0; p < N; p++) {
+            Mask m = dom[p], nm = 0;
+            for (Mask r = m; r; r &= r - 1) {
+                int v = __builtin_ctz(r);
+                if (supported(p, v)) nm |= BIT(v);
+            }
+            if (!setdom(p, nm, changed)) return false;
+        }
+        if (!unit_rules(changed)) return false;
+        if (use_sat && !sat_rules(changed)) return false;
+        if (use_sat && !outsplit_rules(changed)) return false;
+        if (!nogoods.empty() && !nogood_prop(changed)) return false;
+    }
+    return true;
+}
 static bool propagate() {
     fail_code = 0;
     while (true) {
-        bool changed = true;
-        while (changed) {
-            changed = false;
-            for (int p = 0; p < N; p++) {
-                Mask m = dom[p], nm = 0;
-                for (Mask r = m; r; r &= r - 1) {
-                    int v = __builtin_ctz(r);
-                    if (supported(p, v)) nm |= BIT(v);
-                }
-                if (!setdom(p, nm, changed)) return false;
-            }
-            if (!unit_rules(changed)) return false;
-            if (use_sat && !sat_rules(changed)) return false;
-            if (use_sat && !outsplit_rules(changed)) return false;
-            if (!nogoods.empty() && !nogood_prop(changed)) return false;
-        }
+        if (!local_fix()) return false;
         bool ch2 = false;
         fail_code = 1;
         if (!reach(ch2)) return false;
@@ -1133,11 +1137,55 @@ static int choose(int& bestv_order_dir) {
     }
     return best;
 }
+int vorder = 3;
 static vector<int> value_order(int p, int fed) {
     vector<int> order;
     Mask m = dom[p];
     auto add = [&](int v) { if ((m & BIT(v)) && find(order.begin(), order.end(), v) == order.end()) order.push_back(v); };
-    if (fed >= 0) {
+    if (vorder == 1) {
+        if (fed >= 0) { add(VAL(KS, fed)); add(VAL(KB, fed)); }
+        for (int o = 0; o < 4; o++) add(VAL(KS, o));
+        for (int o = 0; o < 4; o++) add(VAL(KB, o));
+    } else if (vorder == 3 && (int)lastsol.size() == 16 * N * NC) {
+        // LP-guided: prefer the piece whose links agree with the last LP flow through this tile
+        auto fl = [&](int key) { double t = 0; for (int c = 0; c < NC; c++) t += lastsol[key + c * 16 * N]; return t; };
+        double out[4], in[4], tot = 0, ent[4], ex[4];
+        for (int e = 0; e < 4; e++) {
+            out[e] = fl(p * 4 + e);
+            int r = nb(p, OPP(e));
+            in[e] = r >= 0 ? fl(r * 4 + e) : 0;
+            ent[e] = fl(8 * N + p * 4 + e);
+            ex[e] = fl(12 * N + p * 4 + e);
+            tot += out[e] + in[e] + ent[e] + ex[e];
+        }
+        vector<pair<double, int>> sc;
+        for (Mask r = m; r; r &= r - 1) {
+            int v = __builtin_ctz(r);
+            double score;
+            if (v == 0) score = -tot;
+            else {
+                int k = KIND(v), o = DIRV(v);
+                double good = 0, bad = 0;
+                for (int e = 0; e < 4; e++) {
+                    bool pushes = (PUSH[e] & BIT(v)) != 0, acc = (ACC[e] & BIT(v)) != 0;
+                    (pushes ? good : bad) += out[e];
+                    (acc ? good : bad) += in[e];
+                    ((k == KI && e == o) ? good : bad) += ent[e];
+                    ((k == KO && e == o) ? good : bad) += ex[e];
+                }
+                score = good - 2 * bad;
+            }
+            sc.push_back({-score, v});
+        }
+        sort(sc.begin(), sc.end());
+        for (auto& t : sc) order.push_back(t.second);
+        return order;
+    } else if (vorder == 2) {
+        vector<int> vs;
+        for (Mask r = m; r; r &= r - 1) vs.push_back(__builtin_ctz(r));
+        shuffle(vs.begin(), vs.end(), rng);
+        return vs;
+    } else if (fed >= 0) {
         add(VAL(KB, fed)); add(VAL(KB, (fed + 1) & 3)); add(VAL(KB, (fed + 3) & 3));
         add(VAL(KS, fed)); add(VAL(KI, fed));
     } else add(0);
@@ -1239,7 +1287,7 @@ static bool probe_all() {
 // links, more forced tiles only tighten each relaxation). So when a check fails, we widen the domains cell by cell back
 // to the root domains as long as the same check, run directly on the widened domains, still fails. The final widened
 // domains M give the nogood NOT(x_p in M_p for all p with M_p != root_p); it holds in every node of this port combo.
-bool use_learn = false, learn_lp = true;
+bool use_learn = false, learn_lp = true, learn_local = true;
 Mask rootdom[MAXN];
 bool have_root = false, probed_root = false;
 long long learned = 0, learn_checks = 0, learned_len = 0;
@@ -1247,7 +1295,8 @@ size_t max_nogoods = 20000;
 static bool run_check(int code) {
     size_t mk = trail.size();
     bool ok = true;
-    if (code == 1) { bool ch = false; ok = reach(ch); }
+    if (code == 0) ok = local_fix();
+    else if (code == 1) { bool ch = false; ok = reach(ch); }
     else if (code == 2) ok = flow_lb();
     else if (code == 3) ok = flow_ub();
     else if (code == 4) ok = flow_lb() && flow_relax();
@@ -1257,7 +1306,8 @@ static bool run_check(int code) {
     return ok;
 }
 static void learn_from_fail(int code) {
-    if (!use_learn || !have_root || code == 0 || nogoods.size() >= max_nogoods) return;
+    if (!use_learn || !have_root || nogoods.size() >= max_nogoods) return;
+    if (code == 0 && !learn_local) return;
     if (code == 5 && !learn_lp) return;
     static Mask snap[MAXN];
     for (int p = 0; p < N; p++) snap[p] = dom[p];
@@ -1267,19 +1317,22 @@ static void learn_from_fail(int code) {
     for (int p = 0; p < N; p++) if (dom[p] != rootdom[p] && !single(dom[p])) order.push_back(p);
     for (int p = 0; p < N; p++) if (dom[p] != rootdom[p] && single(dom[p])) order.push_back(p);
     int budget = code == 5 ? 24 : 1000;
-    {   // first try all undecided cells at once
+    // widen in chunks (most cells are irrelevant to a failure); a chunk that breaks the failure is retried cell by cell
+    const size_t CH = 6;
+    for (size_t a = 0; a < order.size() && budget > 0; a += CH) {
         vector<pair<int, Mask>> saved;
-        for (int p : order) if (!single(dom[p])) { saved.push_back({p, dom[p]}); dom[p] = rootdom[p]; }
-        learn_checks++;
-        if (!saved.empty() && run_check(code)) for (auto& sv : saved) dom[sv.first] = sv.second;
-    }
-    for (int p : order) {
-        if (dom[p] == rootdom[p]) continue;
-        if (budget-- <= 0) break;
-        Mask old = dom[p];
-        dom[p] = rootdom[p];
-        learn_checks++;
-        if (run_check(code)) dom[p] = old;   // needed: keep it
+        for (size_t b = a; b < min(order.size(), a + CH); b++) { int p = order[b]; saved.push_back({p, dom[p]}); dom[p] = rootdom[p]; }
+        learn_checks++; budget--;
+        if (!run_check(code)) continue;          // still fails with the whole chunk widened
+        for (auto& sv : saved) dom[sv.first] = sv.second;
+        if (saved.size() == 1) continue;
+        for (auto& sv : saved) {
+            if (budget-- <= 0) break;
+            int p = sv.first;
+            dom[p] = rootdom[p];
+            learn_checks++;
+            if (run_check(code)) dom[p] = sv.second;
+        }
     }
     vector<pair<int, Mask>> ng;
     for (int p = 0; p < N; p++) if (dom[p] != rootdom[p]) ng.push_back({p, dom[p]});
@@ -1288,8 +1341,10 @@ static void learn_from_fail(int code) {
     learned++;
     learned_len += ng.size();
 }
+long long fail_by_code[8];
 static void on_prop_fail() {
     int code = fail_code;
+    fail_by_code[code]++;
     learn_from_fail(code);
 }
 // returns 1 found, 0 subtree exhausted, 2 aborted (timeout or restart)
@@ -1429,6 +1484,7 @@ int main(int argc, char** argv) {
         else if (a == "--probedepth" && i + 1 < argc) probe_depth = atoi(argv[++i]);
         else if (a == "--restarts") { use_restarts = true; rnd_on = true; }
         else if (a == "--learn") use_learn = true;
+        else if (a == "--vorder" && i + 1 < argc) vorder = atoi(argv[++i]);
         else if (a == "--nolearnlp") learn_lp = false;
         else if (a == "--lpevery" && i + 1 < argc) lp_every = atoi(argv[++i]);
         else if (a == "--rbase" && i + 1 < argc) base_fails = atoll(argv[++i]);
@@ -1497,6 +1553,7 @@ int main(int argc, char** argv) {
     } else if (exhaustive && uncertain == 0) printf("STATUS INFEASIBLE\n");
     else printf("STATUS UNKNOWN\n");
     printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld/%lld RESTARTS %lld NOGOODS %zu PROBES %lld/%lld LEARNED %lld/%lld BOUNDS %lld/%lld/%lld EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail, lp_warm, n_restarts, nogoods.size(), probes, probe_removed, learned, learn_checks, bnd_calls, bnd_fails, bnd_filters);
+    printf("FAILCODES"); for (int i = 0; i < 7; i++) printf(" %lld", fail_by_code[i]); printf("\n");
     if (learned) printf("AVG_NOGOOD_LEN %.1f\n", (double)learned_len / learned);
     return 0;
 }
