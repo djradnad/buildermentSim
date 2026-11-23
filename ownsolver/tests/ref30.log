@@ -1,0 +1,195 @@
+1:2u 1x2 in[0] out[0, 1]                 FOUND         0.0s ok
+1:2u 2x2 in[0] out[0, 1]                 FOUND         0.0s ok
+1:2u 3x2 in[0] out[0, 1]                 FOUND         0.0s ok
+1:2u 4x2 in[0] out[0, 1]                 FOUND         0.0s idle piece (3, 1)
+1:2u 1x3 in[1] out[0, 1]                 FOUND         0.0s idle piece (0, 2)
+1:2u 2x3 in[1] out[0, 1]                 FOUND         0.0s ok
+1:2u 3x3 in[1] out[0, 1]                 FOUND         0.0s ok
+1:2u 4x3 in[1] out[0, 1]                 FOUND         0.1s idle piece (3, 2)
+1:3u 1x3 in[1] out[0, 1, 2]              FOUND         0.0s ok
+1:3u 2x3 in[1] out[0, 1, 2]              FOUND         0.0s ok
+1:3u 3x3 in[1] out[0, 1, 2]              FOUND         0.0s ok
+1:3u 4x3 in[1] out[0, 1, 2]              FOUND         0.1s ok
+1:3u 1x4 in[1] out[0, 1, 2]              FOUND         0.0s ok
+1:3u 2x4 in[1] out[0, 1, 2]              FOUND         0.0s ok
+1:3u 3x4 in[1] out[0, 1, 2]              FOUND         0.1s ok
+1:3u 4x4 in[1] out[0, 1, 2]              FOUND         0.1s idle piece (1, 0)
+1:4u 1x4 in[1] out[0, 1, 2, 3]           INFEASIBLE    0.0s 
+1:4u 2x4 in[1] out[0, 1, 2, 3]           FOUND         0.0s ok
+1:4u 3x4 in[1] out[0, 1, 2, 3]           FOUND         0.1s ok
+1:4u 4x4 in[1] out[0, 1, 2, 3]           FOUND         0.1s idle piece (1, 3)
+1:4u 1x5 in[2] out[0, 1, 2, 3]           INFEASIBLE    0.0s 
+1:4u 2x5 in[2] out[0, 1, 2, 3]           FOUND         0.1s ok
+1:4u 3x5 in[2] out[0, 1, 2, 3]           FOUND         0.1s ok
+1:4u 4x5 in[2] out[0, 1, 2, 3]           FOUND         0.1s ok
+1:5u 1x5 in[2] out[0, 1, 2, 3, 4]        INFEASIBLE    0.0s 
+1:5u 2x5 in[2] out[0, 1, 2, 3, 4]        INFEASIBLE    0.0s 
+1:5u 3x5 in[2] out[0, 1, 2, 3, 4]        INFEASIBLE    0.2s 
+1:5u 4x5 in[2] out[0, 1, 2, 3, 4]        FOUND         0.3s idle piece (3, 4)
+1:5u 1x6 in[2] out[0, 1, 2, 3, 4]        INFEASIBLE    0.0s 
+1:5u 2x6 in[2] out[0, 1, 2, 3, 4]        INFEASIBLE    0.0s 
+1:5u 3x6 in[2] out[0, 1, 2, 3, 4]        FOUND         0.1s ok
+1:5u 4x6 in[2] out[0, 1, 2, 3, 4]        FOUND         0.3s idle piece (3, 0)
+1:6u 1x6 in[2] out[0, 1, 2, 3, 4, 5]     INFEASIBLE    0.0s 
+1:6u 2x6 in[2] out[0, 1, 2, 3, 4, 5]     FOUND         0.0s ok
+1:6u 3x6 in[2] out[0, 1, 2, 3, 4, 5]     FOUND         0.1s idle piece (1, 0)
+1:6u 4x6 in[2] out[0, 1, 2, 3, 4, 5]     FOUND         0.1s idle piece (1, 0)
+1:6u 1x7 in[3] out[0, 1, 2, 3, 4, 5]     INFEASIBLE    0.0s 
+1:6u 2x7 in[3] out[0, 1, 2, 3, 4, 5]     FOUND         0.0s idle piece (1, 0)
+1:6u 3x7 in[3] out[0, 1, 2, 3, 4, 5]     FOUND         0.1s idle piece (1, 3)
+1:6u 4x7 in[3] out[0, 1, 2, 3, 4, 5]     FOUND         0.2s idle piece (3, 0)
+2:2 2x2 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 3x2 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 4x2 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 5x2 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 6x2 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 7x2 in[0, 1] out[0, 1]               INFEASIBLE    0.1s 
+2:2 8x2 in[0, 1] out[0, 1]               INFEASIBLE    0.3s 
+2:2 2x3 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 3x3 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 4x3 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 5x3 in[0, 1] out[0, 1]               FOUND         0.1s idle piece (0, 2)
+2:2 6x3 in[0, 1] out[0, 1]               FOUND         0.1s ok
+2:2 7x3 in[0, 1] out[0, 1]               FOUND         0.4s ok
+2:2 8x3 in[0, 1] out[0, 1]               FOUND         0.2s idle piece (7, 2)
+2:2 2x4 in[1, 2] out[1, 2]               INFEASIBLE    0.0s 
+2:2 2x4 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 3x4 in[1, 2] out[1, 2]               INFEASIBLE    0.0s 
+2:2 3x4 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 4x4 in[1, 2] out[1, 2]               INFEASIBLE    0.1s 
+2:2 4x4 in[0, 1] out[0, 1]               INFEASIBLE    0.0s 
+2:2 5x4 in[1, 2] out[1, 2]               FOUND         0.1s idle piece (2, 1)
+2:2 5x4 in[0, 1] out[0, 1]               FOUND         0.1s ok
+2:2 6x4 in[1, 2] out[1, 2]               FOUND         0.1s idle piece (0, 0)
+2:2 6x4 in[0, 1] out[0, 1]               FOUND         0.2s loop with no exit
+2:2 7x4 in[1, 2] out[1, 2]               FOUND         0.4s idle piece (0, 0)
+2:2 7x4 in[0, 1] out[0, 1]               FOUND         0.3s idle piece (2, 1)
+2:2 8x4 in[1, 2] out[1, 2]               FOUND         0.3s idle piece (0, 0)
+2:2 8x4 in[0, 1] out[0, 1]               FOUND         0.3s idle piece (2, 0)
+3:3 2x3 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.0s 
+3:3 3x3 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.0s 
+3:3 4x3 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.0s 
+3:3 5x3 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.0s 
+3:3 6x3 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.1s 
+3:3 7x3 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.5s 
+3:3 8x3 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    2.7s 
+3:3 2x4 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.0s 
+3:3 3x4 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.0s 
+3:3 4x4 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.0s 
+3:3 5x4 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.1s 
+3:3 6x4 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.2s 
+3:3 7x4 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    1.6s 
+3:3 8x4 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE   18.2s 
+3:3 2x5 in[1, 2, 3] out[1, 2, 3]         INFEASIBLE    0.0s 
+3:3 2x5 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.0s 
+3:3 3x5 in[1, 2, 3] out[1, 2, 3]         INFEASIBLE    0.0s 
+3:3 3x5 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.1s 
+3:3 4x5 in[1, 2, 3] out[1, 2, 3]         INFEASIBLE    0.1s 
+3:3 4x5 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.1s 
+3:3 5x5 in[1, 2, 3] out[1, 2, 3]         INFEASIBLE    0.2s 
+3:3 5x5 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.1s 
+3:3 6x5 in[1, 2, 3] out[1, 2, 3]         INFEASIBLE    2.8s 
+3:3 6x5 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE    0.7s 
+3:3 7x5 in[1, 2, 3] out[1, 2, 3]         UNKNOWN      30.1s 
+3:3 7x5 in[0, 1, 2] out[0, 1, 2]         INFEASIBLE   12.8s 
+3:3 8x5 in[1, 2, 3] out[1, 2, 3]         UNKNOWN      30.1s 
+3:3 8x5 in[0, 1, 2] out[0, 1, 2]         UNKNOWN      30.1s 
+4:4 2x4 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.0s 
+4:4 3x4 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.0s 
+4:4 4x4 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.0s 
+4:4 5x4 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.1s 
+4:4 6x4 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.1s 
+4:4 7x4 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    1.2s 
+4:4 8x4 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE   14.7s 
+4:4 9x4 in[0, 1, 2, 3] out[0, 1, 2, 3]   UNKNOWN      30.1s 
+4:4 2x5 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.0s 
+4:4 3x5 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.0s 
+4:4 4x5 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.1s 
+4:4 5x5 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.1s 
+4:4 6x5 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.3s 
+4:4 7x5 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    5.8s 
+4:4 8x5 in[0, 1, 2, 3] out[0, 1, 2, 3]   UNKNOWN      30.1s 
+4:4 9x5 in[0, 1, 2, 3] out[0, 1, 2, 3]   UNKNOWN      30.1s 
+4:4 2x6 in[1, 2, 3, 4] out[1, 2, 3, 4]   INFEASIBLE    0.0s 
+4:4 2x6 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.0s 
+4:4 3x6 in[1, 2, 3, 4] out[1, 2, 3, 4]   INFEASIBLE    0.1s 
+4:4 3x6 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.0s 
+4:4 4x6 in[1, 2, 3, 4] out[1, 2, 3, 4]   INFEASIBLE    0.1s 
+4:4 4x6 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.1s 
+4:4 5x6 in[1, 2, 3, 4] out[1, 2, 3, 4]   INFEASIBLE    0.4s 
+4:4 5x6 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.1s 
+4:4 6x6 in[1, 2, 3, 4] out[1, 2, 3, 4]   INFEASIBLE    7.2s 
+4:4 6x6 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    0.7s 
+4:4 7x6 in[1, 2, 3, 4] out[1, 2, 3, 4]   UNKNOWN      30.1s 
+4:4 7x6 in[0, 1, 2, 3] out[0, 1, 2, 3]   INFEASIBLE    7.5s 
+4:4 8x6 in[1, 2, 3, 4] out[1, 2, 3, 4]   UNKNOWN      30.1s 
+4:4 8x6 in[0, 1, 2, 3] out[0, 1, 2, 3]   UNKNOWN      30.1s 
+4:4 9x6 in[1, 2, 3, 4] out[1, 2, 3, 4]   UNKNOWN      30.1s 
+4:4 9x6 in[0, 1, 2, 3] out[0, 1, 2, 3]   UNKNOWN      30.2s 
+2:3 2x3 in[0, 1] out[0, 1, 2]            INFEASIBLE    0.0s 
+2:3 3x3 in[0, 1] out[0, 1, 2]            INFEASIBLE    0.0s 
+2:3 4x3 in[0, 1] out[0, 1, 2]            INFEASIBLE    0.0s 
+2:3 5x3 in[0, 1] out[0, 1, 2]            INFEASIBLE    0.1s 
+2:3 6x3 in[0, 1] out[0, 1, 2]            INFEASIBLE    0.2s 
+2:3 7x3 in[0, 1] out[0, 1, 2]            INFEASIBLE    0.6s 
+2:3 2x4 in[1, 2] out[0, 1, 2]            INFEASIBLE    0.0s 
+2:3 3x4 in[1, 2] out[0, 1, 2]            INFEASIBLE    0.0s 
+2:3 4x4 in[1, 2] out[0, 1, 2]            INFEASIBLE    0.1s 
+2:3 5x4 in[1, 2] out[0, 1, 2]            INFEASIBLE    0.2s 
+2:3 6x4 in[1, 2] out[0, 1, 2]            INFEASIBLE    1.1s 
+2:3 7x4 in[1, 2] out[0, 1, 2]            FOUND         4.0s idle piece (6, 3)
+3:2 2x3 in[0, 1, 2] out[0, 1]            INFEASIBLE    0.0s 
+3:2 3x3 in[0, 1, 2] out[0, 1]            INFEASIBLE    0.0s 
+3:2 4x3 in[0, 1, 2] out[0, 1]            INFEASIBLE    0.0s 
+3:2 5x3 in[0, 1, 2] out[0, 1]            INFEASIBLE    0.2s 
+3:2 6x3 in[0, 1, 2] out[0, 1]            FOUND         0.5s idle piece (0, 2)
+3:2 7x3 in[0, 1, 2] out[0, 1]            FOUND         0.3s idle piece (0, 2)
+3:2 2x4 in[0, 1, 2] out[1, 2]            INFEASIBLE    0.0s 
+3:2 3x4 in[0, 1, 2] out[1, 2]            INFEASIBLE    0.0s 
+3:2 4x4 in[0, 1, 2] out[1, 2]            INFEASIBLE    0.1s 
+3:2 5x4 in[0, 1, 2] out[1, 2]            FOUND         0.7s ok
+3:2 6x4 in[0, 1, 2] out[1, 2]            FOUND         0.3s ok
+3:2 7x4 in[0, 1, 2] out[1, 2]            FOUND         5.7s idle piece (6, 3)
+2:4 2x4 in[1, 2] out[0, 1, 2, 3]         INFEASIBLE    0.0s 
+2:4 3x4 in[1, 2] out[0, 1, 2, 3]         INFEASIBLE    0.0s 
+2:4 4x4 in[1, 2] out[0, 1, 2, 3]         INFEASIBLE    0.1s 
+2:4 5x4 in[1, 2] out[0, 1, 2, 3]         FOUND         0.2s ok
+2:4 6x4 in[1, 2] out[0, 1, 2, 3]         FOUND         0.6s ok
+2:4 7x4 in[1, 2] out[0, 1, 2, 3]         FOUND         1.0s ok
+2:4 2x5 in[1, 2] out[0, 1, 2, 3]         INFEASIBLE    0.0s 
+2:4 3x5 in[1, 2] out[0, 1, 2, 3]         INFEASIBLE    0.0s 
+2:4 4x5 in[1, 2] out[0, 1, 2, 3]         FOUND         0.3s ok
+2:4 5x5 in[1, 2] out[0, 1, 2, 3]         FOUND         0.4s ok
+2:4 6x5 in[1, 2] out[0, 1, 2, 3]         FOUND         0.3s idle piece (1, 3)
+2:4 7x5 in[1, 2] out[0, 1, 2, 3]         FOUND         1.9s ok
+4:2 2x4 in[0, 1, 2, 3] out[1, 2]         INFEASIBLE    0.0s 
+4:2 3x4 in[0, 1, 2, 3] out[1, 2]         INFEASIBLE    0.0s 
+4:2 4x4 in[0, 1, 2, 3] out[1, 2]         INFEASIBLE    0.2s 
+4:2 5x4 in[0, 1, 2, 3] out[1, 2]         FOUND         0.8s ok
+4:2 6x4 in[0, 1, 2, 3] out[1, 2]         FOUND         1.7s idle piece (2, 2)
+4:2 7x4 in[0, 1, 2, 3] out[1, 2]         FOUND         2.1s idle piece (0, 0)
+4:2 2x5 in[0, 1, 2, 3] out[1, 2]         INFEASIBLE    0.0s 
+4:2 3x5 in[0, 1, 2, 3] out[1, 2]         INFEASIBLE    0.1s 
+4:2 4x5 in[0, 1, 2, 3] out[1, 2]         FOUND         0.3s idle piece (3, 4)
+4:2 5x5 in[0, 1, 2, 3] out[1, 2]         FOUND         0.6s idle piece (4, 4)
+4:2 6x5 in[0, 1, 2, 3] out[1, 2]         FOUND         2.5s ok
+4:2 7x5 in[0, 1, 2, 3] out[1, 2]         FOUND        10.7s idle piece (6, 4)
+3:4 2x4 in[0, 1, 2] out[0, 1, 2, 3]      INFEASIBLE    0.0s 
+3:4 3x4 in[0, 1, 2] out[0, 1, 2, 3]      INFEASIBLE    0.0s 
+3:4 4x4 in[0, 1, 2] out[0, 1, 2, 3]      INFEASIBLE    0.0s 
+3:4 5x4 in[0, 1, 2] out[0, 1, 2, 3]      INFEASIBLE    0.1s 
+3:4 6x4 in[0, 1, 2] out[0, 1, 2, 3]      INFEASIBLE    0.2s 
+3:4 7x4 in[0, 1, 2] out[0, 1, 2, 3]      INFEASIBLE    2.3s 
+3:4 2x5 in[1, 2, 3] out[0, 1, 2, 3]      INFEASIBLE    0.0s 
+3:4 3x5 in[1, 2, 3] out[0, 1, 2, 3]      INFEASIBLE    0.1s 
+3:4 4x5 in[1, 2, 3] out[0, 1, 2, 3]      INFEASIBLE    0.1s 
+3:4 5x5 in[1, 2, 3] out[0, 1, 2, 3]      INFEASIBLE    0.4s 
+3:4 6x5 in[1, 2, 3] out[0, 1, 2, 3]      INFEASIBLE    2.0s 
+3:4 7x5 in[1, 2, 3] out[0, 1, 2, 3]      INFEASIBLE   10.4s 
+mix3:2 3x4                               INFEASIBLE    0.0s 
+mix3:2 4x4                               INFEASIBLE    0.1s 
+mix3:2 5x4                               INFEASIBLE    0.1s 
+mix3:2 6x4                               INFEASIBLE    1.2s 
+mix3:2 7x4                               FOUND         9.1s idle piece (5, 3)
+mix3:2 8x4                               FOUND        22.6s ok
+mix3:2 9x4                               UNKNOWN      30.1s 

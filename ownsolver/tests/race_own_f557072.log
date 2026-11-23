@@ -1,0 +1,218 @@
+own      FOUND         0.05s 1:4u 4x5 in[2] out[0, 1, 2, 3] ok 
+own      INFEASIBLE    0.79s 1:5u 3x5 in[2] out[0, 1, 2, 3, 4]  
+own      FOUND         2.05s 1:5u 3x6 in[2] out[0, 1, 2, 3, 4] ok 
+own      FOUND         1.60s 1:5u 4x5 in[2] out[0, 1, 2, 3, 4] ok 
+own      FOUND         0.10s 1:5u 4x6 in[2] out[0, 1, 2, 3, 4] ok 
+own      FOUND         0.09s 1:6u 4x6 in[2] out[0, 1, 2, 3, 4, 5] ok 
+own      FOUND         0.10s 1:6u 4x7 in[3] out[0, 1, 2, 3, 4, 5] ok 
+own      INFEASIBLE    0.06s 2:2 4x4 in[0, 1] out[0, 1]  
+own      INFEASIBLE    0.46s 2:2 4x4 in[1, 2] out[1, 2]  
+own      FOUND         0.08s 2:2 5x3 in[0, 1] out[0, 1] ok 
+own      FOUND         0.31s 2:2 5x4 in[0, 1] out[0, 1] ok 
+own      FOUND         0.25s 2:2 5x4 in[1, 2] out[1, 2] ok 
+own      INFEASIBLE    0.36s 2:2 6x2 in[0, 1] out[0, 1]  
+own      FOUND         0.14s 2:2 6x3 in[0, 1] out[0, 1] ok 
+own      FOUND         0.35s 2:2 6x4 in[0, 1] out[0, 1] ok 
+own      FOUND         1.54s 2:2 6x4 in[1, 2] out[1, 2] ok 
+own      INFEASIBLE    4.13s 2:2 7x2 in[0, 1] out[0, 1]  
+own      FOUND         0.17s 2:2 7x3 in[0, 1] out[0, 1] ok 
+own      FOUND         0.53s 2:2 7x4 in[0, 1] out[0, 1] ok 
+own      FOUND         1.50s 2:2 7x4 in[1, 2] out[1, 2] ok 
+own      INFEASIBLE   24.30s 2:2 8x2 in[0, 1] out[0, 1]  
+own      FOUND         0.19s 2:2 8x3 in[0, 1] out[0, 1] ok 
+own      FOUND         0.55s 2:2 8x4 in[0, 1] out[0, 1] ok 
+own      FOUND         1.97s 2:2 8x4 in[1, 2] out[1, 2] ok 
+own      INFEASIBLE    0.09s 2:3 4x4 in[1, 2] out[0, 1, 2]  
+own      INFEASIBLE    0.27s 2:3 5x3 in[0, 1] out[0, 1, 2]  
+own      INFEASIBLE    1.24s 2:3 5x4 in[1, 2] out[0, 1, 2]  
+own      INFEASIBLE    4.33s 2:3 6x3 in[0, 1] out[0, 1, 2]  
+own      UNKNOWN      30.00s 2:3 6x4 in[1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.00s 2:3 7x3 in[0, 1] out[0, 1, 2]  
+own      UNKNOWN      30.01s 2:3 7x4 in[1, 2] out[0, 1, 2]  
+own      INFEASIBLE    0.02s 2:4 3x5 in[1, 2] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.94s 2:4 4x4 in[1, 2] out[0, 1, 2, 3]  
+own      FOUND         0.22s 2:4 4x5 in[1, 2] out[0, 1, 2, 3] ok 
+own      FOUND         1.60s 2:4 5x4 in[1, 2] out[0, 1, 2, 3] ok 
+own      FOUND         0.75s 2:4 5x5 in[1, 2] out[0, 1, 2, 3] ok 
+own      FOUND         4.94s 2:4 6x4 in[1, 2] out[0, 1, 2, 3] ok 
+own      FOUND         3.13s 2:4 6x5 in[1, 2] out[0, 1, 2, 3] ok 
+own      FOUND         7.51s 2:4 7x4 in[1, 2] out[0, 1, 2, 3] ok 
+own      FOUND         3.22s 2:4 7x5 in[1, 2] out[0, 1, 2, 3] ok 
+own      INFEASIBLE    0.38s 3:2 4x4 in[0, 1, 2] out[1, 2]  
+own      INFEASIBLE    1.32s 3:2 5x3 in[0, 1, 2] out[0, 1]  
+own      FOUND         2.19s 3:2 5x4 in[0, 1, 2] out[1, 2] ok 
+own      FOUND         3.07s 3:2 6x3 in[0, 1, 2] out[0, 1] ok 
+own      FOUND        20.29s 3:2 6x4 in[0, 1, 2] out[1, 2] ok 
+own      UNKNOWN      30.01s 3:2 7x3 in[0, 1, 2] out[0, 1]  
+own      UNKNOWN      30.01s 3:2 7x4 in[0, 1, 2] out[1, 2]  
+own      INFEASIBLE    0.02s 3:3 4x5 in[0, 1, 2] out[0, 1, 2]  
+own      INFEASIBLE    0.06s 3:3 4x5 in[1, 2, 3] out[1, 2, 3]  
+own      INFEASIBLE    0.26s 3:3 5x3 in[0, 1, 2] out[0, 1, 2]  
+own      INFEASIBLE    0.39s 3:3 5x4 in[0, 1, 2] out[0, 1, 2]  
+own      INFEASIBLE    0.76s 3:3 5x5 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 5x5 in[1, 2, 3] out[1, 2, 3]  
+own      INFEASIBLE    9.54s 3:3 6x3 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 6x4 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.02s 3:3 6x5 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.02s 3:3 6x5 in[1, 2, 3] out[1, 2, 3]  
+own      UNKNOWN      30.01s 3:3 7x3 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 7x4 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.02s 3:3 7x5 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 7x5 in[1, 2, 3] out[1, 2, 3]  
+own      UNKNOWN      30.01s 3:3 8x3 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.04s 3:3 8x4 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 8x5 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 8x5 in[1, 2, 3] out[1, 2, 3]  
+own      INFEASIBLE    0.07s 3:4 4x4 in[0, 1, 2] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.33s 3:4 4x5 in[1, 2, 3] out[0, 1, 2, 3]  
+own      INFEASIBLE    2.71s 3:4 5x4 in[0, 1, 2] out[0, 1, 2, 3]  
+own      INFEASIBLE    8.59s 3:4 5x5 in[1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 3:4 6x4 in[0, 1, 2] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 3:4 6x5 in[1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 3:4 7x4 in[0, 1, 2] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 3:4 7x5 in[1, 2, 3] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.05s 4:2 3x5 in[0, 1, 2, 3] out[1, 2]  
+own      INFEASIBLE    1.16s 4:2 4x4 in[0, 1, 2, 3] out[1, 2]  
+own      FOUND         0.43s 4:2 4x5 in[0, 1, 2, 3] out[1, 2] ok 
+own      UNKNOWN      30.01s 4:2 5x5 in[0, 1, 2, 3] out[1, 2]  
+own      FOUND         0.45s 4:2 6x4 in[0, 1, 2, 3] out[1, 2] ok 
+own      FOUND         8.14s 4:2 6x5 in[0, 1, 2, 3] out[1, 2] ok 
+own      FOUND         0.74s 4:2 7x4 in[0, 1, 2, 3] out[1, 2] ok 
+own      FOUND         2.89s 4:2 7x5 in[0, 1, 2, 3] out[1, 2] ok 
+own      INFEASIBLE    0.20s 4:4 4x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      INFEASIBLE    0.20s 4:4 5x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.36s 4:4 5x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.45s 4:4 5x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.03s 4:4 5x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      UNKNOWN      30.01s 4:4 6x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 6x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.02s 4:4 6x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.04s 4:4 6x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      UNKNOWN      30.02s 4:4 7x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.03s 4:4 7x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.03s 4:4 7x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 7x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      UNKNOWN      30.01s 4:4 8x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.02s 4:4 8x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.02s 4:4 8x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.02s 4:4 8x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      UNKNOWN      30.02s 4:4 9x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 9x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.03s 4:4 9x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 9x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      INFEASIBLE    0.16s mix3:2 4x4  
+own      UNKNOWN      30.00s mix3:2 5x4  
+own      UNKNOWN      30.00s mix3:2 6x4  
+own      UNKNOWN      30.01s mix3:2 7x4  
+own      UNKNOWN      30.00s mix3:2 8x4  
+own      UNKNOWN      30.00s mix3:2 9x4  
+| case | own |
+|---|---|
+| 1:4u 4x5 in[2] out[0, 1, 2, 3] | FOUND 0.1s |
+| 1:5u 3x5 in[2] out[0, 1, 2, 3, 4] | INFEASIBLE 0.8s |
+| 1:5u 3x6 in[2] out[0, 1, 2, 3, 4] | FOUND 2.1s |
+| 1:5u 4x5 in[2] out[0, 1, 2, 3, 4] | FOUND 1.6s |
+| 1:5u 4x6 in[2] out[0, 1, 2, 3, 4] | FOUND 0.1s |
+| 1:6u 4x6 in[2] out[0, 1, 2, 3, 4, 5] | FOUND 0.1s |
+| 1:6u 4x7 in[3] out[0, 1, 2, 3, 4, 5] | FOUND 0.1s |
+| 2:2 4x4 in[0, 1] out[0, 1] | INFEASIBLE 0.1s |
+| 2:2 4x4 in[1, 2] out[1, 2] | INFEASIBLE 0.5s |
+| 2:2 5x3 in[0, 1] out[0, 1] | FOUND 0.1s |
+| 2:2 5x4 in[0, 1] out[0, 1] | FOUND 0.3s |
+| 2:2 5x4 in[1, 2] out[1, 2] | FOUND 0.3s |
+| 2:2 6x2 in[0, 1] out[0, 1] | INFEASIBLE 0.4s |
+| 2:2 6x3 in[0, 1] out[0, 1] | FOUND 0.1s |
+| 2:2 6x4 in[0, 1] out[0, 1] | FOUND 0.4s |
+| 2:2 6x4 in[1, 2] out[1, 2] | FOUND 1.5s |
+| 2:2 7x2 in[0, 1] out[0, 1] | INFEASIBLE 4.1s |
+| 2:2 7x3 in[0, 1] out[0, 1] | FOUND 0.2s |
+| 2:2 7x4 in[0, 1] out[0, 1] | FOUND 0.5s |
+| 2:2 7x4 in[1, 2] out[1, 2] | FOUND 1.5s |
+| 2:2 8x2 in[0, 1] out[0, 1] | INFEASIBLE 24.3s |
+| 2:2 8x3 in[0, 1] out[0, 1] | FOUND 0.2s |
+| 2:2 8x4 in[0, 1] out[0, 1] | FOUND 0.6s |
+| 2:2 8x4 in[1, 2] out[1, 2] | FOUND 2.0s |
+| 2:3 4x4 in[1, 2] out[0, 1, 2] | INFEASIBLE 0.1s |
+| 2:3 5x3 in[0, 1] out[0, 1, 2] | INFEASIBLE 0.3s |
+| 2:3 5x4 in[1, 2] out[0, 1, 2] | INFEASIBLE 1.2s |
+| 2:3 6x3 in[0, 1] out[0, 1, 2] | INFEASIBLE 4.3s |
+| 2:3 6x4 in[1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 2:3 7x3 in[0, 1] out[0, 1, 2] | UNKNOWN 30.0s |
+| 2:3 7x4 in[1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 2:4 3x5 in[1, 2] out[0, 1, 2, 3] | INFEASIBLE 0.0s |
+| 2:4 4x4 in[1, 2] out[0, 1, 2, 3] | INFEASIBLE 0.9s |
+| 2:4 4x5 in[1, 2] out[0, 1, 2, 3] | FOUND 0.2s |
+| 2:4 5x4 in[1, 2] out[0, 1, 2, 3] | FOUND 1.6s |
+| 2:4 5x5 in[1, 2] out[0, 1, 2, 3] | FOUND 0.7s |
+| 2:4 6x4 in[1, 2] out[0, 1, 2, 3] | FOUND 4.9s |
+| 2:4 6x5 in[1, 2] out[0, 1, 2, 3] | FOUND 3.1s |
+| 2:4 7x4 in[1, 2] out[0, 1, 2, 3] | FOUND 7.5s |
+| 2:4 7x5 in[1, 2] out[0, 1, 2, 3] | FOUND 3.2s |
+| 3:2 4x4 in[0, 1, 2] out[1, 2] | INFEASIBLE 0.4s |
+| 3:2 5x3 in[0, 1, 2] out[0, 1] | INFEASIBLE 1.3s |
+| 3:2 5x4 in[0, 1, 2] out[1, 2] | FOUND 2.2s |
+| 3:2 6x3 in[0, 1, 2] out[0, 1] | FOUND 3.1s |
+| 3:2 6x4 in[0, 1, 2] out[1, 2] | FOUND 20.3s |
+| 3:2 7x3 in[0, 1, 2] out[0, 1] | UNKNOWN 30.0s |
+| 3:2 7x4 in[0, 1, 2] out[1, 2] | UNKNOWN 30.0s |
+| 3:3 4x5 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 0.0s |
+| 3:3 4x5 in[1, 2, 3] out[1, 2, 3] | INFEASIBLE 0.1s |
+| 3:3 5x3 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 0.3s |
+| 3:3 5x4 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 0.4s |
+| 3:3 5x5 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 0.8s |
+| 3:3 5x5 in[1, 2, 3] out[1, 2, 3] | UNKNOWN 30.0s |
+| 3:3 6x3 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 9.5s |
+| 3:3 6x4 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 3:3 6x5 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 3:3 6x5 in[1, 2, 3] out[1, 2, 3] | UNKNOWN 30.0s |
+| 3:3 7x3 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 3:3 7x4 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 3:3 7x5 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 3:3 7x5 in[1, 2, 3] out[1, 2, 3] | UNKNOWN 30.0s |
+| 3:3 8x3 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 3:3 8x4 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 3:3 8x5 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s |
+| 3:3 8x5 in[1, 2, 3] out[1, 2, 3] | UNKNOWN 30.0s |
+| 3:4 4x4 in[0, 1, 2] out[0, 1, 2, 3] | INFEASIBLE 0.1s |
+| 3:4 4x5 in[1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 0.3s |
+| 3:4 5x4 in[0, 1, 2] out[0, 1, 2, 3] | INFEASIBLE 2.7s |
+| 3:4 5x5 in[1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 8.6s |
+| 3:4 6x4 in[0, 1, 2] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 3:4 6x5 in[1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 3:4 7x4 in[0, 1, 2] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 3:4 7x5 in[1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:2 3x5 in[0, 1, 2, 3] out[1, 2] | INFEASIBLE 0.0s |
+| 4:2 4x4 in[0, 1, 2, 3] out[1, 2] | INFEASIBLE 1.2s |
+| 4:2 4x5 in[0, 1, 2, 3] out[1, 2] | FOUND 0.4s |
+| 4:2 5x5 in[0, 1, 2, 3] out[1, 2] | UNKNOWN 30.0s |
+| 4:2 6x4 in[0, 1, 2, 3] out[1, 2] | FOUND 0.5s |
+| 4:2 6x5 in[0, 1, 2, 3] out[1, 2] | FOUND 8.1s |
+| 4:2 7x4 in[0, 1, 2, 3] out[1, 2] | FOUND 0.7s |
+| 4:2 7x5 in[0, 1, 2, 3] out[1, 2] | FOUND 2.9s |
+| 4:4 4x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | INFEASIBLE 0.2s |
+| 4:4 5x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 0.2s |
+| 4:4 5x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 0.4s |
+| 4:4 5x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 0.5s |
+| 4:4 5x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s |
+| 4:4 6x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 6x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 6x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 6x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s |
+| 4:4 7x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 7x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 7x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 7x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s |
+| 4:4 8x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 8x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 8x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 8x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s |
+| 4:4 9x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 9x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 9x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s |
+| 4:4 9x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s |
+| mix3:2 4x4 | INFEASIBLE 0.2s |
+| mix3:2 5x4 | UNKNOWN 30.0s |
+| mix3:2 6x4 | UNKNOWN 30.0s |
+| mix3:2 7x4 | UNKNOWN 30.0s |
+| mix3:2 8x4 | UNKNOWN 30.0s |
+| mix3:2 9x4 | UNKNOWN 30.0s |

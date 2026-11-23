@@ -1,0 +1,434 @@
+own      FOUND         0.13s 1:4u 4x5 in[2] out[0, 1, 2, 3] ok 
+cpsat    FOUND         0.29s 1:4u 4x5 in[2] out[0, 1, 2, 3] ok 
+kissat   FOUND         1.03s 1:4u 4x5 in[2] out[0, 1, 2, 3] ok 
+own      INFEASIBLE    9.04s 1:5u 3x5 in[2] out[0, 1, 2, 3, 4]  
+cpsat    INFEASIBLE    0.38s 1:5u 3x5 in[2] out[0, 1, 2, 3, 4]  
+kissat   INFEASIBLE    1.72s 1:5u 3x5 in[2] out[0, 1, 2, 3, 4]  
+own      FOUND         1.25s 1:5u 3x6 in[2] out[0, 1, 2, 3, 4] ok 
+cpsat    FOUND         0.26s 1:5u 3x6 in[2] out[0, 1, 2, 3, 4] ok 
+kissat   FOUND         1.45s 1:5u 3x6 in[2] out[0, 1, 2, 3, 4] ok 
+own      FOUND         8.51s 1:5u 4x5 in[2] out[0, 1, 2, 3, 4] ok 
+cpsat    FOUND         0.32s 1:5u 4x5 in[2] out[0, 1, 2, 3, 4] ok (1 stray pieces ignored) 
+kissat   FOUND         1.63s 1:5u 4x5 in[2] out[0, 1, 2, 3, 4] ok 
+own      FOUND         0.67s 1:5u 4x6 in[2] out[0, 1, 2, 3, 4] ok 
+cpsat    FOUND         0.29s 1:5u 4x6 in[2] out[0, 1, 2, 3, 4] ok (2 stray pieces ignored) 
+kissat   FOUND         1.15s 1:5u 4x6 in[2] out[0, 1, 2, 3, 4] ok 
+own      FOUND         0.06s 1:6u 4x6 in[2] out[0, 1, 2, 3, 4, 5] ok 
+cpsat    FOUND         0.12s 1:6u 4x6 in[2] out[0, 1, 2, 3, 4, 5] ok (2 stray pieces ignored) 
+kissat   FOUND         0.81s 1:6u 4x6 in[2] out[0, 1, 2, 3, 4, 5] ok (2 stray pieces ignored) 
+own      FOUND         0.10s 1:6u 4x7 in[3] out[0, 1, 2, 3, 4, 5] ok 
+cpsat    FOUND         0.32s 1:6u 4x7 in[3] out[0, 1, 2, 3, 4, 5] ok (1 stray pieces ignored) 
+kissat   FOUND         0.92s 1:6u 4x7 in[3] out[0, 1, 2, 3, 4, 5] ok (9 stray pieces ignored) 
+own      INFEASIBLE    0.09s 2:2 4x4 in[0, 1] out[0, 1]  
+cpsat    INFEASIBLE    0.12s 2:2 4x4 in[0, 1] out[0, 1]  
+kissat   INFEASIBLE    0.67s 2:2 4x4 in[0, 1] out[0, 1]  
+own      INFEASIBLE    2.58s 2:2 4x4 in[1, 2] out[1, 2]  
+cpsat    INFEASIBLE    0.08s 2:2 4x4 in[1, 2] out[1, 2]  
+kissat   INFEASIBLE    1.07s 2:2 4x4 in[1, 2] out[1, 2]  
+own      FOUND         0.17s 2:2 5x3 in[0, 1] out[0, 1] ok 
+cpsat    FOUND         0.14s 2:2 5x3 in[0, 1] out[0, 1] ok (1 stray pieces ignored) 
+kissat   FOUND         0.67s 2:2 5x3 in[0, 1] out[0, 1] ok (1 stray pieces ignored) 
+own      FOUND        26.97s 2:2 5x4 in[0, 1] out[0, 1] ok 
+cpsat    FOUND         0.17s 2:2 5x4 in[0, 1] out[0, 1] ok 
+kissat   FOUND         1.26s 2:2 5x4 in[0, 1] out[0, 1] ok 
+own      FOUND         3.91s 2:2 5x4 in[1, 2] out[1, 2] ok 
+cpsat    FOUND         0.11s 2:2 5x4 in[1, 2] out[1, 2] ok (1 stray pieces ignored) 
+kissat   FOUND         1.27s 2:2 5x4 in[1, 2] out[1, 2] ok 
+own      INFEASIBLE    0.58s 2:2 6x2 in[0, 1] out[0, 1]  
+cpsat    INFEASIBLE    0.05s 2:2 6x2 in[0, 1] out[0, 1]  
+kissat   INFEASIBLE    0.58s 2:2 6x2 in[0, 1] out[0, 1]  
+own      FOUND         0.23s 2:2 6x3 in[0, 1] out[0, 1] ok 
+cpsat    FOUND         0.10s 2:2 6x3 in[0, 1] out[0, 1] ok 
+kissat   FOUND         0.74s 2:2 6x3 in[0, 1] out[0, 1] ok 
+own      UNKNOWN      30.01s 2:2 6x4 in[0, 1] out[0, 1]  
+cpsat    FOUND         0.30s 2:2 6x4 in[0, 1] out[0, 1] ok (6 stray pieces ignored) 
+kissat   FOUND         1.94s 2:2 6x4 in[0, 1] out[0, 1] ok (4 stray pieces ignored) 
+own      FOUND         4.50s 2:2 6x4 in[1, 2] out[1, 2] ok 
+cpsat    FOUND         0.15s 2:2 6x4 in[1, 2] out[1, 2] ok (1 stray pieces ignored) 
+kissat   FOUND         0.96s 2:2 6x4 in[1, 2] out[1, 2] ok (2 stray pieces ignored) 
+own      INFEASIBLE    7.15s 2:2 7x2 in[0, 1] out[0, 1]  
+cpsat    INFEASIBLE    0.12s 2:2 7x2 in[0, 1] out[0, 1]  
+kissat   INFEASIBLE    0.83s 2:2 7x2 in[0, 1] out[0, 1]  
+own      FOUND         0.28s 2:2 7x3 in[0, 1] out[0, 1] ok 
+cpsat    FOUND         0.53s 2:2 7x3 in[0, 1] out[0, 1] ok 
+kissat   FOUND         1.24s 2:2 7x3 in[0, 1] out[0, 1] ok (1 stray pieces ignored) 
+own      UNKNOWN      30.00s 2:2 7x4 in[0, 1] out[0, 1]  
+cpsat    FOUND         0.31s 2:2 7x4 in[0, 1] out[0, 1] ok (1 stray pieces ignored) 
+kissat   FOUND         1.96s 2:2 7x4 in[0, 1] out[0, 1] ok 
+own      FOUND         4.43s 2:2 7x4 in[1, 2] out[1, 2] ok 
+cpsat    FOUND         0.45s 2:2 7x4 in[1, 2] out[1, 2] ok (3 stray pieces ignored) 
+kissat   FOUND         2.24s 2:2 7x4 in[1, 2] out[1, 2] ok (1 stray pieces ignored) 
+own      UNKNOWN      30.01s 2:2 8x2 in[0, 1] out[0, 1]  
+cpsat    INFEASIBLE    0.41s 2:2 8x2 in[0, 1] out[0, 1]  
+kissat   INFEASIBLE    1.39s 2:2 8x2 in[0, 1] out[0, 1]  
+own      FOUND         0.28s 2:2 8x3 in[0, 1] out[0, 1] ok 
+cpsat    FOUND         0.34s 2:2 8x3 in[0, 1] out[0, 1] ok (1 stray pieces ignored) 
+kissat   FOUND         2.05s 2:2 8x3 in[0, 1] out[0, 1] ok (1 stray pieces ignored) 
+own      UNKNOWN      30.01s 2:2 8x4 in[0, 1] out[0, 1]  
+cpsat    FOUND         0.49s 2:2 8x4 in[0, 1] out[0, 1] ok (1 stray pieces ignored) 
+kissat   FOUND         4.03s 2:2 8x4 in[0, 1] out[0, 1] ok (2 stray pieces ignored) 
+own      FOUND         5.05s 2:2 8x4 in[1, 2] out[1, 2] ok 
+cpsat    FOUND         0.46s 2:2 8x4 in[1, 2] out[1, 2] ok (2 stray pieces ignored) 
+kissat   FOUND         4.31s 2:2 8x4 in[1, 2] out[1, 2] ok (1 stray pieces ignored) 
+own      INFEASIBLE    0.76s 2:3 4x4 in[1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.11s 2:3 4x4 in[1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    0.77s 2:3 4x4 in[1, 2] out[0, 1, 2]  
+own      INFEASIBLE    1.90s 2:3 5x3 in[0, 1] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.06s 2:3 5x3 in[0, 1] out[0, 1, 2]  
+kissat   INFEASIBLE    0.73s 2:3 5x3 in[0, 1] out[0, 1, 2]  
+own      UNKNOWN      30.01s 2:3 5x4 in[1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.24s 2:3 5x4 in[1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    1.51s 2:3 5x4 in[1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 2:3 6x3 in[0, 1] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.17s 2:3 6x3 in[0, 1] out[0, 1, 2]  
+kissat   INFEASIBLE    1.12s 2:3 6x3 in[0, 1] out[0, 1, 2]  
+own      UNKNOWN      30.01s 2:3 6x4 in[1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.92s 2:3 6x4 in[1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    2.57s 2:3 6x4 in[1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 2:3 7x3 in[0, 1] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.65s 2:3 7x3 in[0, 1] out[0, 1, 2]  
+kissat   INFEASIBLE    2.36s 2:3 7x3 in[0, 1] out[0, 1, 2]  
+own      UNKNOWN      30.01s 2:3 7x4 in[1, 2] out[0, 1, 2]  
+cpsat    FOUND         3.85s 2:3 7x4 in[1, 2] out[0, 1, 2] ok (1 stray pieces ignored) 
+kissat   FOUND         7.18s 2:3 7x4 in[1, 2] out[0, 1, 2] ok (1 stray pieces ignored) 
+own      INFEASIBLE    0.03s 2:4 3x5 in[1, 2] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.05s 2:4 3x5 in[1, 2] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    0.47s 2:4 3x5 in[1, 2] out[0, 1, 2, 3]  
+own      INFEASIBLE    3.71s 2:4 4x4 in[1, 2] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.11s 2:4 4x4 in[1, 2] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    1.07s 2:4 4x4 in[1, 2] out[0, 1, 2, 3]  
+own      FOUND         0.44s 2:4 4x5 in[1, 2] out[0, 1, 2, 3] ok 
+cpsat    FOUND         0.28s 2:4 4x5 in[1, 2] out[0, 1, 2, 3] ok 
+kissat   FOUND         1.31s 2:4 4x5 in[1, 2] out[0, 1, 2, 3] ok (1 stray pieces ignored) 
+own      FOUND        11.68s 2:4 5x4 in[1, 2] out[0, 1, 2, 3] ok 
+cpsat    FOUND         0.12s 2:4 5x4 in[1, 2] out[0, 1, 2, 3] ok 
+kissat   FOUND         1.03s 2:4 5x4 in[1, 2] out[0, 1, 2, 3] ok 
+own      FOUND         1.16s 2:4 5x5 in[1, 2] out[0, 1, 2, 3] ok 
+cpsat    FOUND         0.51s 2:4 5x5 in[1, 2] out[0, 1, 2, 3] ok 
+kissat   FOUND         1.12s 2:4 5x5 in[1, 2] out[0, 1, 2, 3] ok (4 stray pieces ignored) 
+own      FOUND        10.60s 2:4 6x4 in[1, 2] out[0, 1, 2, 3] ok 
+cpsat    FOUND         0.54s 2:4 6x4 in[1, 2] out[0, 1, 2, 3] ok 
+kissat   FOUND         1.15s 2:4 6x4 in[1, 2] out[0, 1, 2, 3] ok 
+own      FOUND         5.32s 2:4 6x5 in[1, 2] out[0, 1, 2, 3] ok 
+cpsat    FOUND         0.43s 2:4 6x5 in[1, 2] out[0, 1, 2, 3] ok (2 stray pieces ignored) 
+kissat   FOUND         1.54s 2:4 6x5 in[1, 2] out[0, 1, 2, 3] ok (2 stray pieces ignored) 
+own      FOUND        11.83s 2:4 7x4 in[1, 2] out[0, 1, 2, 3] ok 
+cpsat    FOUND         0.90s 2:4 7x4 in[1, 2] out[0, 1, 2, 3] ok 
+kissat   FOUND         2.54s 2:4 7x4 in[1, 2] out[0, 1, 2, 3] ok (2 stray pieces ignored) 
+own      FOUND        20.35s 2:4 7x5 in[1, 2] out[0, 1, 2, 3] ok 
+cpsat    FOUND         1.90s 2:4 7x5 in[1, 2] out[0, 1, 2, 3] ok 
+kissat   FOUND         2.90s 2:4 7x5 in[1, 2] out[0, 1, 2, 3] ok (1 stray pieces ignored) 
+own      INFEASIBLE    2.12s 3:2 4x4 in[0, 1, 2] out[1, 2]  
+cpsat    INFEASIBLE    0.17s 3:2 4x4 in[0, 1, 2] out[1, 2]  
+kissat   INFEASIBLE    1.18s 3:2 4x4 in[0, 1, 2] out[1, 2]  
+own      INFEASIBLE    3.27s 3:2 5x3 in[0, 1, 2] out[0, 1]  
+cpsat    INFEASIBLE    0.14s 3:2 5x3 in[0, 1, 2] out[0, 1]  
+kissat   INFEASIBLE    1.14s 3:2 5x3 in[0, 1, 2] out[0, 1]  
+own      UNKNOWN      30.01s 3:2 5x4 in[0, 1, 2] out[1, 2]  
+cpsat    FOUND         0.74s 3:2 5x4 in[0, 1, 2] out[1, 2] ok 
+kissat   FOUND         1.67s 3:2 5x4 in[0, 1, 2] out[1, 2] ok 
+own      FOUND        11.58s 3:2 6x3 in[0, 1, 2] out[0, 1] ok 
+cpsat    FOUND         0.49s 3:2 6x3 in[0, 1, 2] out[0, 1] ok (1 stray pieces ignored) 
+kissat   FOUND         2.40s 3:2 6x3 in[0, 1, 2] out[0, 1] ok 
+own      UNKNOWN      30.01s 3:2 6x4 in[0, 1, 2] out[1, 2]  
+cpsat    FOUND         0.38s 3:2 6x4 in[0, 1, 2] out[1, 2] ok 
+kissat   FOUND         4.87s 3:2 6x4 in[0, 1, 2] out[1, 2] ok (1 stray pieces ignored) 
+own      FOUND         4.25s 3:2 7x3 in[0, 1, 2] out[0, 1] ok 
+cpsat    FOUND         0.23s 3:2 7x3 in[0, 1, 2] out[0, 1] ok (1 stray pieces ignored) 
+kissat   FOUND         1.65s 3:2 7x3 in[0, 1, 2] out[0, 1] ok (1 stray pieces ignored) 
+own      FOUND         8.06s 3:2 7x4 in[0, 1, 2] out[1, 2] ok 
+cpsat    FOUND         5.31s 3:2 7x4 in[0, 1, 2] out[1, 2] ok (1 stray pieces ignored) 
+kissat   FOUND         4.47s 3:2 7x4 in[0, 1, 2] out[1, 2] ok (1 stray pieces ignored) 
+own      INFEASIBLE    0.02s 3:3 4x5 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.06s 3:3 4x5 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    1.18s 3:3 4x5 in[0, 1, 2] out[0, 1, 2]  
+own      INFEASIBLE    0.08s 3:3 4x5 in[1, 2, 3] out[1, 2, 3]  
+cpsat    INFEASIBLE    0.08s 3:3 4x5 in[1, 2, 3] out[1, 2, 3]  
+kissat   INFEASIBLE    1.80s 3:3 4x5 in[1, 2, 3] out[1, 2, 3]  
+own      INFEASIBLE    0.23s 3:3 5x3 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.04s 3:3 5x3 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    0.71s 3:3 5x3 in[0, 1, 2] out[0, 1, 2]  
+own      INFEASIBLE    4.92s 3:3 5x4 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.08s 3:3 5x4 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    1.40s 3:3 5x4 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 5x5 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.12s 3:3 5x5 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    1.58s 3:3 5x5 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 5x5 in[1, 2, 3] out[1, 2, 3]  
+cpsat    INFEASIBLE    0.23s 3:3 5x5 in[1, 2, 3] out[1, 2, 3]  
+kissat   INFEASIBLE    2.42s 3:3 5x5 in[1, 2, 3] out[1, 2, 3]  
+own      INFEASIBLE   15.15s 3:3 6x3 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.08s 3:3 6x3 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    1.38s 3:3 6x3 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 6x4 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.23s 3:3 6x4 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    2.02s 3:3 6x4 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 6x5 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.62s 3:3 6x5 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    3.37s 3:3 6x5 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 6x5 in[1, 2, 3] out[1, 2, 3]  
+cpsat    INFEASIBLE    2.54s 3:3 6x5 in[1, 2, 3] out[1, 2, 3]  
+kissat   INFEASIBLE   10.39s 3:3 6x5 in[1, 2, 3] out[1, 2, 3]  
+own      UNKNOWN      30.01s 3:3 7x3 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    0.50s 3:3 7x3 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    2.58s 3:3 7x3 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.02s 3:3 7x4 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    1.70s 3:3 7x4 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    6.22s 3:3 7x4 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 7x5 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE   12.81s 3:3 7x5 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE   13.06s 3:3 7x5 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.02s 3:3 7x5 in[1, 2, 3] out[1, 2, 3]  
+cpsat    UNKNOWN      30.07s 3:3 7x5 in[1, 2, 3] out[1, 2, 3]  
+kissat   UNKNOWN      32.79s 3:3 7x5 in[1, 2, 3] out[1, 2, 3]  
+own      UNKNOWN      30.01s 3:3 8x3 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE    2.72s 3:3 8x3 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE    5.89s 3:3 8x3 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.01s 3:3 8x4 in[0, 1, 2] out[0, 1, 2]  
+cpsat    INFEASIBLE   17.66s 3:3 8x4 in[0, 1, 2] out[0, 1, 2]  
+kissat   INFEASIBLE   13.72s 3:3 8x4 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.02s 3:3 8x5 in[0, 1, 2] out[0, 1, 2]  
+cpsat    UNKNOWN      30.09s 3:3 8x5 in[0, 1, 2] out[0, 1, 2]  
+kissat   UNKNOWN      31.92s 3:3 8x5 in[0, 1, 2] out[0, 1, 2]  
+own      UNKNOWN      30.02s 3:3 8x5 in[1, 2, 3] out[1, 2, 3]  
+cpsat    UNKNOWN      30.05s 3:3 8x5 in[1, 2, 3] out[1, 2, 3]  
+kissat   UNKNOWN      31.48s 3:3 8x5 in[1, 2, 3] out[1, 2, 3]  
+own      INFEASIBLE    0.03s 3:4 4x4 in[0, 1, 2] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.06s 3:4 4x4 in[0, 1, 2] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    0.88s 3:4 4x4 in[0, 1, 2] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.16s 3:4 4x5 in[1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.08s 3:4 4x5 in[1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    1.39s 3:4 4x5 in[1, 2, 3] out[0, 1, 2, 3]  
+own      INFEASIBLE    1.18s 3:4 5x4 in[0, 1, 2] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.08s 3:4 5x4 in[0, 1, 2] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    1.47s 3:4 5x4 in[0, 1, 2] out[0, 1, 2, 3]  
+own      INFEASIBLE    8.57s 3:4 5x5 in[1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.22s 3:4 5x5 in[1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    2.07s 3:4 5x5 in[1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 3:4 6x4 in[0, 1, 2] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.26s 3:4 6x4 in[0, 1, 2] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    2.07s 3:4 6x4 in[0, 1, 2] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 3:4 6x5 in[1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    1.61s 3:4 6x5 in[1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    4.95s 3:4 6x5 in[1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 3:4 7x4 in[0, 1, 2] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    2.00s 3:4 7x4 in[0, 1, 2] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    4.52s 3:4 7x4 in[0, 1, 2] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 3:4 7x5 in[1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    9.87s 3:4 7x5 in[1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE   10.94s 3:4 7x5 in[1, 2, 3] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.03s 4:2 3x5 in[0, 1, 2, 3] out[1, 2]  
+cpsat    INFEASIBLE    0.06s 4:2 3x5 in[0, 1, 2, 3] out[1, 2]  
+kissat   INFEASIBLE    0.78s 4:2 3x5 in[0, 1, 2, 3] out[1, 2]  
+own      INFEASIBLE    0.78s 4:2 4x4 in[0, 1, 2, 3] out[1, 2]  
+cpsat    INFEASIBLE    0.17s 4:2 4x4 in[0, 1, 2, 3] out[1, 2]  
+kissat   INFEASIBLE    1.59s 4:2 4x4 in[0, 1, 2, 3] out[1, 2]  
+own      FOUND         0.71s 4:2 4x5 in[0, 1, 2, 3] out[1, 2] ok 
+cpsat    FOUND         0.28s 4:2 4x5 in[0, 1, 2, 3] out[1, 2] ok (1 stray pieces ignored) 
+kissat   FOUND         1.99s 4:2 4x5 in[0, 1, 2, 3] out[1, 2] ok (1 stray pieces ignored) 
+own      FOUND        20.82s 4:2 5x5 in[0, 1, 2, 3] out[1, 2] ok 
+cpsat    FOUND         0.49s 4:2 5x5 in[0, 1, 2, 3] out[1, 2] ok (1 stray pieces ignored) 
+kissat   FOUND         5.95s 4:2 5x5 in[0, 1, 2, 3] out[1, 2] ok 
+own      FOUND         0.35s 4:2 6x4 in[0, 1, 2, 3] out[1, 2] ok 
+cpsat    FOUND         1.63s 4:2 6x4 in[0, 1, 2, 3] out[1, 2] ok (1 stray pieces ignored) 
+kissat   FOUND         6.64s 4:2 6x4 in[0, 1, 2, 3] out[1, 2] ok (1 stray pieces ignored) 
+own      FOUND         9.79s 4:2 6x5 in[0, 1, 2, 3] out[1, 2] ok 
+cpsat    FOUND         2.28s 4:2 6x5 in[0, 1, 2, 3] out[1, 2] ok 
+kissat   FOUND         7.19s 4:2 6x5 in[0, 1, 2, 3] out[1, 2] ok 
+own      FOUND         0.67s 4:2 7x4 in[0, 1, 2, 3] out[1, 2] ok 
+cpsat    FOUND         2.05s 4:2 7x4 in[0, 1, 2, 3] out[1, 2] ok (3 stray pieces ignored) 
+kissat   FOUND         5.55s 4:2 7x4 in[0, 1, 2, 3] out[1, 2] ok (1 stray pieces ignored) 
+own      FOUND         1.80s 4:2 7x5 in[0, 1, 2, 3] out[1, 2] ok 
+cpsat    FOUND         8.30s 4:2 7x5 in[0, 1, 2, 3] out[1, 2] ok (1 stray pieces ignored) 
+kissat   FOUND         9.14s 4:2 7x5 in[0, 1, 2, 3] out[1, 2] ok 
+own      INFEASIBLE    0.15s 4:4 4x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+cpsat    INFEASIBLE    0.14s 4:4 4x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+kissat   INFEASIBLE    2.30s 4:4 4x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      INFEASIBLE    0.15s 4:4 5x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.09s 4:4 5x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    1.46s 4:4 5x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.34s 4:4 5x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.09s 4:4 5x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    2.61s 4:4 5x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      INFEASIBLE    0.46s 4:4 5x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.17s 4:4 5x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    3.62s 4:4 5x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.02s 4:4 5x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+cpsat    INFEASIBLE    0.28s 4:4 5x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+kissat   INFEASIBLE    4.93s 4:4 5x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      UNKNOWN      30.01s 4:4 6x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.21s 4:4 6x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    2.92s 4:4 6x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 6x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.31s 4:4 6x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    4.09s 4:4 6x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 6x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    0.49s 4:4 6x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    4.43s 4:4 6x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 6x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+cpsat    INFEASIBLE    6.72s 4:4 6x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+kissat   INFEASIBLE   18.71s 4:4 6x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      UNKNOWN      30.01s 4:4 7x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    1.51s 4:4 7x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE    7.08s 4:4 7x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 7x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    5.93s 4:4 7x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE   10.70s 4:4 7x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.02s 4:4 7x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE    5.82s 4:4 7x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE   15.93s 4:4 7x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 7x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+cpsat    UNKNOWN      30.07s 4:4 7x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+kissat   UNKNOWN      32.16s 4:4 7x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      UNKNOWN      30.03s 4:4 8x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    INFEASIBLE   13.71s 4:4 8x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE   16.56s 4:4 8x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.02s 4:4 8x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    UNKNOWN      30.10s 4:4 8x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   INFEASIBLE   29.91s 4:4 8x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 8x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    UNKNOWN      30.08s 4:4 8x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   UNKNOWN      32.99s 4:4 8x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 8x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+cpsat    UNKNOWN      30.10s 4:4 8x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+kissat   UNKNOWN      33.14s 4:4 8x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      UNKNOWN      30.01s 4:4 9x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    UNKNOWN      30.07s 4:4 9x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   UNKNOWN      32.21s 4:4 9x4 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.01s 4:4 9x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    UNKNOWN      30.07s 4:4 9x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   UNKNOWN      32.45s 4:4 9x5 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.04s 4:4 9x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+cpsat    UNKNOWN      30.18s 4:4 9x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+kissat   UNKNOWN      34.82s 4:4 9x6 in[0, 1, 2, 3] out[0, 1, 2, 3]  
+own      UNKNOWN      30.16s 4:4 9x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+cpsat    UNKNOWN      30.26s 4:4 9x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+kissat   UNKNOWN      36.06s 4:4 9x6 in[1, 2, 3, 4] out[1, 2, 3, 4]  
+own      INFEASIBLE    0.43s mix3:2 4x4  
+cpsat    INFEASIBLE    0.08s mix3:2 4x4  
+kissat   INFEASIBLE    1.44s mix3:2 4x4  
+own      UNKNOWN      30.02s mix3:2 5x4  
+cpsat    INFEASIBLE    0.19s mix3:2 5x4  
+kissat   INFEASIBLE    2.18s mix3:2 5x4  
+own      UNKNOWN      30.01s mix3:2 6x4  
+cpsat    INFEASIBLE    2.00s mix3:2 6x4  
+kissat   INFEASIBLE    4.75s mix3:2 6x4  
+own      UNKNOWN      30.01s mix3:2 7x4  
+cpsat    FOUND        10.62s mix3:2 7x4 ok (1 stray pieces ignored) 
+kissat   FOUND        12.37s mix3:2 7x4 ok 
+own      UNKNOWN      30.01s mix3:2 8x4  
+cpsat    FOUND        24.51s mix3:2 8x4 ok 
+kissat   FOUND        28.96s mix3:2 8x4 ok 
+own      UNKNOWN      30.01s mix3:2 9x4  
+cpsat    FOUND        27.18s mix3:2 9x4 ok (1 stray pieces ignored) 
+kissat   FOUND        23.39s mix3:2 9x4 ok 
+| case | own | cpsat | kissat |
+|---|---|---|---|
+| 1:4u 4x5 in[2] out[0, 1, 2, 3] | FOUND 0.1s | FOUND 0.3s | FOUND 1.0s |
+| 1:5u 3x5 in[2] out[0, 1, 2, 3, 4] | INFEASIBLE 9.0s | INFEASIBLE 0.4s | INFEASIBLE 1.7s |
+| 1:5u 3x6 in[2] out[0, 1, 2, 3, 4] | FOUND 1.3s | FOUND 0.3s | FOUND 1.5s |
+| 1:5u 4x5 in[2] out[0, 1, 2, 3, 4] | FOUND 8.5s | FOUND 0.3s | FOUND 1.6s |
+| 1:5u 4x6 in[2] out[0, 1, 2, 3, 4] | FOUND 0.7s | FOUND 0.3s | FOUND 1.1s |
+| 1:6u 4x6 in[2] out[0, 1, 2, 3, 4, 5] | FOUND 0.1s | FOUND 0.1s | FOUND 0.8s |
+| 1:6u 4x7 in[3] out[0, 1, 2, 3, 4, 5] | FOUND 0.1s | FOUND 0.3s | FOUND 0.9s |
+| 2:2 4x4 in[0, 1] out[0, 1] | INFEASIBLE 0.1s | INFEASIBLE 0.1s | INFEASIBLE 0.7s |
+| 2:2 4x4 in[1, 2] out[1, 2] | INFEASIBLE 2.6s | INFEASIBLE 0.1s | INFEASIBLE 1.1s |
+| 2:2 5x3 in[0, 1] out[0, 1] | FOUND 0.2s | FOUND 0.1s | FOUND 0.7s |
+| 2:2 5x4 in[0, 1] out[0, 1] | FOUND 27.0s | FOUND 0.2s | FOUND 1.3s |
+| 2:2 5x4 in[1, 2] out[1, 2] | FOUND 3.9s | FOUND 0.1s | FOUND 1.3s |
+| 2:2 6x2 in[0, 1] out[0, 1] | INFEASIBLE 0.6s | INFEASIBLE 0.1s | INFEASIBLE 0.6s |
+| 2:2 6x3 in[0, 1] out[0, 1] | FOUND 0.2s | FOUND 0.1s | FOUND 0.7s |
+| 2:2 6x4 in[0, 1] out[0, 1] | UNKNOWN 30.0s | FOUND 0.3s | FOUND 1.9s |
+| 2:2 6x4 in[1, 2] out[1, 2] | FOUND 4.5s | FOUND 0.2s | FOUND 1.0s |
+| 2:2 7x2 in[0, 1] out[0, 1] | INFEASIBLE 7.2s | INFEASIBLE 0.1s | INFEASIBLE 0.8s |
+| 2:2 7x3 in[0, 1] out[0, 1] | FOUND 0.3s | FOUND 0.5s | FOUND 1.2s |
+| 2:2 7x4 in[0, 1] out[0, 1] | UNKNOWN 30.0s | FOUND 0.3s | FOUND 2.0s |
+| 2:2 7x4 in[1, 2] out[1, 2] | FOUND 4.4s | FOUND 0.5s | FOUND 2.2s |
+| 2:2 8x2 in[0, 1] out[0, 1] | UNKNOWN 30.0s | INFEASIBLE 0.4s | INFEASIBLE 1.4s |
+| 2:2 8x3 in[0, 1] out[0, 1] | FOUND 0.3s | FOUND 0.3s | FOUND 2.0s |
+| 2:2 8x4 in[0, 1] out[0, 1] | UNKNOWN 30.0s | FOUND 0.5s | FOUND 4.0s |
+| 2:2 8x4 in[1, 2] out[1, 2] | FOUND 5.0s | FOUND 0.5s | FOUND 4.3s |
+| 2:3 4x4 in[1, 2] out[0, 1, 2] | INFEASIBLE 0.8s | INFEASIBLE 0.1s | INFEASIBLE 0.8s |
+| 2:3 5x3 in[0, 1] out[0, 1, 2] | INFEASIBLE 1.9s | INFEASIBLE 0.1s | INFEASIBLE 0.7s |
+| 2:3 5x4 in[1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 0.2s | INFEASIBLE 1.5s |
+| 2:3 6x3 in[0, 1] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 0.2s | INFEASIBLE 1.1s |
+| 2:3 6x4 in[1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 0.9s | INFEASIBLE 2.6s |
+| 2:3 7x3 in[0, 1] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 0.6s | INFEASIBLE 2.4s |
+| 2:3 7x4 in[1, 2] out[0, 1, 2] | UNKNOWN 30.0s | FOUND 3.8s | FOUND 7.2s |
+| 2:4 3x5 in[1, 2] out[0, 1, 2, 3] | INFEASIBLE 0.0s | INFEASIBLE 0.0s | INFEASIBLE 0.5s |
+| 2:4 4x4 in[1, 2] out[0, 1, 2, 3] | INFEASIBLE 3.7s | INFEASIBLE 0.1s | INFEASIBLE 1.1s |
+| 2:4 4x5 in[1, 2] out[0, 1, 2, 3] | FOUND 0.4s | FOUND 0.3s | FOUND 1.3s |
+| 2:4 5x4 in[1, 2] out[0, 1, 2, 3] | FOUND 11.7s | FOUND 0.1s | FOUND 1.0s |
+| 2:4 5x5 in[1, 2] out[0, 1, 2, 3] | FOUND 1.2s | FOUND 0.5s | FOUND 1.1s |
+| 2:4 6x4 in[1, 2] out[0, 1, 2, 3] | FOUND 10.6s | FOUND 0.5s | FOUND 1.1s |
+| 2:4 6x5 in[1, 2] out[0, 1, 2, 3] | FOUND 5.3s | FOUND 0.4s | FOUND 1.5s |
+| 2:4 7x4 in[1, 2] out[0, 1, 2, 3] | FOUND 11.8s | FOUND 0.9s | FOUND 2.5s |
+| 2:4 7x5 in[1, 2] out[0, 1, 2, 3] | FOUND 20.3s | FOUND 1.9s | FOUND 2.9s |
+| 3:2 4x4 in[0, 1, 2] out[1, 2] | INFEASIBLE 2.1s | INFEASIBLE 0.2s | INFEASIBLE 1.2s |
+| 3:2 5x3 in[0, 1, 2] out[0, 1] | INFEASIBLE 3.3s | INFEASIBLE 0.1s | INFEASIBLE 1.1s |
+| 3:2 5x4 in[0, 1, 2] out[1, 2] | UNKNOWN 30.0s | FOUND 0.7s | FOUND 1.7s |
+| 3:2 6x3 in[0, 1, 2] out[0, 1] | FOUND 11.6s | FOUND 0.5s | FOUND 2.4s |
+| 3:2 6x4 in[0, 1, 2] out[1, 2] | UNKNOWN 30.0s | FOUND 0.4s | FOUND 4.9s |
+| 3:2 7x3 in[0, 1, 2] out[0, 1] | FOUND 4.2s | FOUND 0.2s | FOUND 1.6s |
+| 3:2 7x4 in[0, 1, 2] out[1, 2] | FOUND 8.1s | FOUND 5.3s | FOUND 4.5s |
+| 3:3 4x5 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 0.0s | INFEASIBLE 0.1s | INFEASIBLE 1.2s |
+| 3:3 4x5 in[1, 2, 3] out[1, 2, 3] | INFEASIBLE 0.1s | INFEASIBLE 0.1s | INFEASIBLE 1.8s |
+| 3:3 5x3 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 0.2s | INFEASIBLE 0.0s | INFEASIBLE 0.7s |
+| 3:3 5x4 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 4.9s | INFEASIBLE 0.1s | INFEASIBLE 1.4s |
+| 3:3 5x5 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 0.1s | INFEASIBLE 1.6s |
+| 3:3 5x5 in[1, 2, 3] out[1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 0.2s | INFEASIBLE 2.4s |
+| 3:3 6x3 in[0, 1, 2] out[0, 1, 2] | INFEASIBLE 15.1s | INFEASIBLE 0.1s | INFEASIBLE 1.4s |
+| 3:3 6x4 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 0.2s | INFEASIBLE 2.0s |
+| 3:3 6x5 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 0.6s | INFEASIBLE 3.4s |
+| 3:3 6x5 in[1, 2, 3] out[1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 2.5s | INFEASIBLE 10.4s |
+| 3:3 7x3 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 0.5s | INFEASIBLE 2.6s |
+| 3:3 7x4 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 1.7s | INFEASIBLE 6.2s |
+| 3:3 7x5 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 12.8s | INFEASIBLE 13.1s |
+| 3:3 7x5 in[1, 2, 3] out[1, 2, 3] | UNKNOWN 30.0s | UNKNOWN 30.1s | UNKNOWN 32.8s |
+| 3:3 8x3 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 2.7s | INFEASIBLE 5.9s |
+| 3:3 8x4 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | INFEASIBLE 17.7s | INFEASIBLE 13.7s |
+| 3:3 8x5 in[0, 1, 2] out[0, 1, 2] | UNKNOWN 30.0s | UNKNOWN 30.1s | UNKNOWN 31.9s |
+| 3:3 8x5 in[1, 2, 3] out[1, 2, 3] | UNKNOWN 30.0s | UNKNOWN 30.1s | UNKNOWN 31.5s |
+| 3:4 4x4 in[0, 1, 2] out[0, 1, 2, 3] | INFEASIBLE 0.0s | INFEASIBLE 0.1s | INFEASIBLE 0.9s |
+| 3:4 4x5 in[1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 0.2s | INFEASIBLE 0.1s | INFEASIBLE 1.4s |
+| 3:4 5x4 in[0, 1, 2] out[0, 1, 2, 3] | INFEASIBLE 1.2s | INFEASIBLE 0.1s | INFEASIBLE 1.5s |
+| 3:4 5x5 in[1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 8.6s | INFEASIBLE 0.2s | INFEASIBLE 2.1s |
+| 3:4 6x4 in[0, 1, 2] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 0.3s | INFEASIBLE 2.1s |
+| 3:4 6x5 in[1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 1.6s | INFEASIBLE 5.0s |
+| 3:4 7x4 in[0, 1, 2] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 2.0s | INFEASIBLE 4.5s |
+| 3:4 7x5 in[1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 9.9s | INFEASIBLE 10.9s |
+| 4:2 3x5 in[0, 1, 2, 3] out[1, 2] | INFEASIBLE 0.0s | INFEASIBLE 0.1s | INFEASIBLE 0.8s |
+| 4:2 4x4 in[0, 1, 2, 3] out[1, 2] | INFEASIBLE 0.8s | INFEASIBLE 0.2s | INFEASIBLE 1.6s |
+| 4:2 4x5 in[0, 1, 2, 3] out[1, 2] | FOUND 0.7s | FOUND 0.3s | FOUND 2.0s |
+| 4:2 5x5 in[0, 1, 2, 3] out[1, 2] | FOUND 20.8s | FOUND 0.5s | FOUND 5.9s |
+| 4:2 6x4 in[0, 1, 2, 3] out[1, 2] | FOUND 0.3s | FOUND 1.6s | FOUND 6.6s |
+| 4:2 6x5 in[0, 1, 2, 3] out[1, 2] | FOUND 9.8s | FOUND 2.3s | FOUND 7.2s |
+| 4:2 7x4 in[0, 1, 2, 3] out[1, 2] | FOUND 0.7s | FOUND 2.1s | FOUND 5.5s |
+| 4:2 7x5 in[0, 1, 2, 3] out[1, 2] | FOUND 1.8s | FOUND 8.3s | FOUND 9.1s |
+| 4:4 4x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | INFEASIBLE 0.1s | INFEASIBLE 0.1s | INFEASIBLE 2.3s |
+| 4:4 5x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 0.2s | INFEASIBLE 0.1s | INFEASIBLE 1.5s |
+| 4:4 5x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 0.3s | INFEASIBLE 0.1s | INFEASIBLE 2.6s |
+| 4:4 5x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | INFEASIBLE 0.5s | INFEASIBLE 0.2s | INFEASIBLE 3.6s |
+| 4:4 5x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s | INFEASIBLE 0.3s | INFEASIBLE 4.9s |
+| 4:4 6x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 0.2s | INFEASIBLE 2.9s |
+| 4:4 6x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 0.3s | INFEASIBLE 4.1s |
+| 4:4 6x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 0.5s | INFEASIBLE 4.4s |
+| 4:4 6x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s | INFEASIBLE 6.7s | INFEASIBLE 18.7s |
+| 4:4 7x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 1.5s | INFEASIBLE 7.1s |
+| 4:4 7x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 5.9s | INFEASIBLE 10.7s |
+| 4:4 7x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 5.8s | INFEASIBLE 15.9s |
+| 4:4 7x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s | UNKNOWN 30.1s | UNKNOWN 32.2s |
+| 4:4 8x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | INFEASIBLE 13.7s | INFEASIBLE 16.6s |
+| 4:4 8x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | UNKNOWN 30.1s | INFEASIBLE 29.9s |
+| 4:4 8x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | UNKNOWN 30.1s | UNKNOWN 33.0s |
+| 4:4 8x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.0s | UNKNOWN 30.1s | UNKNOWN 33.1s |
+| 4:4 9x4 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | UNKNOWN 30.1s | UNKNOWN 32.2s |
+| 4:4 9x5 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | UNKNOWN 30.1s | UNKNOWN 32.4s |
+| 4:4 9x6 in[0, 1, 2, 3] out[0, 1, 2, 3] | UNKNOWN 30.0s | UNKNOWN 30.2s | UNKNOWN 34.8s |
+| 4:4 9x6 in[1, 2, 3, 4] out[1, 2, 3, 4] | UNKNOWN 30.2s | UNKNOWN 30.3s | UNKNOWN 36.1s |
+| mix3:2 4x4 | INFEASIBLE 0.4s | INFEASIBLE 0.1s | INFEASIBLE 1.4s |
+| mix3:2 5x4 | UNKNOWN 30.0s | INFEASIBLE 0.2s | INFEASIBLE 2.2s |
+| mix3:2 6x4 | UNKNOWN 30.0s | INFEASIBLE 2.0s | INFEASIBLE 4.8s |
+| mix3:2 7x4 | UNKNOWN 30.0s | FOUND 10.6s | FOUND 12.4s |
+| mix3:2 8x4 | UNKNOWN 30.0s | FOUND 24.5s | FOUND 29.0s |
+| mix3:2 9x4 | UNKNOWN 30.0s | FOUND 27.2s | FOUND 23.4s |

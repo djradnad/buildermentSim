@@ -1,0 +1,1311 @@
+{
+"1:2u 1x2 in[0] out[0, 1]": {
+"status": "FOUND",
+"time": 0.01,
+"grid": [
+"S1",
+"B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:2u 2x2 in[0] out[0, 1]": {
+"status": "FOUND",
+"time": 0.01,
+"grid": [
+"S1S1",
+"S1B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:2u 3x2 in[0] out[0, 1]": {
+"status": "FOUND",
+"time": 0.02,
+"grid": [
+"S0S1B1",
+"S1B1.."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:2u 4x2 in[0] out[0, 1]": {
+"status": "FOUND",
+"time": 0.03,
+"grid": [
+"S1O1..I1",
+"B1....S3"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"1:2u 1x3 in[1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.0,
+"grid": [
+"B1",
+"S1",
+"S3"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"1:2u 2x3 in[1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.02,
+"grid": [
+"B1B1",
+"B1S1",
+"...."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:2u 3x3 in[1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.03,
+"grid": [
+"S1B1B1",
+"B1..B0",
+"......"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:2u 4x3 in[1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.05,
+"grid": [
+"O1I1S1B1",
+"B1B1B1B0",
+"......S2"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"1:3u 1x3 in[1] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 0.0,
+"grid": [
+"B1",
+"S1",
+"B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:3u 2x3 in[1] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 0.02,
+"grid": [
+"S0..",
+"S1S1",
+"B1.."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:3u 3x3 in[1] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 0.04,
+"grid": [
+"S0S1B1",
+"S1B1B0",
+"S2...."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:3u 4x3 in[1] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 0.07,
+"grid": [
+"B1......",
+"S1O1..I1",
+"B1......"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:3u 1x4 in[1] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 0.01,
+"grid": [
+"B1",
+"S1",
+"S2",
+".."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:3u 2x4 in[1] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 0.04,
+"grid": [
+"B1B1",
+"B1S1",
+"B1B2",
+"B0B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:3u 3x4 in[1] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 0.12,
+"grid": [
+"S1S0..",
+"B1B0S1",
+"B1S1B1",
+"B0B1.."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:3u 4x4 in[1] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 0.15,
+"grid": [
+"O1S0I1B1",
+"B1B2B1S1",
+"S1B1S1B1",
+"B3I3O3B0"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"1:4u 1x4 in[1] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"1:4u 2x4 in[1] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.02,
+"grid": [
+"S0..",
+"S1S1",
+"S1S2",
+"B1.."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:4u 3x4 in[1] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.05,
+"grid": [
+"B1....",
+"S1B1S1",
+"S1B1B1",
+"S2...."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:4u 4x4 in[1] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.08,
+"grid": [
+"S1S1S1B1",
+"S2S2..S1",
+"S1S2B3S3",
+"O1S0I1S2"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"1:4u 1x5 in[2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"1:4u 2x5 in[2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.05,
+"grid": [
+"S1B1",
+"S2S0",
+"S1S1",
+"B1..",
+"...."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:4u 3x5 in[2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.08,
+"grid": [
+"B1....",
+"S1B1B1",
+"B1O0S1",
+"B1I0S2",
+"S1S1S2"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:4u 4x5 in[2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.12,
+"grid": [
+"S1O1I1B1",
+"O1..I1S0",
+"B1..B2S1",
+"S1B1B1..",
+"........"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:5u 1x5 in[2] out[0, 1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"1:5u 2x5 in[2] out[0, 1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"1:5u 3x5 in[2] out[0, 1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.18
+},
+"1:5u 4x5 in[2] out[0, 1, 2, 3, 4]": {
+"status": "FOUND",
+"time": 0.28,
+"grid": [
+"B1B2B1S0",
+"S1B1B2S0",
+"S2S0B2B0",
+"S1S1B1..",
+"S1B1..S3"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"1:5u 1x6 in[2] out[0, 1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"1:5u 2x6 in[2] out[0, 1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"1:5u 3x6 in[2] out[0, 1, 2, 3, 4]": {
+"status": "FOUND",
+"time": 0.14,
+"grid": [
+"S0S1S0",
+"S1B1O0",
+"S2S1S1",
+"S0S1B1",
+"S1B1I0",
+"S2S3B0"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:5u 4x6 in[2] out[0, 1, 2, 3, 4]": {
+"status": "FOUND",
+"time": 0.3,
+"grid": [
+"S0S1S0S2",
+"S1B1O0S1",
+"B1B0B1S1",
+"B1B1I0I2",
+"B1S0S3O2",
+"..B0B1B1"
+],
+"exact": true,
+"exact_why": "ok (2 stray pieces ignored)"
+},
+"1:6u 1x6 in[2] out[0, 1, 2, 3, 4, 5]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"1:6u 2x6 in[2] out[0, 1, 2, 3, 4, 5]": {
+"status": "FOUND",
+"time": 0.03,
+"grid": [
+"S0..",
+"S1S0",
+"S1S1",
+"S2S2",
+"S0S2",
+"S1B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"1:6u 3x6 in[2] out[0, 1, 2, 3, 4, 5]": {
+"status": "FOUND",
+"time": 0.09,
+"grid": [
+"S0S2..",
+"S1S1B1",
+"B1B2B0",
+"B1S2B2",
+"B1B2B1",
+"S1B1.."
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"1:6u 4x6 in[2] out[0, 1, 2, 3, 4, 5]": {
+"status": "FOUND",
+"time": 0.12,
+"grid": [
+"O1S0I1B1",
+"O1..I1S0",
+"B1B2B1S1",
+"S1S2..I2",
+"S1S1B1O2",
+"S2S1B0B1"
+],
+"exact": true,
+"exact_why": "ok (2 stray pieces ignored)"
+},
+"1:6u 1x7 in[3] out[0, 1, 2, 3, 4, 5]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"1:6u 2x7 in[3] out[0, 1, 2, 3, 4, 5]": {
+"status": "FOUND",
+"time": 0.04,
+"grid": [
+"S0S0",
+"S1B1",
+"S2S0",
+"S0S1",
+"S1B1",
+"B1..",
+"..S3"
+],
+"exact": true,
+"exact_why": "ok (2 stray pieces ignored)"
+},
+"1:6u 3x7 in[3] out[0, 1, 2, 3, 4, 5]": {
+"status": "FOUND",
+"time": 0.1,
+"grid": [
+"S0S1S0",
+"S1S2S0",
+"S2I2B0",
+"S0S2S1",
+"S1S1S0",
+"B1O2S0",
+"..S2S3"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"1:6u 4x7 in[3] out[0, 1, 2, 3, 4, 5]": {
+"status": "FOUND",
+"time": 0.16,
+"grid": [
+"B1S1S0S2",
+"B1I2B0S0",
+"S1S0S3S3",
+"B1B0B1S1",
+"B1O2S1B1",
+"S1B1B3S3",
+"..B0B1B1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"2:2 2x2 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.0
+},
+"2:2 3x2 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:2 4x2 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:2 5x2 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"2:2 6x2 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"2:2 7x2 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.08
+},
+"2:2 8x2 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.3
+},
+"2:2 2x3 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:2 3x3 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:2 4x3 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"2:2 5x3 in[0, 1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.07,
+"grid": [
+"S1B1B1S1S1",
+"O1B0I1B1S1",
+"S0S1B1B1B1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"2:2 6x3 in[0, 1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.11,
+"grid": [
+"S1B1B1B1S1B1",
+"O1S0I1B1B1B2",
+"..B0B1S1B1S2"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"2:2 7x3 in[0, 1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.42,
+"grid": [
+"B1B1B1B1B1S1S1",
+"B1O1S0I1B1S2S1",
+"B0B1S1O1I1S1B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"2:2 8x3 in[0, 1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.22,
+"grid": [
+"S1B1B1B1B1B1B2B1",
+"S0S1O1S1S0B0B2I1",
+"S1B1S1S1S1B1B1S3"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"2:2 2x4 in[1, 2] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:2 2x4 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:2 3x4 in[1, 2] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"2:2 3x4 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"2:2 4x4 in[1, 2] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.06
+},
+"2:2 4x4 in[0, 1] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"2:2 5x4 in[1, 2] out[1, 2]": {
+"status": "FOUND",
+"time": 0.12,
+"grid": [
+"B2B1S1B1B1",
+"B1O0S1B2S1",
+"O1I0I1B1S1",
+"..S1O1I1S2"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"2:2 5x4 in[0, 1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.1,
+"grid": [
+"B1B1B1S1S1",
+"O1B0I1B1S1",
+"..B0B1..B2",
+"....S1B1B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"2:2 6x4 in[1, 2] out[1, 2]": {
+"status": "FOUND",
+"time": 0.15,
+"grid": [
+"S2S0B3B2S1B1",
+"O1B0I1S2I2B0",
+"B1S1B1O1O2I1",
+"B0O1I1B1B1.."
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"2:2 6x4 in[0, 1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.19,
+"grid": [
+"B1S1B1B1S1B1",
+"O1..O0I1B1B2",
+"B3B2I0B2S1B1",
+"B0S2S1S2S0S2"
+],
+"exact": true,
+"exact_why": "ok (6 stray pieces ignored)"
+},
+"2:2 7x4 in[1, 2] out[1, 2]": {
+"status": "FOUND",
+"time": 0.37,
+"grid": [
+"S0S1S1B1S1S1S0",
+"B1B1..S0..I2S1",
+"B1B1S1S1O1O2I1",
+"S1S1O1S0I1S2S2"
+],
+"exact": true,
+"exact_why": "ok (3 stray pieces ignored)"
+},
+"2:2 7x4 in[0, 1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.33,
+"grid": [
+"O1I1S1B1B1S1S1",
+"S1O1S1B0I1B1S1",
+"S0B3S3B0....B2",
+"S1O1....I1B1B1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"2:2 8x4 in[1, 2] out[1, 2]": {
+"status": "FOUND",
+"time": 0.33,
+"grid": [
+"S0..B2B1B1B1....",
+"O1S1B1I1B1S1O1I1",
+"B1B1....B0S3..B2",
+"..B0S1B1S1O1I1B1"
+],
+"exact": true,
+"exact_why": "ok (2 stray pieces ignored)"
+},
+"2:2 8x4 in[0, 1] out[0, 1]": {
+"status": "FOUND",
+"time": 0.34,
+"grid": [
+"O1..S0I1B1I1S1B1",
+"O1I1B1B1S1O1B2I1",
+"B3S3B2B0S0..B3B2",
+"B0O1B3B3B0..I1B1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"3:3 2x3 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"3:3 3x3 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"3:3 4x3 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"3:3 5x3 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"3:3 6x3 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.07
+},
+"3:3 7x3 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.49
+},
+"3:3 8x3 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 2.66
+},
+"3:3 2x4 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"3:3 3x4 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"3:3 4x4 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"3:3 5x4 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.06
+},
+"3:3 6x4 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.24
+},
+"3:3 7x4 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 1.63
+},
+"3:3 8x4 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 18.23
+},
+"3:3 2x5 in[1, 2, 3] out[1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"3:3 2x5 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"3:3 3x5 in[1, 2, 3] out[1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"3:3 3x5 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.05
+},
+"3:3 4x5 in[1, 2, 3] out[1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.1
+},
+"3:3 4x5 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.07
+},
+"3:3 5x5 in[1, 2, 3] out[1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.17
+},
+"3:3 5x5 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.09
+},
+"3:3 6x5 in[1, 2, 3] out[1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 2.83
+},
+"3:3 6x5 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.68
+},
+"3:3 7x5 in[1, 2, 3] out[1, 2, 3]": {
+"status": "UNKNOWN",
+"time": 30.08
+},
+"3:3 7x5 in[0, 1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 12.84
+},
+"3:3 8x5 in[1, 2, 3] out[1, 2, 3]": {
+"status": "UNKNOWN",
+"time": 30.08
+},
+"3:3 8x5 in[0, 1, 2] out[0, 1, 2]": {
+"status": "UNKNOWN",
+"time": 30.07
+},
+"4:4 2x4 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"4:4 3x4 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"4:4 4x4 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"4:4 5x4 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.06
+},
+"4:4 6x4 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.15
+},
+"4:4 7x4 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 1.18
+},
+"4:4 8x4 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 14.74
+},
+"4:4 9x4 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "UNKNOWN",
+"time": 30.05
+},
+"4:4 2x5 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"4:4 3x5 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"4:4 4x5 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.06
+},
+"4:4 5x5 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.09
+},
+"4:4 6x5 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.35
+},
+"4:4 7x5 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 5.8
+},
+"4:4 8x5 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "UNKNOWN",
+"time": 30.1
+},
+"4:4 9x5 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "UNKNOWN",
+"time": 30.08
+},
+"4:4 2x6 in[1, 2, 3, 4] out[1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"4:4 2x6 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"4:4 3x6 in[1, 2, 3, 4] out[1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.07
+},
+"4:4 3x6 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"4:4 4x6 in[1, 2, 3, 4] out[1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.14
+},
+"4:4 4x6 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.09
+},
+"4:4 5x6 in[1, 2, 3, 4] out[1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 0.36
+},
+"4:4 5x6 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.13
+},
+"4:4 6x6 in[1, 2, 3, 4] out[1, 2, 3, 4]": {
+"status": "INFEASIBLE",
+"time": 7.24
+},
+"4:4 6x6 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.66
+},
+"4:4 7x6 in[1, 2, 3, 4] out[1, 2, 3, 4]": {
+"status": "UNKNOWN",
+"time": 30.1
+},
+"4:4 7x6 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 7.46
+},
+"4:4 8x6 in[1, 2, 3, 4] out[1, 2, 3, 4]": {
+"status": "UNKNOWN",
+"time": 30.13
+},
+"4:4 8x6 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "UNKNOWN",
+"time": 30.09
+},
+"4:4 9x6 in[1, 2, 3, 4] out[1, 2, 3, 4]": {
+"status": "UNKNOWN",
+"time": 30.15
+},
+"4:4 9x6 in[0, 1, 2, 3] out[0, 1, 2, 3]": {
+"status": "UNKNOWN",
+"time": 30.17
+},
+"2:3 2x3 in[0, 1] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:3 3x3 in[0, 1] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:3 4x3 in[0, 1] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"2:3 5x3 in[0, 1] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.05
+},
+"2:3 6x3 in[0, 1] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.16
+},
+"2:3 7x3 in[0, 1] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.6
+},
+"2:3 2x4 in[1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"2:3 3x4 in[1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"2:3 4x4 in[1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.07
+},
+"2:3 5x4 in[1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.23
+},
+"2:3 6x4 in[1, 2] out[0, 1, 2]": {
+"status": "INFEASIBLE",
+"time": 1.05
+},
+"2:3 7x4 in[1, 2] out[0, 1, 2]": {
+"status": "FOUND",
+"time": 3.95,
+"grid": [
+"S1B1O1..I1S0..",
+"O1B0I1B1I1S1S1",
+"B1S1B1S1O1S2I1",
+"S1O1S1B1I1S2S1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"3:2 2x3 in[0, 1, 2] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"3:2 3x3 in[0, 1, 2] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"3:2 4x3 in[0, 1, 2] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"3:2 5x3 in[0, 1, 2] out[0, 1]": {
+"status": "INFEASIBLE",
+"time": 0.21
+},
+"3:2 6x3 in[0, 1, 2] out[0, 1]": {
+"status": "FOUND",
+"time": 0.52,
+"grid": [
+"B1B1B1B1S1B1",
+"O1B0I1B1S2S1",
+"S1B0B1S1S1B1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"3:2 7x3 in[0, 1, 2] out[0, 1]": {
+"status": "FOUND",
+"time": 0.28,
+"grid": [
+"S1O1I1B1I1S1B1",
+"O1I1B1B0I1S2S1",
+"S2..S1S1O1I1B1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"3:2 2x4 in[0, 1, 2] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"3:2 3x4 in[0, 1, 2] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"3:2 4x4 in[0, 1, 2] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.13
+},
+"3:2 5x4 in[0, 1, 2] out[1, 2]": {
+"status": "FOUND",
+"time": 0.65,
+"grid": [
+"..B2O1I1B1",
+"O1B2I1S0S1",
+"B1S2S3B0B2",
+"B0O1I1S1B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"3:2 6x4 in[0, 1, 2] out[1, 2]": {
+"status": "FOUND",
+"time": 0.26,
+"grid": [
+"B2S1B1S1B1B1",
+"B1S0B3B2..S1",
+"O1B0I1B1..B2",
+"..B0O1..I1B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"3:2 7x4 in[0, 1, 2] out[1, 2]": {
+"status": "FOUND",
+"time": 5.72,
+"grid": [
+"S1S1B1S1O1I1B1",
+"S2S0S3B2..B2S1",
+"S0S1O1B2I1B1S1",
+"S1S1B1B1....S1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"2:4 2x4 in[1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"2:4 3x4 in[1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"2:4 4x4 in[1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.13
+},
+"2:4 5x4 in[1, 2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.18,
+"grid": [
+"S1B1S1S0..",
+"S2S1O1S0I1",
+"S0S2S3S1S1",
+"S1B1B1B1.."
+],
+"exact": true,
+"exact_why": "ok"
+},
+"2:4 6x4 in[1, 2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.56,
+"grid": [
+"S1B1S1S1S0..",
+"S2S1O1S2S0I1",
+"S1B1B1S2S0S1",
+"S2..S1B1B0S2"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"2:4 7x4 in[1, 2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 1.02,
+"grid": [
+"B1S1O1I1B1B1B1",
+"B1S2S1O1B0I1S1",
+"B1S1B1..B0B1S1",
+"B1B1B0O1..I1B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"2:4 2x5 in[1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"2:4 3x5 in[1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"2:4 4x5 in[1, 2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.27,
+"grid": [
+"S1B1B1B1",
+"S2O0B2S1",
+"S1B1B1S1",
+"S2I0..B2",
+"..S1S1S2"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"2:4 5x5 in[1, 2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.44,
+"grid": [
+"B1S0S1S1S0",
+"B1S0S2I2S1",
+"B1B0B2S1S1",
+"S0S1S2O2B2",
+"S1S1S1B1S2"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"2:4 6x5 in[1, 2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 0.31,
+"grid": [
+"S1S1B1S3....",
+"S1B1O0S1O1I1",
+"S1O1I1S2I1S1",
+"B1S3I0S2B3B2",
+"....B0O1I1B1"
+],
+"exact": true,
+"exact_why": "ok (2 stray pieces ignored)"
+},
+"2:4 7x5 in[1, 2] out[0, 1, 2, 3]": {
+"status": "FOUND",
+"time": 1.9,
+"grid": [
+"S1B1..B3S3S3..",
+"S1S0..S1O1I2I1",
+"S0S0..B2B2B1S1",
+"S0S1B1B1B1O2S2",
+"B0S1B1B1B1B1B1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"4:2 2x4 in[0, 1, 2, 3] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"4:2 3x4 in[0, 1, 2, 3] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.04
+},
+"4:2 4x4 in[0, 1, 2, 3] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.19
+},
+"4:2 5x4 in[0, 1, 2, 3] out[1, 2]": {
+"status": "FOUND",
+"time": 0.85,
+"grid": [
+"..B2B1S1B1",
+"O1B2I1B1B0",
+"S1B1B2S1B1",
+"..S1B1..S1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"4:2 6x4 in[0, 1, 2, 3] out[1, 2]": {
+"status": "FOUND",
+"time": 1.67,
+"grid": [
+"..B2S1B1B1B2",
+"O1I2I1B1S1B1",
+"S0O2S1B0..B2",
+"B0B1S1S1B1B1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"4:2 7x4 in[0, 1, 2, 3] out[1, 2]": {
+"status": "FOUND",
+"time": 2.08,
+"grid": [
+"S0S1O1I1B1S1B1",
+"B1B1S0S3B2B1B0",
+"O1B3S3I1B1B2B1",
+"S1B0O1S3I1B1B1"
+],
+"exact": true,
+"exact_why": "ok (3 stray pieces ignored)"
+},
+"4:2 2x5 in[0, 1, 2, 3] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"4:2 3x5 in[0, 1, 2, 3] out[1, 2]": {
+"status": "INFEASIBLE",
+"time": 0.05
+},
+"4:2 4x5 in[0, 1, 2, 3] out[1, 2]": {
+"status": "FOUND",
+"time": 0.29,
+"grid": [
+"S1S1S1B1",
+"B1S0I2B0",
+"B1S1B1B1",
+"B0S0O2B0",
+"..B0S2S2"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"4:2 5x5 in[0, 1, 2, 3] out[1, 2]": {
+"status": "FOUND",
+"time": 0.57,
+"grid": [
+"B2S1B1S1B1",
+"S2S1S0I2B0",
+"S1B1B0B1B1",
+"S0B0..O2S1",
+"S1O1I1S2S1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"4:2 6x5 in[0, 1, 2, 3] out[1, 2]": {
+"status": "FOUND",
+"time": 2.55,
+"grid": [
+"B2B1O1I1S1S1",
+"B1B1S1O1S2I1",
+"O1O0S2I1B1B2",
+"..I0B3S3B0B2",
+"..B0B1S1S1S2"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"4:2 7x5 in[0, 1, 2, 3] out[1, 2]": {
+"status": "FOUND",
+"time": 10.73,
+"grid": [
+"B2S1B1S1B1B1B1",
+"B1S1O1I2B0I1B1",
+"B1S2S3O2S0S3S1",
+"S0S2S2B2B0B1S1",
+"B0B1S1S2....S1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"3:4 2x4 in[0, 1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.01
+},
+"3:4 3x4 in[0, 1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.02
+},
+"3:4 4x4 in[0, 1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"3:4 5x4 in[0, 1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.06
+},
+"3:4 6x4 in[0, 1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.21
+},
+"3:4 7x4 in[0, 1, 2] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 2.31
+},
+"3:4 2x5 in[1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"3:4 3x5 in[1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.05
+},
+"3:4 4x5 in[1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.11
+},
+"3:4 5x5 in[1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 0.36
+},
+"3:4 6x5 in[1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 1.98
+},
+"3:4 7x5 in[1, 2, 3] out[0, 1, 2, 3]": {
+"status": "INFEASIBLE",
+"time": 10.37
+},
+"mix3:2 3x4": {
+"status": "INFEASIBLE",
+"time": 0.03
+},
+"mix3:2 4x4": {
+"status": "INFEASIBLE",
+"time": 0.06
+},
+"mix3:2 5x4": {
+"status": "INFEASIBLE",
+"time": 0.13
+},
+"mix3:2 6x4": {
+"status": "INFEASIBLE",
+"time": 1.18
+},
+"mix3:2 7x4": {
+"status": "FOUND",
+"time": 9.11,
+"grid": [
+"B2B1S1B1S1B1S0",
+"B1S1S0S1S2B3B0",
+"O1S2B0I1B1S1S1",
+"B1B1S1O1..S3I1"
+],
+"exact": true,
+"exact_why": "ok (1 stray pieces ignored)"
+},
+"mix3:2 8x4": {
+"status": "FOUND",
+"time": 22.58,
+"grid": [
+"S1B1S1S1B1S1B1S0",
+"B1S1S1S0S1S2B3B0",
+"O1S2S3B0I1B1S1S1",
+"S1B1S1S1O1..I1S1"
+],
+"exact": true,
+"exact_why": "ok"
+},
+"mix3:2 9x4": {
+"status": "UNKNOWN",
+"time": 30.06
+}
+}
