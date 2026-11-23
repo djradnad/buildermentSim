@@ -92,7 +92,7 @@ long long nodes = 0, fails = 0, leaves = 0, uncertain = 0;
 chrono::steady_clock::time_point t0;
 double timeout = 60;
 bool use_lp = true, use_sat = true, use_bounds = true, lp_split = false;
-int lp_every = 1;
+int lp_every = 1, cdcl_lpevery = 5;
 static size_t path_depth();
 struct Lit;
 extern vector<vector<pair<int, Mask>>> nogoods;
@@ -1217,7 +1217,8 @@ static bool propagate() {
     fail_code = 4;
     if (!flow_relax()) return false;
     fail_code = 5;
-    if (use_lp && (lp_every <= 1 || path_depth() % lp_every == 0)) {
+    int lpk = R_ON ? cdcl_lpevery : lp_every;     // CDCL: the LP only every k levels (cheap nodes, learning does the rest)
+    if (use_lp && (lpk <= 1 || path_depth() % lpk == 0)) {
         if (lp_split && NC > 1) {
             for (int c = 0; c < NC; c++) { lp_only = c; bool ok = lp_check(lp_maxvars); lp_only = -1; if (!ok) return false; }
         } else if (!lp_check(lp_maxvars)) return false;
@@ -1387,7 +1388,7 @@ bool found = false;
 // that set is stored as a nogood (it can never hold again). Sound for INFEASIBLE, and complete because restart limits grow.
 struct Lit { int p, v; bool pos; };
 vector<Lit> path;
-static size_t path_depth() { return path.size(); }
+static size_t path_depth() { return R_ON ? curlvl : path.size(); }
 vector<vector<pair<int, Mask>>> nogoods;
 bool use_restarts = false, restart_now = false;
 long long restart_limit = 0, fails_at_restart = 0, n_restarts = 0, base_fails = 100;
@@ -1627,7 +1628,7 @@ bool use_cdcl = true;              // default: hybrid (2000 DFS fails, then CDCL
 long long hybrid_fails = 2000;
 double cbump = 1.05;
 long long cdcl_db = 4000;
-bool gexplain = true;
+bool gexplain = false;   // --gexpl: widened reasons for global failures (fewer conflicts, slower overall)
 size_t perm_nogoods = 0;
 long long conflicts = 0, bad_reasons = 0, learned_cdcl = 0, learned_cdcl_len = 0;
 vector<pair<int, int>> decs;
@@ -1690,24 +1691,24 @@ static bool explain_global(int code) {
     static Mask snap[MAXN];
     for (int p = 0; p < N; p++) snap[p] = dom[p];
     if (run_check(code)) { R_ON = saveR; return false; }
+    auto widen = [&](const vector<int>& cells) {      // widen to the root domains; keep it only if the check still fails
+        vector<pair<int, Mask>> saved;
+        for (int p : cells) { saved.push_back({p, dom[p]}); dom[p] = rootdom[p]; }
+        gexpl_checks++;
+        if (!run_check(code)) return true;
+        for (auto& sv : saved) dom[sv.first] = sv.second;
+        return false;
+    };
+    int budget = code == 5 ? 24 : 400;
     vector<int> order;
     for (int p = 0; p < N; p++) if (dom[p] != rootdom[p] && !single(dom[p])) order.push_back(p);
     for (int p = 0; p < N; p++) if (dom[p] != rootdom[p] && single(dom[p])) order.push_back(p);
     const size_t CH = 6;
-    int budget = code == 5 ? 24 : 400;
     for (size_t a = 0; a < order.size() && budget > 0; a += CH) {
-        vector<pair<int, Mask>> saved;
-        for (size_t b = a; b < min(order.size(), a + CH); b++) { int p = order[b]; saved.push_back({p, dom[p]}); dom[p] = rootdom[p]; }
-        gexpl_checks++; budget--;
-        if (!run_check(code)) continue;
-        for (auto& sv : saved) dom[sv.first] = sv.second;
-        if (saved.size() == 1) continue;
-        for (auto& sv : saved) {
-            if (budget-- <= 0) break;
-            dom[sv.first] = rootdom[sv.first];
-            gexpl_checks++;
-            if (run_check(code)) dom[sv.first] = sv.second;
-        }
+        vector<int> chunk(order.begin() + a, order.begin() + min(order.size(), a + CH));
+        budget--;
+        if (widen(chunk) || chunk.size() == 1) continue;
+        for (int p : chunk) { if (budget-- <= 0) break; widen({p}); }
     }
     CRp.clear();
     for (int p = 0; p < N; p++) if (dom[p] != rootdom[p]) CRp.push_back({p, ALL & ~dom[p]});
@@ -1841,11 +1842,12 @@ int main(int argc, char** argv) {
         else if (a == "--probedepth" && i + 1 < argc) probe_depth = atoi(argv[++i]);
         else if (a == "--restarts") { use_restarts = true; rnd_on = true; }
         else if (a == "--learn") use_learn = true;
+        else if (a == "--clpevery" && i + 1 < argc) cdcl_lpevery = atoi(argv[++i]);
         else if (a == "--cdcl") { use_cdcl = true; hybrid_fails = 0; }
         else if (a == "--dfs") use_cdcl = false;
         else if (a == "--cbump" && i + 1 < argc) cbump = atof(argv[++i]);
         else if (a == "--hybrid" && i + 1 < argc) { use_cdcl = true; hybrid_fails = atoll(argv[++i]); }
-        else if (a == "--nogexpl") gexplain = false;
+        else if (a == "--gexpl") gexplain = true;
         else if (a == "--cdcldb" && i + 1 < argc) cdcl_db = atoll(argv[++i]);
         else if (a == "--vorder" && i + 1 < argc) vorder = atoi(argv[++i]);
         else if (a == "--nolearnlp") learn_lp = false;
