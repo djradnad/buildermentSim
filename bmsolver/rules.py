@@ -33,8 +33,9 @@ rule('squeeze', 'Exact long-run capacity of h rows (belts that are not split): 1
      'CP-SAT: repeating patterns (tools/routing/lanes.py, every belt traced) for the values; open-ended strips '
      '(tools/routing/strip.py) for the impossibles, which then hold for every longer channel',
      'h<=8 proven for every length (11 in 7 rows dies at L=16, 13 in 8 rows at L=14); h>=9 values are found patterns under the 13h/8 ceiling')
-rule('two-way', 'East and west tunnels may share a row, so opposing traffic is cheaper: a + b <= floor(19h/8) with each '
-     'direction <= floor(13h/8). Exact frontier (a east, most b west): 1 row (1,1); 2 rows (1,3) (2,2) (3,1); '
+rule('two-way', 'East and west tunnels may share a row, so opposing traffic is cheaper: over any stretch of at least 8 lines, '
+     'a + b <= floor(19h/8) with each direction <= floor(13h/8) (shorter stretches can carry more: 2 west + 1 east fit '
+     'through a 1-row corridor 2 long). Exact frontier (a east, most b west): 1 row (1,1); 2 rows (1,3) (2,2) (3,1); '
      '3 rows (3,4) (4,3); 4 rows (2,6) (4,5) (5,4) (6,2).',
      'hand argument for the sum (each direction loses 3 of 8 lines, only one loss can coincide); CP-SAT repeating '
      'patterns for the frontier', 'frontier: periods 8 and 16')
@@ -104,7 +105,7 @@ def lane_capacity(h, long=True):
 
 
 def two_way_ceiling(h):
-    """proven upper bound on east + west belts through h rows"""
+    """proven upper bound on east + west belts through h rows, only over stretches of 8+ lines"""
     return (19 * h) // 8
 
 
