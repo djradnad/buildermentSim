@@ -1,9 +1,4 @@
 [
- ["mixer 1:1 pure leftovers 4x3", "B1B1B1B1 / O1B0I1S1 / S1S1O1I1"],
- ["mixer 2:1 pure leftovers 5x4", "B2B1S1S0.. / B1S1O1S0I1 / B1B1B2S1B1 / B1B1B1B1.."],
- ["mixer 3:2 pure leftovers 9x4", "S1B2S1S0S3B3B2B2S0 / O1S2B3S3S1I1B1B1B0 / O1S2S1S0I1B1S0B2S1 / B1B1S2S1O1B0S1B1I1"],
- ["1:4 outputs pitch 2 1x7", "B1 / S0 / S0 / S1 / S2 / S2 / B1"],
- ["1:4 outputs pitch 3 1x10", "B1 / O0 / I0 / S0 / S1 / S2 / S2 / I2 / O2 / B1"],
- ["1:5 outputs pitch 3 2x13", "S0S3 / S0S2 / S1B1 / S2S0 / S2B0 / B2S1 / S2S3 / B3B2 / B0S2 / B1S2 / S2S2 / ..B2 / B1S2"],
- ["1:6 outputs pitch 2 2x11", "S1B1 / S2O0 / S2S1 / ..I0 / B1O0 / O0.. / S0S2 / S0I0 / S1S1 / I0B2 / S1B1"]
+ ["mixer 2 belts to 3 mixed belts 4x3", "..B0.... / B1S1B1B1 / ..B2B0.."],
+ ["sorter alternating belt to 2 pure 4x2", "B1S1B1B1 / ..B2B0.."]
 ]
