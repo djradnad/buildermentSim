@@ -552,22 +552,22 @@ def prove(net, win, workdir=None, timeout=None, seed=0, check_timeout=3600, keep
 DEFAULT_RUNGS = (('eastle=0',), ('eastle=2',), ())
 
 
-def ladder(net, win, rungs=DEFAULT_RUNGS, seeds=(0, 1, 2), budget=600, first=20, grow=2.0, workdir=None, log=None):
+def ladder(net, win, rungs=DEFAULT_RUNGS, seeds=(0, 1, 2), budget=600, first=45, grow=2.0, workdir=None, log=None):
     """Finds only. Each round runs every (rung, seed) pair for the round's timeout (first, first*grow, ...), so
     short tries come first and heavy-tailed runs are cut. Rung CNFs are built once. An INFEASIBLE rung is
     dropped (and, for the unrestricted rung, ends the search: that one is a real answer).
     Returns the first valid find, or dict(status='UNKNOWN') when the budget runs out."""
     t0 = time.time()
     d = _workdir(workdir)
-    built = []
-    for i, r in enumerate(rungs):
-        mod = build_cnf(net, win, r)
-        built.append((r, mod, mod.m.write(os.path.join(d, 'rung%d.cnf' % i))))
+    built = {}
     tries = []
-    alive = list(range(len(built)))
+    alive = list(range(len(rungs)))
     tmo = first
     while alive:
         for i in list(alive):
+            if i not in built:                      # a rung's CNF is built when it is first tried
+                mod = build_cnf(net, win, rungs[i])
+                built[i] = (rungs[i], mod, mod.m.write(os.path.join(d, 'rung%d.cnf' % i)))
             r, mod, path = built[i]
             for s in seeds:
                 left = budget - (time.time() - t0)
@@ -609,7 +609,7 @@ def pad_window(spec, W, H):
     return win, rows
 
 
-def widths(net, spec, H, Wmax, Wmin, timeout=600, seed=0, workdir=None, log=None, proof=False, engine='kissat'):
+def widths(net, spec, H, Wmax, Wmin, timeout=600, seed=0, workdir=None, log=None, proof=False, engine='kissat', restrict=()):
     """Decide widths Wmax, Wmax-1, ... down to Wmin with ONE CNF built at Wmax (kissat run per width; the
     assumptions are passed as unit clauses appended to the same file, so the formula is the same base clauses).
     Column x is a pad when every input row holds a west belt B1 and every other row is empty. Width W is decided
@@ -618,11 +618,11 @@ def widths(net, spec, H, Wmax, Wmin, timeout=600, seed=0, workdir=None, log=None
     (the pad belts act exactly like the input ports). Walks down while FEASIBLE; stops at the first INFEASIBLE
     or UNKNOWN. Returns [(W, status, seconds, valid or None)].
     engine 'kissat': one build for all widths, a fresh kissat run per width (kissat is not incremental).
-    engine 'cadical': one incremental CaDiCaL (pysat) solving under the pad assumptions, so clauses learnt at one
-    width are kept for the next (no DRAT proof in this mode; timeout per width via interrupt)."""
+    engine 'incremental': one incremental solver (pysat Glucose 4.2, which can be interrupted) solving under the
+    pad assumptions, so clauses learnt at one width are kept for the next (no DRAT proof in this mode)."""
     win, rows = pad_window(spec, Wmax, H)
     t0 = time.time()
-    mod = build_cnf(net, win)
+    mod = build_cnf(net, win, restrict)        # a restriction makes INFEASIBLE answers non-proofs, as in place()
     X = mod.X
     pad = {}
     for x in range(Wmax):
@@ -636,7 +636,7 @@ def widths(net, spec, H, Wmax, Wmin, timeout=600, seed=0, workdir=None, log=None
     if log:
         log('built Wmax=%d: %d vars %d clauses in %.1fs' % (Wmax, mod.m.nv, len(base), tb))
     out = []
-    if engine == 'cadical':
+    if engine == 'incremental':
         return _widths_inc(mod, pad, net, spec, H, Wmax, Wmin, timeout, base, log)
     for W in range(Wmax, Wmin - 1, -1):
         path = mod.m.write(os.path.join(d, 'w%d.cnf' % W), extra=[[pad[x].v] for x in range(W, Wmax)])
@@ -665,10 +665,10 @@ def widths(net, spec, H, Wmax, Wmin, timeout=600, seed=0, workdir=None, log=None
 
 def _widths_inc(mod, pad, net, spec, H, Wmax, Wmin, timeout, base, log):
     import threading
-    from pysat.solvers import Cadical195
+    from pysat.solvers import Solver
     from .netplace import check_layout
     out = []
-    with Cadical195(bootstrap_with=base) as S:
+    with Solver(name='glucose42', bootstrap_with=base) as S:      # pysat's CaDiCaL cannot be interrupted
         for W in range(Wmax, Wmin - 1, -1):
             assume = [pad[x].v for x in range(W, Wmax)]
             t0 = time.time()
