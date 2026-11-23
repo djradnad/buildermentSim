@@ -91,11 +91,13 @@ vector<pair<int, Mask>> trail;
 long long nodes = 0, fails = 0, leaves = 0, uncertain = 0;
 chrono::steady_clock::time_point t0;
 double timeout = 60;
-bool use_lp = true, use_sat = true;
+bool use_lp = true, use_sat = true, use_bounds = true;
 int lp_every = 1;
 static size_t path_depth();
 struct Lit;
-extern vector<vector<pair<int, int>>> nogoods;
+extern vector<vector<pair<int, Mask>>> nogoods;
+int fail_code = 0;   // which check failed last: 0 local, 1 reach, 2 lb, 3 ub, 4 maxflow, 5 lp
+bool lp_nowarm = false;
 static bool nogood_prop(bool& changed);
 int lp_maxvars = 3000;
 bool timed_out = false;
@@ -480,8 +482,9 @@ static bool flow_relax() {
 struct LPRow { vector<pair<int, int>> a; long long b; };   // sparse integer row, sum a x = b
 long long lp_calls = 0, lp_prunes = 0, lp_cert_fail = 0, lp_warm = 0;
 vector<double> lastsol;
-static bool lp_check(int maxvars) {
-    lp_calls++;
+static bool bounds_prop(vector<LPRow>& rows, int n, int nv, int per, const vector<int>& vkey, bool& changed);
+static bool lp_check(int maxvars, int mode = 0, bool* bchanged = nullptr) {
+    if (mode == 0) lp_calls++;
     int nv = 0;
     vector<LPRow> rows;
     // per tile: surface links
@@ -613,9 +616,10 @@ static bool lp_check(int maxvars) {
         }
     }
     int n = nv + nslack, m = rows.size();
+    if (mode == 1) return bounds_prop(rows, n, nv, per, vkey, *bchanged);
     if (m == 0) return true;
     // warm check: is the last LP solution still feasible here? then nothing to prune
-    if ((int)lastsol.size() == 16 * N * NC) {
+    if (!lp_nowarm && (int)lastsol.size() == 16 * N * NC) {
         vector<double> xv(nv);
         for (int c = 0; c < NC; c++) for (int k = 0; k < per; k++) xv[k + c * per] = lastsol[vkey[k] + c * 16 * N];
         // every key not in this LP must carry zero in the stored solution
@@ -930,8 +934,64 @@ static bool flow_ub() {
     return true;
 }
 
+// ---- interval bounds on the LP rows (exact integers: every coefficient is +-1 and every right side an integer, so
+// all bounds stay integers; they are valid real bounds for the real flows, which satisfy every row). A link, entry or
+// exit whose flow is bounded by 0 for every commodity cannot exist (every link carries a positive amount): filter the
+// domains accordingly. lo > hi anywhere: the node is infeasible.
+long long bnd_calls = 0, bnd_fails = 0, bnd_filters = 0;
+static bool bounds_prop(vector<LPRow>& rows, int n, int nv, int per, const vector<int>& vkey, bool& changed) {
+    bnd_calls++;
+    vector<long long> lo(n, 0), hi(n, D);
+    bool ch = true;
+    int it = 0;
+    while (ch && it++ < 200) {
+        ch = false;
+        for (auto& r : rows) {
+            long long sl = 0, sh = 0;
+            bool unit = true;
+            for (auto& t : r.a) {
+                if (t.second == 1) { sl += lo[t.first]; sh += hi[t.first]; }
+                else if (t.second == -1) { sl -= hi[t.first]; sh -= lo[t.first]; }
+                else { unit = false; break; }
+            }
+            if (!unit) continue;
+            if (r.b < sl || r.b > sh) { bnd_fails++; return false; }
+            for (auto& t : r.a) {
+                int j = t.first;
+                long long tl = t.second == 1 ? lo[j] : -hi[j], th = t.second == 1 ? hi[j] : -lo[j];
+                long long nl = r.b - (sh - th), nh = r.b - (sl - tl);   // bounds of this term
+                long long vl, vh;
+                if (t.second == 1) { vl = nl; vh = nh; } else { vl = -nh; vh = -nl; }
+                if (vl > lo[j]) { lo[j] = vl; ch = true; }
+                if (vh < hi[j]) { hi[j] = vh; ch = true; }
+                if (lo[j] > hi[j]) { bnd_fails++; return false; }
+            }
+        }
+    }
+    // filtering: keys with zero upper bound in every commodity
+    for (int k = 0; k < per; k++) {
+        bool zero = true;
+        for (int c = 0; c < NC && zero; c++) if (hi[k + c * per] > 0) zero = false;
+        if (!zero) continue;
+        int key = vkey[k];
+        int kind = key / (4 * N), rest = key % (4 * N), cell = rest / 4, d = rest % 4;
+        if (kind == 0) {            // surface link cell -> nb(cell, d)
+            int q = nb(cell, d);
+            if ((dom[cell] & ~PUSH[d]) == 0) { bnd_filters++; if (!setdom(q, dom[q] & ~ACC[d], changed)) return false; }
+            else if ((dom[q] & ~ACC[d]) == 0) { bnd_filters++; if (!setdom(cell, dom[cell] & ~PUSH[d], changed)) return false; }
+        } else if (kind == 2) {     // entry: I d at cell carries nothing
+            if (dom[cell] & BIT(VAL(KI, d))) { bnd_filters++; if (!setdom(cell, dom[cell] & ~BIT(VAL(KI, d)), changed)) return false; }
+        } else if (kind == 3) {     // exit: O d at cell gets nothing
+            if (dom[cell] & BIT(VAL(KO, d))) { bnd_filters++; if (!setdom(cell, dom[cell] & ~BIT(VAL(KO, d)), changed)) return false; }
+        }
+    }
+    (void)nv;
+    return true;
+}
+
 // ------------------------------------------------------------------ propagation fixpoint
 static bool propagate() {
+    fail_code = 0;
     while (true) {
         bool changed = true;
         while (changed) {
@@ -950,13 +1010,28 @@ static bool propagate() {
             if (!nogoods.empty() && !nogood_prop(changed)) return false;
         }
         bool ch2 = false;
+        fail_code = 1;
         if (!reach(ch2)) return false;
-        if (!ch2) break;
+        fail_code = 0;
+        if (ch2) continue;
+        if (use_bounds) {
+            bool chb = false;
+            fail_code = 6;
+            if (!lp_check(lp_maxvars, 1, &chb)) return false;
+            fail_code = 0;
+            if (chb) continue;
+        }
+        break;
     }
+    fail_code = 2;
     if (!flow_lb()) return false;
+    fail_code = 3;
     if (use_sat && !flow_ub()) return false;
+    fail_code = 4;
     if (!flow_relax()) return false;
+    fail_code = 5;
     if (use_lp && (lp_every <= 1 || path_depth() % lp_every == 0) && !lp_check(lp_maxvars)) return false;
+    fail_code = 0;
     return true;
 }
 
@@ -1078,7 +1153,7 @@ bool found = false;
 struct Lit { int p, v; bool pos; };
 vector<Lit> path;
 static size_t path_depth() { return path.size(); }
-vector<vector<pair<int, int>>> nogoods;
+vector<vector<pair<int, Mask>>> nogoods;
 bool use_restarts = false, restart_now = false;
 long long restart_limit = 0, fails_at_restart = 0, n_restarts = 0, base_fails = 100;
 static long long luby(long long i) {
@@ -1091,11 +1166,11 @@ static long long luby(long long i) {
     }
 }
 static void record_nogoods() {
-    vector<pair<int, int>> pos;
+    vector<pair<int, Mask>> pos;
     for (auto& l : path) {
-        if (l.pos) { pos.push_back({l.p, l.v}); continue; }
-        vector<pair<int, int>> ng = pos;
-        ng.push_back({l.p, l.v});
+        if (l.pos) { pos.push_back({l.p, BIT(l.v)}); continue; }
+        vector<pair<int, Mask>> ng = pos;
+        ng.push_back({l.p, BIT(l.v)});
         nogoods.push_back(ng);
     }
 }
@@ -1107,18 +1182,20 @@ static void note_fail() {
     }
 }
 static bool nogood_prop(bool& changed) {
+    // nogood = NOT (x_p in M_p for every entry): satisfied once some dom[p] misses M_p entirely; when every entry but
+    // one has dom[p] inside M_p, the last cell must leave M_p
     for (auto& ng : nogoods) {
         int und = -1, nund = 0;
         bool sat = false;
-        for (auto& l : ng) {
-            Mask m = dom[l.first], b = BIT(l.second);
+        for (size_t i = 0; i < ng.size(); i++) {
+            Mask m = dom[ng[i].first], b = ng[i].second;
             if (!(m & b)) { sat = true; break; }
-            if (m != b) { nund++; und = &l - &ng[0]; if (nund > 1) break; }
+            if (m & ~b) { nund++; und = i; if (nund > 1) break; }
         }
         if (sat || nund > 1) continue;
         if (nund == 0) return false;
         auto& l = ng[und];
-        if (!setdom(l.first, dom[l.first] & ~BIT(l.second), changed)) return false;
+        if (!setdom(l.first, dom[l.first] & ~l.second, changed)) return false;
     }
     return true;
 }
@@ -1145,6 +1222,7 @@ static bool probe_all() {
                 if (timed_out) return true;
                 if (!ok) {
                     probe_removed++;
+                    if (path.empty()) nogoods.push_back({{p, BIT(v)}});   // root fact: keep it across restarts
                     if (!setdom(p, dom[p] & ~BIT(v), ch)) return false;
                     if (!propagate()) return false;
                     again = true;
@@ -1156,6 +1234,64 @@ static bool probe_all() {
     }
     return true;
 }
+// ---- learned nogoods from failing checks (domain generalisation). Every global check (reach, flow LB, flow UB,
+// max-flow, LP) is monotone in the domains: if it fails for domains M it fails for any smaller domains (fewer possible
+// links, more forced tiles only tighten each relaxation). So when a check fails, we widen the domains cell by cell back
+// to the root domains as long as the same check, run directly on the widened domains, still fails. The final widened
+// domains M give the nogood NOT(x_p in M_p for all p with M_p != root_p); it holds in every node of this port combo.
+bool use_learn = false, learn_lp = true;
+Mask rootdom[MAXN];
+bool have_root = false, probed_root = false;
+long long learned = 0, learn_checks = 0, learned_len = 0;
+size_t max_nogoods = 20000;
+static bool run_check(int code) {
+    size_t mk = trail.size();
+    bool ok = true;
+    if (code == 1) { bool ch = false; ok = reach(ch); }
+    else if (code == 2) ok = flow_lb();
+    else if (code == 3) ok = flow_ub();
+    else if (code == 4) ok = flow_lb() && flow_relax();
+    else if (code == 5) { lp_nowarm = true; ok = lp_check(lp_maxvars); lp_nowarm = false; }
+    else if (code == 6) { bool ch = false; ok = lp_check(lp_maxvars, 1, &ch); }
+    undo(mk);
+    return ok;
+}
+static void learn_from_fail(int code) {
+    if (!use_learn || !have_root || code == 0 || nogoods.size() >= max_nogoods) return;
+    if (code == 5 && !learn_lp) return;
+    static Mask snap[MAXN];
+    for (int p = 0; p < N; p++) snap[p] = dom[p];
+    // the failure state: domains as they are now (the failing check saw exactly these)
+    if (run_check(code)) return;             // cannot reproduce (should not happen): learn nothing
+    vector<int> order;
+    for (int p = 0; p < N; p++) if (dom[p] != rootdom[p] && !single(dom[p])) order.push_back(p);
+    for (int p = 0; p < N; p++) if (dom[p] != rootdom[p] && single(dom[p])) order.push_back(p);
+    int budget = code == 5 ? 24 : 1000;
+    {   // first try all undecided cells at once
+        vector<pair<int, Mask>> saved;
+        for (int p : order) if (!single(dom[p])) { saved.push_back({p, dom[p]}); dom[p] = rootdom[p]; }
+        learn_checks++;
+        if (!saved.empty() && run_check(code)) for (auto& sv : saved) dom[sv.first] = sv.second;
+    }
+    for (int p : order) {
+        if (dom[p] == rootdom[p]) continue;
+        if (budget-- <= 0) break;
+        Mask old = dom[p];
+        dom[p] = rootdom[p];
+        learn_checks++;
+        if (run_check(code)) dom[p] = old;   // needed: keep it
+    }
+    vector<pair<int, Mask>> ng;
+    for (int p = 0; p < N; p++) if (dom[p] != rootdom[p]) ng.push_back({p, dom[p]});
+    for (int p = 0; p < N; p++) dom[p] = snap[p];
+    nogoods.push_back(ng);
+    learned++;
+    learned_len += ng.size();
+}
+static void on_prop_fail() {
+    int code = fail_code;
+    learn_from_fail(code);
+}
 // returns 1 found, 0 subtree exhausted, 2 aborted (timeout or restart)
 static int dfs() {
     nodes++;
@@ -1164,8 +1300,10 @@ static int dfs() {
         if (el > timeout) timed_out = true;
     }
     if (timed_out || restart_now) return 2;
-    if (!propagate()) { note_fail(); return 0; }
-    if ((int)path.size() < probe_depth || (path.empty() && probe_depth >= 0)) {
+    if (!propagate()) { on_prop_fail(); note_fail(); return 0; }
+    if (!have_root && path.empty()) { for (int q = 0; q < N; q++) rootdom[q] = dom[q]; have_root = true; }
+    if ((int)path.size() < probe_depth || (path.empty() && probe_depth >= 0 && !probed_root)) {
+        if (path.empty()) probed_root = true;
         if (!probe_all()) { note_fail(); return 0; }
         if (timed_out) return 2;
     }
@@ -1218,7 +1356,7 @@ static int dfs() {
             result = r;
             break;
         }
-        if (!propagate()) { note_fail(); result = 0; break; }
+        if (!propagate()) { on_prop_fail(); note_fail(); result = 0; break; }
         if (restart_now) { result = 2; break; }
     }
     undo(mark);
@@ -1287,8 +1425,11 @@ int main(int argc, char** argv) {
         else if (a == "--seed" && i + 1 < argc) { rng.seed(atoi(argv[++i])); rnd_on = true; }
         else if (a == "--nolp") use_lp = false;
         else if (a == "--nosat") use_sat = false;
+        else if (a == "--nobounds") use_bounds = false;
         else if (a == "--probedepth" && i + 1 < argc) probe_depth = atoi(argv[++i]);
         else if (a == "--restarts") { use_restarts = true; rnd_on = true; }
+        else if (a == "--learn") use_learn = true;
+        else if (a == "--nolearnlp") learn_lp = false;
         else if (a == "--lpevery" && i + 1 < argc) lp_every = atoi(argv[++i]);
         else if (a == "--rbase" && i + 1 < argc) base_fails = atoll(argv[++i]);
         else if (a == "--wmode" && i + 1 < argc) wmode = atoi(argv[++i]);
@@ -1320,6 +1461,7 @@ int main(int argc, char** argv) {
         for (size_t g = 0; g < portGroups.size(); g++) for (auto& pt : portGroups[g][sel[g]]) ports.push_back(pt);
         if (setup_ports(ports) && init_domains()) {
             nogoods.clear();
+            have_root = false; probed_root = false;
             int r;
             long long k = 0;
             while (true) {
@@ -1354,6 +1496,7 @@ int main(int argc, char** argv) {
         printf("\n");
     } else if (exhaustive && uncertain == 0) printf("STATUS INFEASIBLE\n");
     else printf("STATUS UNKNOWN\n");
-    printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld/%lld RESTARTS %lld NOGOODS %zu PROBES %lld/%lld EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail, lp_warm, n_restarts, nogoods.size(), probes, probe_removed);
+    printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld/%lld RESTARTS %lld NOGOODS %zu PROBES %lld/%lld LEARNED %lld/%lld BOUNDS %lld/%lld/%lld EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail, lp_warm, n_restarts, nogoods.size(), probes, probe_removed, learned, learn_checks, bnd_calls, bnd_fails, bnd_filters);
+    if (learned) printf("AVG_NOGOOD_LEN %.1f\n", (double)learned_len / learned);
     return 0;
 }
