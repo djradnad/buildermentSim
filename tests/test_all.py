@@ -124,11 +124,6 @@ def test_satnet_accepts_known_layouts():
         assert satnet.pin(grid, win) == 'FEASIBLE', name
 
 
-if __name__ == '__main__':
-    for name, fn in list(globals().items()):
-        if name.startswith('test_'):
-            fn()
-            print('ok', name, flush=True)
 
 
 def test_staged_model_accepts_known_balancers():
@@ -182,3 +177,10 @@ def test_handrules_keep_known_layouts():
             os.environ.pop('BM_RULES', None)
         else:
             os.environ['BM_RULES'] = old
+
+
+if __name__ == '__main__':
+    for name, fn in list(globals().items()):
+        if name.startswith('test_'):
+            fn()
+            print('ok', name, flush=True)
