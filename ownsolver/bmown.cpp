@@ -143,6 +143,34 @@ static inline bool setdom(int p, Mask m, bool& changed, const Pairs* why = nullp
     changed = true;
     return true;
 }
+// ---- flow bounds (CDCL only): integer bounds fb[0][j] = hi, fb[1][j] = lo per flow variable j. Every change is an
+// event (id BEV0 + index into bevs) with a reason, undone through the trail (entries with a negative cell id).
+// Atom (aenc(j, side), b) in reasons and nogoods: "hi_j <= b" (side 0) or "lo_j >= b" (side 1). Flows are real,
+// so the negation of an atom is strict: bound atoms are never asserted, only used to detect conflicts.
+struct BEv { int j, side; long long val, old; int lvl, rs, rl; };
+vector<BEv> bevs;
+vector<long long> fb[2];
+vector<vector<int>> fhist[2];          // per variable: its hi / lo events (indices into bevs), oldest first
+static const int BEV0 = MAXN * 17;
+static inline int aenc(int j, int side) { return -1 - 2 * j - side; }
+static inline bool setb(int j, int side, long long v, const Pairs& why) {
+    long long& cur = fb[side][j];
+    if (side == 0 ? v >= cur : v <= cur) return true;
+    long long other = fb[side ^ 1][j];
+    if (side == 0 ? v < other : v > other) {
+        CR_dec = false; CRp = why; CRp.push_back({aenc(j, side ^ 1), (Mask)other});
+        return false;
+    }
+    trail_ev.push_back(evtrail.size());
+    trail_pool.push_back(rpool.size());
+    trail.push_back({-1, 0});
+    fhist[side][j].push_back(bevs.size());
+    evtrail.push_back(BEV0 + bevs.size());
+    bevs.push_back({j, side, v, cur, curlvl, (int)rpool.size(), (int)why.size()});
+    rpool.insert(rpool.end(), why.begin(), why.end());
+    cur = v;
+    return true;
+}
 static inline void undo(size_t to) {
     if (trail.size() > to) {
         evtrail.resize(trail_ev[to]);
@@ -150,7 +178,13 @@ static inline void undo(size_t to) {
         trail_ev.resize(to);
         trail_pool.resize(to);
     }
-    while (trail.size() > to) { dom[trail.back().first] = trail.back().second; trail.pop_back(); }
+    for (; trail.size() > to; trail.pop_back()) {
+        if (trail.back().first >= 0) { dom[trail.back().first] = trail.back().second; continue; }
+        BEv& e = bevs.back();
+        fb[e.side][e.j] = e.old;
+        fhist[e.side][e.j].pop_back();
+        bevs.pop_back();
+    }
 }
 
 // ------------------------------------------------------------------ local supports
@@ -1165,6 +1199,184 @@ static bool bounds_prop(vector<LPRow>& rows, int n, int nv, int per, const vecto
     return true;
 }
 
+// ------------------------------------------------------------------ flow bounds with reasons (CDCL)
+// The LP's flow variables over the root domains of the combo (key x commodity, j = k * NC + c) and its rows with
+// +-1 coefficients: conservation per tile and per channel cell, capacity per tile, forced-splitter shares. Rows are
+// fixed; a variable whose key is no longer possible gets hi = 0. A splitter row holds while its enforcement items
+// hold (dom[q] inside M). Integer bounds through +-1 rows with integer right sides stay valid for real flows.
+struct FKey { int kind, p, d; };       // 0 link p -> nb(p, d), 1 entry (I d at p), 2 exit (O d at p), 3 channel p -> p+d
+struct FRow { vector<pair<int, int>> a; long long b; bool eq; Pairs enf; };
+vector<FKey> fkeys;
+vector<FRow> frows;
+bool lcg_on = false, use_lcg = true, lcg_lean = true;   // lean: with flow bounds on, skip the checks without reasons (LP excepted)
+long long lcg_props = 0, lcg_fails = 0;
+// key possible on the current domains (monotone); otherwise why gets the removals that rule it out
+static bool key_possible(const FKey& k, Pairs* why) {
+    int p = k.p, d = k.d;
+    if (k.kind == 0) {
+        int q = nb(p, d);
+        if (!(dom[p] & PUSH[d])) { if (why) why->push_back({p, PUSH[d]}); return false; }
+        if (!(dom[q] & ACC[d])) { if (why) why->push_back({q, ACC[d]}); return false; }
+        return true;
+    }
+    if (k.kind == 1 || k.kind == 2) {
+        Mask b = BIT(VAL(k.kind == 1 ? KI : KO, d));
+        if (dom[p] & b) return true;
+        if (why) why->push_back({p, b});
+        return false;
+    }
+    // channel p -> p+d: some I d at p - n d (0 <= n < 7) with some O d at p + m d (m >= 1, n + m <= 7)
+    Mask bi = BIT(VAL(KI, d)), bo = BIT(VAL(KO, d));
+    for (int n = 0; n < REACH; n++) {
+        int r = nbn(p, OPP(d), n);
+        if (r < 0) break;
+        if (!(dom[r] & bi)) continue;
+        for (int m = 1; n + m <= REACH; m++) { int q = nbn(p, d, m); if (q < 0) break; if (dom[q] & bo) return true; }
+    }
+    if (why) {
+        for (int n = 0; n < REACH; n++) { int r = nbn(p, OPP(d), n); if (r < 0) break; if (!(dom[r] & bi)) why->push_back({r, bi}); }
+        for (int m = 1; m <= REACH; m++) { int q = nbn(p, d, m); if (q < 0) break; if (!(dom[q] & bo)) why->push_back({q, bo}); }
+    }
+    return false;
+}
+// build on the current (root) domains; false if a row is already infeasible
+static bool lcg_build() {
+    fkeys.clear(); frows.clear();
+    static int lk[MAXN][4], ek[MAXN][4], xk[MAXN][4], uk[MAXN][4];
+    for (int p = 0; p < N; p++) for (int d = 0; d < 4; d++) lk[p][d] = ek[p][d] = xk[p][d] = uk[p][d] = -1;
+    for (int p = 0; p < N; p++)
+        for (int d = 0; d < 4; d++) {
+            FKey k{0, p, d};
+            if (nb(p, d) >= 0 && key_possible(k, nullptr)) { lk[p][d] = fkeys.size(); fkeys.push_back(k); }
+            k.kind = 3;
+            if (key_possible(k, nullptr)) { uk[p][d] = fkeys.size(); fkeys.push_back(k); }
+        }
+    for (int p = 0; p < N; p++)
+        for (int d = 0; d < 4; d++) {
+            if ((dom[p] & BIT(VAL(KI, d))) && uk[p][d] >= 0) { ek[p][d] = fkeys.size(); fkeys.push_back({1, p, d}); }
+            int r = nb(p, OPP(d));
+            if ((dom[p] & BIT(VAL(KO, d))) && r >= 0 && uk[r][d] >= 0) { xk[p][d] = fkeys.size(); fkeys.push_back({2, p, d}); }
+        }
+    int K = fkeys.size(), NV = K * NC;
+    for (int s = 0; s < 2; s++) { fb[s].assign(NV, s == 0 ? D : 0); fhist[s].assign(NV, {}); }
+    bevs.clear();
+    auto J = [&](int k, int c) { return k * NC + c; };
+    auto add = [&](FRow& r, int k, int c, int a) { if (k >= 0) r.a.push_back({J(k, c), a}); };
+    auto port = [&](int p, int kind, int c) { long long s = 0; for (int d = 0; d < 4; d++) if (portKind[p][d] == kind) s += portVec[p][d][c]; return s; };
+    for (int p = 0; p < N; p++) {
+        if (dom[p] == BIT_E) continue;
+        FRow cap{{}, D, false, {}};
+        for (int c = 0; c < NC; c++) {
+            FRow r{{}, port(p, 2, c) - port(p, 1, c), true, {}};     // inflow - outflow = drain - src
+            for (int d = 0; d < 4; d++) {
+                int q = nb(p, OPP(d));
+                if (q >= 0) { add(r, lk[q][d], c, 1); add(cap, lk[q][d], c, 1); }
+                add(r, xk[p][d], c, 1); add(cap, xk[p][d], c, 1);
+                add(r, lk[p][d], c, -1); add(r, ek[p][d], c, -1);
+            }
+            if (r.a.empty()) { if (r.b) return false; } else frows.push_back(r);
+            cap.b -= port(p, 1, c);
+            for (int d = 0; d < 4; d++) {                              // channel cell: u[p-d] + e[p] = u[p] + x[p]
+                int q = nb(p, OPP(d));
+                FRow u{{}, 0, true, {}};
+                if (q >= 0) add(u, uk[q][d], c, 1);
+                add(u, ek[p][d], c, 1); add(u, uk[p][d], c, -1); add(u, xk[p][d], c, -1);
+                if (!u.a.empty()) frows.push_back(u);
+            }
+        }
+        if (cap.b < 0) return false;
+        if (!cap.a.empty()) frows.push_back(cap);
+        for (int o = 0; o < 4; o++) {                                  // splitter S o at p: an output that is certainly
+            Mask so = BIT(VAL(KS, o));                                 // used carries the share; any other carries the
+            if (!(dom[p] & so)) continue;                              // share or nothing
+            int ds[3] = {o, (o + 1) & 3, (o + 3) & 3};
+            for (int d1 : ds)
+                for (int d2 : ds) {
+                    if (d1 == d2) continue;
+                    bool v1 = nb(p, d1) >= 0, v2 = nb(p, d2) >= 0;
+                    if ((v1 ? lk[p][d1] < 0 : portKind[p][d1] != 2) || (v2 ? lk[p][d2] < 0 : portKind[p][d2] != 2)) continue;
+                    if (!v1 && !v2) continue;
+                    for (int c = 0; c < NC; c++) {                     // f1 - f2 <= 0, port shares as constants
+                        FRow r{{}, 0, false, {{p, so}}};
+                        if (v1) add(r, lk[p][d1], c, 1); else r.b -= portVec[p][d1][c];
+                        if (v2) { add(r, lk[p][d2], c, -1); r.enf.push_back({nb(p, d2), ACC[d2]}); } else r.b += portVec[p][d2][c];
+                        frows.push_back(r);
+                    }
+                }
+        }
+    }
+    return true;
+}
+static bool lcg_prop(bool& changed) {
+    lcg_props++;
+    Pairs why;
+    for (int k = 0; k < (int)fkeys.size(); k++) {                     // existence
+        bool live = false;
+        for (int c = 0; c < NC; c++) if (fb[0][k * NC + c] > 0) live = true;
+        if (!live) continue;
+        why.clear();
+        if (key_possible(fkeys[k], &why)) continue;
+        for (int c = 0; c < NC; c++) if (!setb(k * NC + c, 0, 0, why)) { lcg_fails++; return false; }
+        changed = true;
+    }
+    auto enforced = [&](const FRow& r) { for (auto& e : r.enf) if (dom[e.first] & ~e.second) return false; return true; };
+    // atom of term (j, a) for the lower (lowside) or the upper end of a*f_j, or none if it is the root bound
+    auto term_atom = [&](int j, int a, bool lowside, Pairs& w) {
+        int side = (a > 0) == lowside ? 1 : 0;
+        if (side == 1 ? fb[1][j] > 0 : fb[0][j] < D) w.push_back({aenc(j, side), (Mask)fb[side][j]});
+    };
+    auto reason = [&](const FRow& r, int skip, bool lowside, Pairs& w) {
+        w.clear();
+        for (auto& e : r.enf) w.push_back({e.first, ALL & ~e.second});
+        for (int t = 0; t < (int)r.a.size(); t++) if (t != skip) term_atom(r.a[t].first, r.a[t].second, lowside, w);
+    };
+    for (int round = 0, ch = 1; ch && round < 200; round++) {         // a cap only costs pruning
+        ch = 0;
+        for (auto& r : frows) {
+            if (!enforced(r)) continue;
+            for (bool again = true; again;) {
+                again = false;
+                long long sl = 0, sh = 0;                              // range of sum a f
+                for (auto& t : r.a) {
+                    long long lo = fb[1][t.first], hi = fb[0][t.first];
+                    if (t.second > 0) { sl += lo; sh += hi; } else { sl -= hi; sh -= lo; }
+                }
+                if (sl > r.b || (r.eq && sh < r.b)) {
+                    reason(r, -1, sl > r.b, why);
+                    CR_dec = false; CRp = why; lcg_fails++;
+                    return false;
+                }
+                for (int t = 0; t < (int)r.a.size() && !again; t++) {
+                    int j = r.a[t].first, a = r.a[t].second;
+                    long long tl = a > 0 ? fb[1][j] : -fb[0][j], th = a > 0 ? fb[0][j] : -fb[1][j];
+                    long long up = r.b - (sl - tl), dn = r.eq ? r.b - (sh - th) : tl;   // dn <= a f_j <= up
+                    bool ok = true;
+                    if (up < th) { reason(r, t, true, why); ok = a > 0 ? setb(j, 0, up, why) : setb(j, 1, -up, why); again = true; }
+                    else if (dn > tl) { reason(r, t, false, why); ok = a > 0 ? setb(j, 1, dn, why) : setb(j, 0, -dn, why); again = true; }
+                    if (!ok) { lcg_fails++; return false; }
+                }
+                if (again) ch = 1, changed = true;
+            }
+        }
+    }
+    for (int k = 0; k < (int)fkeys.size(); k++) {                     // a key that carries nothing cannot exist
+        auto& fk = fkeys[k];
+        if (fk.kind == 3) continue;
+        bool zero = true;
+        for (int c = 0; c < NC && zero; c++) if (fb[0][k * NC + c] > 0) zero = false;
+        if (!zero || !key_possible(fk, nullptr)) continue;
+        why.clear();
+        for (int c = 0; c < NC; c++) why.push_back({aenc(k * NC + c, 0), 0});
+        int p = fk.p, d = fk.d;
+        if (fk.kind == 0) {
+            int q = nb(p, d);
+            if (!(dom[p] & ~PUSH[d])) { why.push_back({p, ALL & ~PUSH[d]}); if (!setdom(q, dom[q] & ~ACC[d], changed, &why)) return false; }
+            else if (!(dom[q] & ~ACC[d])) { why.push_back({q, ALL & ~ACC[d]}); if (!setdom(p, dom[p] & ~PUSH[d], changed, &why)) return false; }
+        } else if (!setdom(p, dom[p] & ~BIT(VAL(fk.kind == 1 ? KI : KO, d)), changed, &why)) return false;
+    }
+    return true;
+}
+
 // ------------------------------------------------------------------ propagation fixpoint
 static bool local_fix() {
     bool changed = true;
@@ -1186,8 +1398,9 @@ static bool local_fix() {
             }
         }
         if (!unit_rules(changed)) return false;
-        if (use_sat && !sat_rules(changed)) return false;
-        if (use_sat && !outsplit_rules(changed)) return false;
+        bool sr = use_sat && !(lcg_on && lcg_lean);
+        if (sr && !sat_rules(changed)) return false;
+        if (sr && !outsplit_rules(changed)) return false;
         if (!nogoods.empty() && !nogood_prop(changed)) return false;
     }
     return true;
@@ -1201,7 +1414,13 @@ static bool propagate() {
         if (!reach(ch2)) return false;
         fail_code = 0;
         if (ch2) continue;
-        if (use_bounds) {
+        if (lcg_on) {
+            bool chb = false;
+            fail_code = 7;
+            if (!lcg_prop(chb)) return false;
+            fail_code = 0;
+            if (chb) continue;
+        } else if (use_bounds) {
             bool chb = false;
             fail_code = 6;
             if (!lp_check(lp_maxvars, 1, &chb)) return false;
@@ -1210,12 +1429,14 @@ static bool propagate() {
         }
         break;
     }
-    fail_code = 2;
-    if (!flow_lb()) return false;
-    fail_code = 3;
-    if (use_sat && !flow_ub()) return false;
-    fail_code = 4;
-    if (!flow_relax()) return false;
+    if (!(lcg_on && lcg_lean)) {
+        fail_code = 2;
+        if (!flow_lb()) return false;
+        fail_code = 3;
+        if (use_sat && !flow_ub()) return false;
+        fail_code = 4;
+        if (!flow_relax()) return false;
+    }
     fail_code = 5;
     int lpk = R_ON ? cdcl_lpevery : lp_every;     // CDCL: the LP only every k levels (cheap nodes, learning does the rest)
     if (use_lp && (lpk <= 1 || path_depth() % lpk == 0)) {
@@ -1417,22 +1638,32 @@ static void note_fail() {
         record_nogoods();
     }
 }
+// Item states: 1 holds, 0 cannot hold, 2 open. Cell item (p, M): x_p in M. Bound item: see aenc.
+static inline int item_state(const pair<int, Mask>& it) {
+    if (it.first >= 0) { Mask m = dom[it.first]; return !(m & it.second) ? 0 : (m & ~it.second) ? 2 : 1; }
+    int j = (-1 - it.first) >> 1, side = (-1 - it.first) & 1;
+    long long b = it.second;
+    if (side == 0) return fb[0][j] <= b ? 1 : fb[1][j] > b ? 0 : 2;
+    return fb[1][j] >= b ? 1 : fb[0][j] < b ? 0 : 2;
+}
+// As a reason: a holding cell item says "the values outside M were removed"; a bound item is its own reason.
+static inline pair<int, Mask> item_reason(const pair<int, Mask>& it) { return it.first >= 0 ? make_pair(it.first, ALL & ~it.second) : it; }
 static bool nogood_prop(bool& changed) {
-    // nogood = NOT (x_p in M_p for every entry): satisfied once some dom[p] misses M_p entirely; when every entry but
-    // one has dom[p] inside M_p, the last cell must leave M_p
+    // nogood = NOT (every item holds): satisfied once an item cannot hold; when all items but one cell item hold,
+    // that cell must leave M (an open bound item is never asserted, see aenc)
     Pairs why;
     for (auto& ng : nogoods) {
         int und = -1, nund = 0;
         bool sat = false;
         for (size_t i = 0; i < ng.size(); i++) {
-            Mask m = dom[ng[i].first], b = ng[i].second;
-            if (!(m & b)) { sat = true; break; }
-            if (m & ~b) { nund++; und = i; if (nund > 1) break; }
+            int st = item_state(ng[i]);
+            if (st == 0) { sat = true; break; }
+            if (st == 2) { nund++; und = i; if (nund > 1) break; }
         }
-        if (sat || nund > 1) continue;
+        if (sat || nund > 1 || (nund == 1 && ng[und].first < 0)) continue;
         if (R_ON) {
             why.clear();
-            for (size_t i = 0; i < ng.size(); i++) if ((int)i != und) why.push_back({ng[i].first, ALL & ~ng[i].second});
+            for (size_t i = 0; i < ng.size(); i++) if ((int)i != und) why.push_back(item_reason(ng[i]));
         }
         if (nund == 0) {
             if (R_ON) { CR_dec = false; CRp = why; }
@@ -1630,55 +1861,121 @@ double cbump = 1.05;
 long long cdcl_db = 4000;
 bool gexplain = false;   // --gexpl: widened reasons for global failures (fewer conflicts, slower overall)
 size_t perm_nogoods = 0;
+long long sum_jump = 0, sum_lvl = 0, dec_analyses = 0, min_dropped = 0;
+bool minimize = true;
 long long conflicts = 0, bad_reasons = 0, learned_cdcl = 0, learned_cdcl_len = 0;
-vector<pair<int, int>> decs;
+vector<pair<int, Mask>> decs;     // decision x_p in S
 vector<size_t> lvl_mark;
 static vector<char> seen_ev;
+static inline int ev_level(int ev) { return ev < BEV0 ? ev_lvl[ev] : bevs[ev - BEV0].lvl; }
+// 1-UIP over value removals and bound events. The asserting item is always a cell item (bound atoms are never
+// asserted, see aenc), so resolution goes on past a bound event at the current level.
 static void analyze(vector<pair<int, Mask>>& items, int& bj) {
-    if ((int)seen_ev.size() < N * 17) seen_ev.assign(N * 17, 0);
+    if (seen_ev.size() < BEV0 + bevs.size()) seen_ev.resize(BEV0 + bevs.size() + 1024, 0);
     vector<int> marked, low;
+    static vector<long long> need;                                      // per bound event: the weakest bound needed
+    if (need.size() < bevs.size()) need.resize(bevs.size() + 1024);
     int counter = 0;
     bool bad = false;
+    auto mark = [&](int ev) {
+        if (ev_level(ev) == 0 || seen_ev[ev]) return false;
+        seen_ev[ev] = 1; marked.push_back(ev);
+        if (ev_level(ev) == curlvl) counter++; else low.push_back(ev);
+        return true;
+    };
+    auto bound_event = [&](int q, long long b) {                       // earliest event implying the bound atom,
+        int j = (-1 - q) >> 1, side = (-1 - q) & 1;                     // -1: the root bound [0, D]
+        for (int i : fhist[side][j]) if (side == 0 ? bevs[i].val <= b : bevs[i].val >= b) return i;
+        return -1;
+    };
     auto addpair = [&](int q, Mask M) {
+        if (q < 0) {
+            int j = (-1 - q) >> 1, side = (-1 - q) & 1;
+            long long b = M;
+            if (side == 0 ? fb[0][j] > b : fb[1][j] < b) { bad = true; return; }
+            int i = bound_event(q, b);
+            if (i < 0) return;
+            int ev = BEV0 + i;
+            if (!seen_ev[ev]) need[i] = b;
+            else need[i] = side == 0 ? min(need[i], b) : max(need[i], b);
+            mark(ev);
+            return;
+        }
         for (Mask r = M; r; r &= r - 1) {
             int w = __builtin_ctz(r);
             if (dom[q] & BIT(w)) { bad = true; continue; }    // invalid reason: must never happen
-            int ev = q * 17 + w;
-            if (ev_lvl[ev] == 0 || seen_ev[ev]) continue;
-            seen_ev[ev] = 1; marked.push_back(ev);
-            if (ev_lvl[ev] == curlvl) counter++; else low.push_back(ev);
+            mark(q * 17 + w);
         }
     };
-    auto adddec = [&](int L) { for (int l = 1; l <= L; l++) addpair(decs[l - 1].first, ALL & ~BIT(decs[l - 1].second)); };
+    auto expand = [&](int rs, int rl) { for (int i = 0; i < rl; i++) addpair(rpool[rs + i].first, rpool[rs + i].second); };
+    bool usedec = false;
+    auto adddec = [&](int L) { usedec = true; for (int l = 1; l <= L; l++) addpair(decs[l - 1].first, ALL & ~decs[l - 1].second); };
     if (CR_dec) adddec(curlvl); else for (auto& pr : CRp) addpair(pr.first, pr.second);
     int uip = -1; bool uip_dec = false;
     for (int idx = (int)evtrail.size() - 1; idx >= 0 && !bad; idx--) {
         int ev = evtrail[idx];
-        if (!seen_ev[ev] || ev_lvl[ev] != curlvl) continue;
+        if (!seen_ev[ev] || ev_level(ev) != curlvl) continue;
+        if (ev >= BEV0) { counter--; expand(bevs[ev - BEV0].rs, bevs[ev - BEV0].rl); continue; }
         if (counter == 1) { uip = ev; break; }
         if (ev_rl[ev] == -1) { uip_dec = true; break; }
         counter--;
         if (ev_rl[ev] == -2) adddec(curlvl);
-        else for (int i = 0; i < ev_rl[ev]; i++) addpair(rpool[ev_rs[ev] + i].first, rpool[ev_rs[ev] + i].second);
+        else expand(ev_rs[ev], ev_rl[ev]);
+    }
+    // minimization: drop a lower-level event whose reason is implied by events already in the analysis
+    auto implied = [&](int rs, int rl) {
+        for (int i = 0; i < rl; i++) {
+            auto& pr = rpool[rs + i];
+            if (pr.first < 0) {          // a lower-level bound event enters the clause with need[k]: tighten it to cover b
+                int k = bound_event(pr.first, pr.second);
+                if (k < 0 || bevs[k].lvl == 0) continue;
+                if (!seen_ev[BEV0 + k]) return false;
+                if (bevs[k].lvl < curlvl) need[k] = bevs[k].side == 0 ? min(need[k], (long long)pr.second) : max(need[k], (long long)pr.second);
+                continue;
+            }
+            for (Mask r = pr.second; r; r &= r - 1) { int ev = pr.first * 17 + __builtin_ctz(r); if (ev_lvl[ev] > 0 && !seen_ev[ev]) return false; }
+        }
+        return true;
+    };
+    if (!bad && minimize) {
+        size_t w = 0;
+        for (int ev : low) {
+            int rs = ev < BEV0 ? ev_rs[ev] : bevs[ev - BEV0].rs, rl = ev < BEV0 ? ev_rl[ev] : bevs[ev - BEV0].rl;
+            if (rl >= 0 && implied(rs, rl)) { min_dropped++; continue; }
+            low[w++] = ev;
+        }
+        low.resize(w);
     }
     for (int ev : marked) seen_ev[ev] = 0;
+    dec_analyses += usedec;
     if (bad || (uip < 0 && !uip_dec)) {
         // safe fallback: the nogood of all decisions
         bad_reasons += bad;
         items.clear();
-        for (int l = 1; l <= curlvl; l++) items.push_back({decs[l - 1].first, BIT(decs[l - 1].second)});
+        for (int l = 1; l <= curlvl; l++) items.push_back(decs[l - 1]);
         bj = curlvl - 1;
         return;
     }
     static Mask M[MAXN];
     vector<int> cells;
     auto touch = [&](int q) { if (find(cells.begin(), cells.end(), q) == cells.end()) { cells.push_back(q); M[q] = ALL; } };
-    bj = 0;
-    for (int ev : low) { int q = ev / 17; touch(q); M[q] &= ~BIT(ev % 17); bj = max(bj, ev_lvl[ev]); }
-    if (uip >= 0) { int q = uip / 17; touch(q); M[q] &= ~BIT(uip % 17); }
-    else { int q = decs[curlvl - 1].first; touch(q); M[q] &= BIT(decs[curlvl - 1].second); }
     items.clear();
+    bj = 0;
+    map<int, long long> batoms;                                         // atom code -> tightest needed bound
+    for (int ev : low) {
+        bj = max(bj, ev_level(ev));
+        if (ev < BEV0) { int q = ev / 17; touch(q); M[q] &= ~BIT(ev % 17); continue; }
+        const BEv& e = bevs[ev - BEV0];
+        int code = aenc(e.j, e.side);
+        long long b = need[ev - BEV0];
+        auto it = batoms.find(code);
+        if (it == batoms.end()) batoms[code] = b;
+        else it->second = e.side == 0 ? min(it->second, b) : max(it->second, b);
+    }
+    if (uip >= 0) { int q = uip / 17; touch(q); M[q] &= ~BIT(uip % 17); }
+    else { int q = decs[curlvl - 1].first; touch(q); M[q] &= decs[curlvl - 1].second; }
     for (int q : cells) items.push_back({q, M[q]});
+    for (auto& kv : batoms) items.push_back({kv.first, (Mask)kv.second});
 }
 // Exact-enough reason for a failed global check (lb, ub, max-flow, LP, bounds): widen cells back to the root domains
 // while the same check still fails on the widened domains (the checks are sound relaxations on any domains, see
@@ -1723,6 +2020,11 @@ static int cdcl_solve() {
     CR_dec = true;
     if (!propagate()) { R_ON = false; return 0; }
     if (probe_depth >= 0) { if (!probe_all()) { R_ON = false; return 0; } if (timed_out) { R_ON = false; return 2; } }
+    if (use_lcg && D < (1LL << 31) - 2) {
+        if (!lcg_build()) { R_ON = false; return 0; }
+        lcg_on = true;
+        if (!propagate()) { R_ON = false; return 0; }
+    }
     for (int q = 0; q < N; q++) rootdom[q] = dom[q];
     have_root = true;
     double bump = 1;
@@ -1742,26 +2044,27 @@ static int cdcl_solve() {
             if (r < 0) uncertain++;
             CR_dec = true; conflict = true;
         } else {
-            int v = value_order(p, fed)[0];
-            curlvl++; decs.push_back({p, v}); lvl_mark.push_back(trail.size());
+            Mask S = BIT(value_order(p, fed)[0]);
+            curlvl++; decs.push_back({p, S}); lvl_mark.push_back(trail.size());
             bool ch = false;
-            deciding = true; setdom(p, BIT(v), ch); deciding = false;
+            deciding = true; setdom(p, S, ch); deciding = false;
             CR_dec = true;
-            if (!propagate()) { conflict = true; if (CR_dec && gexplain) explain_global(fail_code); }
+            if (!propagate()) { conflict = true; fail_by_code[fail_code]++; if (CR_dec && gexplain) explain_global(fail_code); }
         }
         while (conflict) {
             conflicts++; fails++; since++;
             if (curlvl == 0) { R_ON = false; return 0; }
             vector<pair<int, Mask>> items; int bj;
             analyze(items, bj);
+            sum_jump += curlvl - bj; sum_lvl += curlvl;
             undo(lvl_mark[bj]); decs.resize(bj); lvl_mark.resize(bj); curlvl = bj;
-            if ((long long)nogoods.size() >= cdcl_db + perm_nogoods) {   // forget the older half (sound: only weaker)
+            if ((long long)(nogoods.size() - perm_nogoods) >= cdcl_db) {   // forget the older half (sound: only weaker)
                 size_t keep_from = perm_nogoods + (nogoods.size() - perm_nogoods) / 2;
                 nogoods.erase(nogoods.begin() + perm_nogoods, nogoods.begin() + keep_from);
             }
             nogoods.push_back(items);
             learned_cdcl++; learned_cdcl_len += items.size();
-            for (auto& it : items) wdeg[it.first] += bump;
+            for (auto& it : items) wdeg[it.first >= 0 ? it.first : fkeys[((-1 - it.first) >> 1) / NC].p] += bump;
             bump *= cbump;
             if (bump > 1e100) { for (int q = 0; q < N; q++) wdeg[q] *= 1e-100; bump *= 1e-100; }
             if (since > limit && curlvl > 0) {        // restart: back to the root, keep every nogood
@@ -1770,6 +2073,7 @@ static int cdcl_solve() {
             }
             CR_dec = true;
             conflict = !propagate();
+            if (conflict) fail_by_code[fail_code]++;
             if (conflict && CR_dec && gexplain) explain_global(fail_code);
         }
     }
@@ -1848,6 +2152,9 @@ int main(int argc, char** argv) {
         else if (a == "--cbump" && i + 1 < argc) cbump = atof(argv[++i]);
         else if (a == "--hybrid" && i + 1 < argc) { use_cdcl = true; hybrid_fails = atoll(argv[++i]); }
         else if (a == "--gexpl") gexplain = true;
+        else if (a == "--nolcg") use_lcg = false;
+        else if (a == "--nolean") lcg_lean = false;
+        else if (a == "--nomin") minimize = false;
         else if (a == "--cdcldb" && i + 1 < argc) cdcl_db = atoll(argv[++i]);
         else if (a == "--vorder" && i + 1 < argc) vorder = atoi(argv[++i]);
         else if (a == "--nolearnlp") learn_lp = false;
@@ -1895,7 +2202,7 @@ int main(int argc, char** argv) {
                 if (r == 1 || timed_out) cd = false;   // r==0: exhaustive; r==2: budget hit, nld nogoods recorded
                 else if (r == 0) cd = false;
             }
-            if (cd) r = cdcl_solve();
+            if (cd) { r = cdcl_solve(); lcg_on = false; }
             else if (use_cdcl) { /* decided by the DFS phase */ }
             while (!use_cdcl) {
                 restart_now = false; path.clear();
@@ -1930,8 +2237,8 @@ int main(int argc, char** argv) {
     } else if (exhaustive && uncertain == 0) printf("STATUS INFEASIBLE\n");
     else printf("STATUS UNKNOWN\n");
     printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld/%lld RESTARTS %lld NOGOODS %zu PROBES %lld/%lld LEARNED %lld/%lld BOUNDS %lld/%lld/%lld EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail, lp_warm, n_restarts, nogoods.size(), probes, probe_removed, learned, learn_checks, bnd_calls, bnd_fails, bnd_filters);
-    if (use_cdcl) printf("CDCL conflicts %lld learned %lld avglen %.1f badreasons %lld gexpl %lld/%lld\n", conflicts, learned_cdcl, learned_cdcl ? (double)learned_cdcl_len / learned_cdcl : 0.0, bad_reasons, gexpl, gexpl_checks);
-    printf("FAILCODES"); for (int i = 0; i < 7; i++) printf(" %lld", fail_by_code[i]); printf("\n");
+    if (use_cdcl) printf("CDCL conflicts %lld learned %lld avglen %.1f badreasons %lld gexpl %lld/%lld lcg %lld/%lld jump %.2f level %.1f dec %lld min %lld\n", conflicts, learned_cdcl, learned_cdcl ? (double)learned_cdcl_len / learned_cdcl : 0.0, bad_reasons, gexpl, gexpl_checks, lcg_props, lcg_fails, conflicts ? (double)sum_jump / conflicts : 0.0, conflicts ? (double)sum_lvl / conflicts : 0.0, dec_analyses, min_dropped);
+    printf("FAILCODES"); for (int i = 0; i < 8; i++) printf(" %lld", fail_by_code[i]); printf("\n");
     if (learned) printf("AVG_NOGOOD_LEN %.1f\n", (double)learned_len / learned);
     return 0;
 }
