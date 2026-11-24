@@ -1894,9 +1894,11 @@ static void record_nogoods() {
         nogoods.push_back(ng);
     }
 }
+double phase_end = 0;                  // the hybrid DFS phase also stops at this time (seconds since t0; 0: none)
 static void note_fail() {
     fails++;
-    if (use_restarts && !restart_now && fails - fails_at_restart > restart_limit) {
+    if (use_restarts && !restart_now && (fails - fails_at_restart > restart_limit ||
+        (phase_end > 0 && chrono::duration<double>(chrono::steady_clock::now() - t0).count() > phase_end))) {
         restart_now = true;
         record_nogoods();
     }
@@ -2012,6 +2014,7 @@ static bool nogood_prop(bool& changed) {
 // propagation is sound. Run at the root of each port combo and at nodes up to --probedepth decisions deep.
 long long probes = 0, probe_removed = 0;
 int probe_depth = 0;
+bool probe_lp = false;
 static bool probe_all() {
     bool again = true;
     while (again) {
@@ -2026,7 +2029,9 @@ static bool probe_all() {
                 setdom(p, BIT(v), ch);
                 probes++;
                 if ((probes & 7) == 0 && chrono::duration<double>(chrono::steady_clock::now() - t0).count() > timeout) { timed_out = true; undo(mk); return true; }
+                bool lp = use_lp; use_lp = probe_lp;                   // the LP per probe costs more than it removes
                 bool ok = propagate();
+                use_lp = lp;
                 undo(mk);
                 if (timed_out) return true;
                 if (!ok) {
@@ -2190,8 +2195,10 @@ static int dfs() {
 // Decisions x_p = v; every removal carries a reason (see setdom); on a conflict, 1-UIP analysis over removal events
 // gives a nogood that is asserting after a backjump. Reasons are exact for the local rules (supports, unit rules,
 // nogoods, reach cuts) and DEC (= all decisions up to that level) for the rest, which is always valid.
-bool use_cdcl = true;              // default: hybrid (2000 DFS fails, then CDCL); --dfs = plain DFS, --cdcl = pure CDCL
-long long hybrid_fails = 2000;
+bool use_cdcl = true;              // default: hybrid (DFS for 2000 fails or 1 s, then CDCL); --dfs = plain DFS, --cdcl = pure CDCL
+long long hybrid_fails = 2000;          // the DFS phase ends after this many fails
+double hybrid_time = 1.0;              // ... or this many seconds per combo, whichever comes first
+int hybrid_lpevery = 5;                // the LP every k levels in the DFS phase (per node it dominates on large grids)
 double cbump = 1.05;
 long long cdcl_db = 4000;
 bool gexplain = false;   // --gexpl: widened reasons for global failures (fewer conflicts, slower overall)
@@ -2509,6 +2516,9 @@ int main(int argc, char** argv) {
         else if (a == "--dfs") use_cdcl = false;
         else if (a == "--cbump" && i + 1 < argc) cbump = atof(argv[++i]);
         else if (a == "--hybrid" && i + 1 < argc) { use_cdcl = true; hybrid_fails = atoll(argv[++i]); }
+        else if (a == "--probelp") probe_lp = true;
+        else if (a == "--htime" && i + 1 < argc) hybrid_time = atof(argv[++i]);
+        else if (a == "--hlpevery" && i + 1 < argc) hybrid_lpevery = atoi(argv[++i]);
         else if (a == "--gexpl") gexplain = true;
         else if (a == "--nolcg") use_lcg = false;
         else if (a == "--nolean") lcg_lean = false;
@@ -2556,8 +2566,10 @@ int main(int argc, char** argv) {
                 bool ur = use_restarts; use_restarts = true;
                 restart_now = false; path.clear();
                 restart_limit = hybrid_fails; fails_at_restart = fails;
+                phase_end = chrono::duration<double>(chrono::steady_clock::now() - t0).count() + hybrid_time;
+                int le = lp_every; lp_every = hybrid_lpevery;
                 r = dfs();
-                use_restarts = ur;
+                use_restarts = ur; phase_end = 0; lp_every = le;
                 if (r == 1 || timed_out) cd = false;   // r==0: exhaustive; r==2: budget hit, nld nogoods recorded
                 else if (r == 0) cd = false;
             }
