@@ -1794,8 +1794,11 @@ int branch_mode = 1, wmode = 0;
 bool rnd_on = false;
 std::mt19937 rng(12345);
 double wdeg[MAXN];
-static int choose(int& bestv_order_dir) {
+// act: the activity order |dom|/(1+wdeg) in double. The default int score saturates at 0 once the weights grow, which
+// leaves grid order among the tiles in conflicts: that suits 4:4, the activity order suits mix3:2, so CDCL alternates.
+static int choose(int& bestv_order_dir, bool act = false) {
     int best = -1, bestscore = 1 << 30;
+    double bestact = 0;
     bestv_order_dir = -1;
     for (int p = 0; p < N; p++) {
         if (single(dom[p])) continue;
@@ -1804,6 +1807,11 @@ static int choose(int& bestv_order_dir) {
             int r = nb(p, OPP(e));
             if (r < 0) { if (portKind[p][OPP(e)] == 1) fed = e; continue; }
             if (single(dom[r]) && dom[r] != BIT_E && (dom[r] & PUSH[e])) fed = e;
+        }
+        if (act) {
+            double sc = popc(dom[p]) / (1.0 + wdeg[p]);
+            if (best < 0 || sc < bestact) { bestact = sc; best = p; bestv_order_dir = fed; }
+            continue;
         }
         int score;
         if (branch_mode == 0) score = popc(dom[p]) + (fed >= 0 ? 0 : 100) + ((dom[p] & BIT_E) ? 20 : 0);
@@ -2213,6 +2221,11 @@ long long conflicts = 0, bad_reasons = 0, learned_cdcl = 0, learned_cdcl_len = 0
 vector<pair<int, Mask>> decs;     // decision x_p in S
 bool phase_save = true;            // decisions reuse a cell's last decided value while it is possible
 static int saved_val[MAXN];
+bool alt_order = true;             // CDCL: Luby restarts, alternating grid and activity order (see choose)
+static int item_tile(const pair<int, Mask>& it) {     // the tile a nogood item is about
+    if (it.first >= N) return fkeys[lit_key[it.first - N]].p;
+    return it.first >= 0 ? it.first : fkeys[((-1 - it.first) >> 1) / NC].p;
+}
 vector<size_t> lvl_mark;
 static vector<char> seen_ev;
 static inline int ev_level(int ev) { return ev < BEV0 ? ev_lvl[ev] : bevs[ev - BEV0].lvl; }
@@ -2380,13 +2393,14 @@ static int cdcl_solve() {
     double bump = 1;
     perm_nogoods = nogoods.size();
     long long db_limit = cdcl_db;
-    long long k = 0, since = 0, limit = use_restarts ? base_fails * luby(k++) : (1LL << 62);
+    long long k = 0, since = 0, limit = use_restarts || alt_order ? base_fails * luby(k++) : (1LL << 62);
+    bool act_slice = false;
     while (true) {
         nodes++;
         if ((nodes & 15) == 0 && chrono::duration<double>(chrono::steady_clock::now() - t0).count() > timeout) timed_out = true;
         if (timed_out) { R_ON = false; return 2; }
         int fed;
-        int p = choose(fed);
+        int p = choose(fed, act_slice);
         bool conflict = false;
         if (p < 0) {
             leaves++;
@@ -2433,12 +2447,13 @@ static int cdcl_solve() {
             ng_lbd.push_back(lbd);
             nogoods.push_back(items);
             learned_cdcl++; learned_cdcl_len += items.size();
-            for (auto& it : items) wdeg[it.first >= N ? fkeys[lit_key[it.first - N]].p : it.first >= 0 ? it.first : fkeys[((-1 - it.first) >> 1) / NC].p] += bump;
+            for (auto& it : items) wdeg[item_tile(it)] += bump;
             bump *= cbump;
             if (bump > 1e100) { for (int q = 0; q < N; q++) wdeg[q] *= 1e-100; bump *= 1e-100; }
             if (since > limit && curlvl > 0) {        // restart: back to the root, keep every nogood
                 undo(lvl_mark[0]); decs.clear(); lvl_mark.clear(); curlvl = 0;
                 since = 0; limit = base_fails * luby(k++); n_restarts++;
+                act_slice = alt_order && !act_slice;
             }
             CR_dec = true;
             conflict = !propagate();
@@ -2528,6 +2543,7 @@ int main(int argc, char** argv) {
         else if (a == "--nolcg") use_lcg = false;
         else if (a == "--nolean") lcg_lean = false;
         else if (a == "--nophase") phase_save = false;
+        else if (a == "--noalt") alt_order = false;
         else if (a == "--nomin") minimize = false;
         else if (a == "--cdcldb" && i + 1 < argc) cdcl_db = atoll(argv[++i]);
         else if (a == "--vorder" && i + 1 < argc) vorder = atoi(argv[++i]);
