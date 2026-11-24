@@ -1926,8 +1926,10 @@ static inline int item_state(const pair<int, Mask>& it) {
 // As a reason: a holding cell item says "the values outside M were removed"; a bound item is its own reason.
 static inline pair<int, Mask> item_reason(const pair<int, Mask>& it) { return it.first >= 0 ? make_pair(it.first, ALL & ~it.second) : it; }
 // Two watched items per nogood, on items that do not hold (or, failing that, hold since the latest level); a nogood
-// is looked at only when the cell or bound variable of a watched item changes. Watch keys: cell p, or NT + j.
-vector<vector<int>> ng_watch;
+// is looked at only when the cell or bound variable of a watched item changes. Watch keys: cell p, or NT + j. A watch
+// entry keeps a copy of its item, so a change that leaves the item open never touches the nogood.
+struct NWatch { int i; pair<int, Mask> it; };
+vector<vector<NWatch>> ng_watch;
 size_t ng_watched = 0;
 static inline int item_key(const pair<int, Mask>& it) { return it.first >= 0 ? it.first : NT + ((-1 - it.first) >> 1); }
 static int hold_level(const pair<int, Mask>& it) {
@@ -1941,6 +1943,7 @@ static int hold_level(const pair<int, Mask>& it) {
     return 0;
 }
 // a nogood whose watches both hold (or its only item): conflict, unit or nothing; shared by attach and the queue
+static bool ng_fire(const vector<pair<int, Mask>>& ng, int und, bool& changed);
 static bool ng_check(const vector<pair<int, Mask>>& ng, bool& changed) {
     int und = -1, nund = 0;
     for (size_t i = 0; i < ng.size(); i++) {
@@ -1948,11 +1951,15 @@ static bool ng_check(const vector<pair<int, Mask>>& ng, bool& changed) {
         if (st == 0) return true;
         if (st == 2) { nund++; und = i; if (nund > 1) return true; }
     }
-    if (nund == 1 && ng[und].first < 0) return true;                   // bound atoms are never asserted (see aenc)
+    return ng_fire(ng, und, changed);
+}
+// every item but und holds (und = -1: all of them): conflict, or assert the negation of item und
+static bool ng_fire(const vector<pair<int, Mask>>& ng, int und, bool& changed) {
+    if (und >= 0 && ng[und].first < 0) return true;                    // bound atoms are never asserted (see aenc)
     static Pairs why;
     why.clear();
     if (R_ON) for (size_t i = 0; i < ng.size(); i++) if ((int)i != und) why.push_back(item_reason(ng[i]));
-    if (nund == 0) {
+    if (und < 0) {
         if (R_ON) { CR_dec = false; CRp = why; }
         return false;
     }
@@ -1966,7 +1973,7 @@ static void ng_attach(int i) {
         int best = w;
         for (int k = w + 1; k < (int)ng.size(); k++) if (rank(ng[k]) > rank(ng[best])) best = k;
         swap(ng[w], ng[best]);
-        ng_watch[item_key(ng[w])].push_back(i);
+        ng_watch[item_key(ng[w])].push_back({i, ng[w]});
     }
 }
 // erase the nogoods marked in drop and keep the other watches as they are (re-attaching mid-search could break the
@@ -1985,7 +1992,7 @@ static void ng_erase(const vector<char>& drop) {
     nogoods.resize(w); ng_lbd.resize(w);
     for (auto& wl : ng_watch) {
         size_t k = 0;
-        for (int i : wl) if (to[i] >= 0) wl[k++] = to[i];
+        for (auto& e : wl) if (to[e.i] >= 0) wl[k++] = {to[e.i], e.it};
         wl.resize(k);
     }
     ng_watched = watched;
@@ -2004,7 +2011,8 @@ static bool nogood_prop(bool& changed) {
         int e = trail[ng_qhead++].first, key = e >= 0 ? e : NT + (-1 - e);      // a bound entry holds -1 - j
         auto& wl = ng_watch[key];
         for (size_t x = 0; x < wl.size();) {
-            int i = wl[x];
+            if (item_state(wl[x].it) != 1) { x++; continue; }           // still open (a stale copy is dropped later)
+            int i = wl[x].i;
             auto& ng = nogoods[i];
             int w = item_key(ng[0]) == key ? 0 : (ng.size() > 1 && item_key(ng[1]) == key) ? 1 : -1;
             if (w < 0) { wl[x] = wl.back(); wl.pop_back(); continue; } // stale
@@ -2014,11 +2022,12 @@ static bool nogood_prop(bool& changed) {
             if (k < (int)ng.size()) {                                   // move the watch
                 swap(ng[w], ng[k]);
                 int nk = item_key(ng[w]);
-                if (nk != key) { ng_watch[nk].push_back(i); wl[x] = wl.back(); wl.pop_back(); continue; }
-                x++; continue;
+                if (nk != key) { ng_watch[nk].push_back({i, ng[w]}); wl[x] = wl.back(); wl.pop_back(); continue; }
+                wl[x++].it = ng[w]; continue;
             }
-            x++;
-            if (!ng_check(ng, changed)) return false;
+            x++;                                                        // items 2.. hold: only the other watch decides
+            int o = ng.size() > 1 ? 1 - w : -1, so = o < 0 ? 1 : item_state(ng[o]);
+            if (so != 0 && !ng_fire(ng, so == 2 ? o : -1, changed)) return false;
         }
     }
     return true;
@@ -2320,21 +2329,26 @@ static void analyze(vector<pair<int, Mask>>& items, int& bj) {
     auto touch = [&](int q) { if (find(cells.begin(), cells.end(), q) == cells.end()) { cells.push_back(q); M[q] = ALL; } };
     items.clear();
     bj = 0;
-    map<int, long long> batoms;                                         // atom code -> tightest needed bound
+    static vector<int> bmark;                                           // per atom code -1-c: stamp of this analysis
+    static vector<long long> bval;                                      // ... and its tightest needed bound
+    static int bstamp = 0;
+    vector<int> bcodes;
+    if (bmark.size() < 2 * fb[0].size()) { bmark.assign(2 * fb[0].size(), 0); bval.resize(2 * fb[0].size()); }
+    bstamp++;
     for (int ev : low) {
         bj = max(bj, ev_level(ev));
         if (ev < BEV0) { int q = ev / 17; touch(q); M[q] &= ~BIT(ev % 17); continue; }
         const BEv& e = bevs[ev - BEV0];
         int code = aenc(e.j, e.side);
         long long b = need[ev - BEV0];
-        auto it = batoms.find(code);
-        if (it == batoms.end()) batoms[code] = b;
-        else it->second = e.side == 0 ? min(it->second, b) : max(it->second, b);
+        int a = -1 - code;
+        if (bmark[a] != bstamp) { bmark[a] = bstamp; bval[a] = b; bcodes.push_back(code); }
+        else bval[a] = e.side == 0 ? min(bval[a], b) : max(bval[a], b);
     }
     if (uip >= 0) { int q = uip / 17; touch(q); M[q] &= ~BIT(uip % 17); }
     else { int q = decs[curlvl - 1].first; touch(q); M[q] &= decs[curlvl - 1].second; }
     for (int q : cells) items.push_back({q, M[q]});
-    for (auto& kv : batoms) items.push_back({kv.first, (Mask)kv.second});
+    for (int code : bcodes) items.push_back({code, (Mask)bval[-1 - code]});
     // backjump to the level where the nogood becomes unit: a bound atom may hold earlier than its event
     int uq = uip >= 0 ? uip / 17 : decs[curlvl - 1].first;
     bj = 0;
