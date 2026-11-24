@@ -171,10 +171,13 @@ static inline bool setb(int j, int side, long long v, const Pairs& why) {
     cur = v;
     return true;
 }
-size_t ng_qhead = 0;                   // nogood watches: trail entries already seen by nogood_prop
+size_t ng_qhead = 0, lcg_qhead = 0, lf_qhead = 0;   // trail entries already seen by nogood_prop / lcg_prop / local_fix
+bool lf_all = true;                    // next local_fix checks the supports of every cell
 bool ng_rewatch = true;
 static inline void undo(size_t to) {
     ng_qhead = min(ng_qhead, to);
+    lcg_qhead = min(lcg_qhead, to);
+    lf_qhead = min(lf_qhead, to);
     if (trail.size() > to) {
         evtrail.resize(trail_ev[to]);
         rpool.resize(trail_pool[to]);
@@ -1223,6 +1226,9 @@ struct FKey { int kind, p, d; };       // 0 link p -> nb(p, d), 1 entry (I d at 
 struct FRow { vector<pair<int, int>> a; long long b; bool eq; Pairs enf; };
 vector<FKey> fkeys;
 vector<FRow> frows;
+vector<vector<int>> var_rows, cell_keys, cell_rows;   // rows of a variable, keys and enforced rows of a cell
+bool lcg_all = true;                                   // next lcg_prop visits every row and key
+static vector<double> lcg_x;                           // lcg_lp's last point (per variable)
 bool lcg_on = false, use_lcg = true, lcg_lean = true;   // lean: with flow bounds on, skip the checks without reasons (LP excepted)
 long long lcg_props = 0, lcg_fails = 0;
 // key possible on the current domains (monotone); otherwise why gets the removals that rule it out
@@ -1287,6 +1293,11 @@ static bool lcg_build() {
                 if (q >= 0) add(u, uk[q][d], c, 1);
                 add(u, ek[p][d], c, 1); add(u, uk[p][d], c, -1); add(u, xk[p][d], c, -1);
                 if (!u.a.empty()) frows.push_back(u);
+                if (uk[p][d] >= 0 && (dom[p] & BIT(VAL(KO, d)))) {    // an exit takes the whole channel (first exit)
+                    FRow x{{}, 0, false, {{p, BIT(VAL(KO, d))}}};
+                    add(x, uk[p][d], c, 1);
+                    frows.push_back(x);
+                }
             }
     for (int p = 0; p < N; p++) {
         if (dom[p] == BIT_E) continue;
@@ -1323,20 +1334,39 @@ static bool lcg_build() {
                 }
         }
     }
+    var_rows.assign(NV, {}); cell_keys.assign(N, {}); cell_rows.assign(N, {});
+    for (int i = 0; i < (int)frows.size(); i++) {
+        for (auto& t : frows[i].a) var_rows[t.first].push_back(i);
+        for (auto& e : frows[i].enf) cell_rows[e.first].push_back(i);
+    }
+    for (int k = 0; k < K; k++) {                                      // cells a key's existence or back-filter reads
+        auto& fk = fkeys[k];
+        if (fk.kind == 0) { cell_keys[fk.p].push_back(k); cell_keys[nb(fk.p, fk.d)].push_back(k); }
+        else if (fk.kind != 3) cell_keys[fk.p].push_back(k);
+        else for (int n = -REACH; n <= REACH; n++) {
+            int q = n < 0 ? nbn(fk.p, OPP(fk.d), -n) : nbn(fk.p, fk.d, n);
+            if (q >= 0) cell_keys[q].push_back(k);
+        }
+    }
+    lcg_all = true; lcg_qhead = 0; lcg_x.clear();
     return true;
 }
+// Event-driven: trail entries since lcg_qhead queue the keys of a changed cell (existence, back-filter), the rows it
+// enforces, and the rows and key of a changed variable. Rows are revisited until no bound moves (or a work cap).
 static bool lcg_prop(bool& changed) {
     lcg_props++;
-    Pairs why;
-    for (int k = 0; k < (int)fkeys.size(); k++) {                     // existence
-        bool live = false;
-        for (int c = 0; c < NC; c++) if (fb[0][k * NC + c] > 0) live = true;
-        if (!live) continue;
-        why.clear();
-        if (key_possible(fkeys[k], &why)) continue;
-        for (int c = 0; c < NC; c++) if (!setb(k * NC + c, 0, 0, why)) { lcg_fails++; return false; }
-        changed = true;
+    static vector<int> rq, kq;
+    static vector<char> rin, kin;
+    rin.resize(frows.size()); kin.resize(fkeys.size());
+    auto pushr = [&](int r) { if (!rin[r]) { rin[r] = 1; rq.push_back(r); } };
+    auto pushk = [&](int k) { if (!kin[k]) { kin[k] = 1; kq.push_back(k); } };
+    auto fail = [&]() { for (int r : rq) rin[r] = 0; for (int k : kq) kin[k] = 0; rq.clear(); kq.clear(); lcg_fails++; return false; };
+    if (lcg_all) {
+        for (int r = 0; r < (int)frows.size(); r++) pushr(r);
+        for (int k = 0; k < (int)fkeys.size(); k++) pushk(k);
+        lcg_all = false;
     }
+    Pairs why;
     auto enforced = [&](const FRow& r) { for (auto& e : r.enf) if (dom[e.first] & ~e.second) return false; return true; };
     // atom of term (j, a) for the lower (lowside) or the upper end of a*f_j, or none if it is the root bound
     auto term_atom = [&](int j, int a, bool lowside, Pairs& w) {
@@ -1348,60 +1378,90 @@ static bool lcg_prop(bool& changed) {
         for (auto& e : r.enf) w.push_back({e.first, ALL & ~e.second});
         for (int t = 0; t < (int)r.a.size(); t++) if (t != skip) term_atom(r.a[t].first, r.a[t].second, lowside, w);
     };
-    for (int round = 0, ch = 1; ch && round < 200; round++) {         // a cap only costs pruning
-        ch = 0;
-        for (auto& r : frows) {
-            if (!enforced(r)) continue;
-            for (bool again = true; again;) {
-                again = false;
-                long long sl = 0, sh = 0;                              // range of sum a f
-                for (auto& t : r.a) {
-                    long long lo = fb[1][t.first], hi = fb[0][t.first];
-                    if (t.second > 0) { sl += lo; sh += hi; } else { sl -= hi; sh -= lo; }
-                }
-                if (sl > r.b || (r.eq && sh < r.b)) {
-                    reason(r, -1, sl > r.b, why);
-                    CR_dec = false; CRp = why; lcg_fails++;
-                    return false;
-                }
-                for (int t = 0; t < (int)r.a.size() && !again; t++) {
-                    int j = r.a[t].first, a = r.a[t].second;
-                    long long tl = a > 0 ? fb[1][j] : -fb[0][j], th = a > 0 ? fb[0][j] : -fb[1][j];
-                    long long up = r.b - (sl - tl), dn = r.eq ? r.b - (sh - th) : tl;   // dn <= a f_j <= up
-                    bool ok = true;
-                    if (up < th) { reason(r, t, true, why); ok = a > 0 ? setb(j, 0, up, why) : setb(j, 1, -up, why); again = true; }
-                    else if (dn > tl) { reason(r, t, false, why); ok = a > 0 ? setb(j, 1, dn, why) : setb(j, 0, -dn, why); again = true; }
-                    if (!ok) { lcg_fails++; return false; }
-                }
-                if (again) ch = 1, changed = true;
+    long long work = 0, cap = 200LL * (frows.size() + 1);               // a cap only costs pruning
+    while (true) {
+        for (; lcg_qhead < trail.size(); lcg_qhead++) {
+            int e = trail[lcg_qhead].first;
+            if (e >= 0) { for (int k : cell_keys[e]) pushk(k); for (int r : cell_rows[e]) pushr(r); }
+            else { int j = -1 - e; for (int r : var_rows[j]) pushr(r); pushk(j / NC); }
+        }
+        if (!kq.empty()) {
+            int k = kq.back(); kq.pop_back(); kin[k] = 0;
+            auto& fk = fkeys[k];
+            bool live = false;
+            for (int c = 0; c < NC; c++) if (fb[0][k * NC + c] > 0) live = true;
+            why.clear();
+            if (live && !key_possible(fk, &why)) {                     // existence: an impossible key carries nothing
+                for (int c = 0; c < NC; c++) if (!setb(k * NC + c, 0, 0, why)) return fail();
+                changed = true;
+            } else if (!live && fk.kind != 3 && key_possible(fk, nullptr)) {   // a key that carries nothing cannot exist
+                for (int c = 0; c < NC; c++) why.push_back({aenc(k * NC + c, 0), 0});
+                int p = fk.p, d = fk.d;
+                bool ok = true;
+                if (fk.kind == 0) {
+                    int q = nb(p, d);
+                    if (!(dom[p] & ~PUSH[d])) { why.push_back({p, ALL & ~PUSH[d]}); ok = setdom(q, dom[q] & ~ACC[d], changed, &why); }
+                    else if (!(dom[q] & ~ACC[d])) { why.push_back({q, ALL & ~ACC[d]}); ok = setdom(p, dom[p] & ~PUSH[d], changed, &why); }
+                } else ok = setdom(p, dom[p] & ~BIT(VAL(fk.kind == 1 ? KI : KO, d)), changed, &why);
+                if (!ok) return fail();
             }
+            continue;
+        }
+        if (rq.empty() || work++ > cap) break;
+        int ri = rq.back(); rq.pop_back(); rin[ri] = 0;
+        auto& r = frows[ri];
+        if (!enforced(r)) continue;
+        for (bool again = true; again;) {
+            again = false;
+            long long sl = 0, sh = 0;                                  // range of sum a f
+            for (auto& t : r.a) {
+                long long lo = fb[1][t.first], hi = fb[0][t.first];
+                if (t.second > 0) { sl += lo; sh += hi; } else { sl -= hi; sh -= lo; }
+            }
+            if (sl > r.b || (r.eq && sh < r.b)) {
+                reason(r, -1, sl > r.b, why);
+                CR_dec = false; CRp = why;
+                return fail();
+            }
+            for (int t = 0; t < (int)r.a.size() && !again; t++) {
+                int j = r.a[t].first, a = r.a[t].second;
+                long long tl = a > 0 ? fb[1][j] : -fb[0][j], th = a > 0 ? fb[0][j] : -fb[1][j];
+                long long up = r.b - (sl - tl), dn = r.eq ? r.b - (sh - th) : tl;   // dn <= a f_j <= up
+                bool ok = true;
+                if (up < th) { reason(r, t, true, why); ok = a > 0 ? setb(j, 0, up, why) : setb(j, 1, -up, why); again = true; }
+                else if (dn > tl) { reason(r, t, false, why); ok = a > 0 ? setb(j, 1, dn, why) : setb(j, 0, -dn, why); again = true; }
+                if (!ok) return fail();
+            }
+            if (again) changed = true;
         }
     }
-    for (int k = 0; k < (int)fkeys.size(); k++) {                     // a key that carries nothing cannot exist
-        auto& fk = fkeys[k];
-        if (fk.kind == 3) continue;
-        bool zero = true;
-        for (int c = 0; c < NC && zero; c++) if (fb[0][k * NC + c] > 0) zero = false;
-        if (!zero || !key_possible(fk, nullptr)) continue;
-        why.clear();
-        for (int c = 0; c < NC; c++) why.push_back({aenc(k * NC + c, 0), 0});
-        int p = fk.p, d = fk.d;
-        if (fk.kind == 0) {
-            int q = nb(p, d);
-            if (!(dom[p] & ~PUSH[d])) { why.push_back({p, ALL & ~PUSH[d]}); if (!setdom(q, dom[q] & ~ACC[d], changed, &why)) return false; }
-            else if (!(dom[q] & ~ACC[d])) { why.push_back({q, ALL & ~ACC[d]}); if (!setdom(p, dom[p] & ~PUSH[d], changed, &why)) return false; }
-        } else if (!setdom(p, dom[p] & ~BIT(VAL(fk.kind == 1 ? KI : KO, d)), changed, &why)) return false;
-    }
+    for (int r : rq) rin[r] = 0;
+    rq.clear();
     return true;
 }
 
 // LP over the flow-bound model: the enforced rows on x' = x - lo >= 0, plus x' <= hi - lo as rows. An exactly
 // verified Farkas certificate of that system gives the conflict reason: the enforcement items of the rows it uses and
 // the bounds those rows were built from (lo of every term, hi of a box row; a fixed variable also needs its hi).
-long long lcglp_calls = 0, lcglp_prunes = 0;
+long long lcglp_calls = 0, lcglp_prunes = 0, lcglp_warm = 0;
 static bool lcg_lp() {
     lcglp_calls++;
     int NV = fkeys.size() * NC;
+    if ((int)lcg_x.size() == NV) {                                      // warm: the last point still fits, nothing to prune
+        const double tol = 1e-9 * D;
+        bool ok = true;
+        for (int j = 0; j < NV && ok; j++) ok = lcg_x[j] >= fb[1][j] - tol && lcg_x[j] <= fb[0][j] + tol;
+        for (int i = 0; i < (int)frows.size() && ok; i++) {
+            auto& r = frows[i];
+            bool en = true;
+            for (auto& e : r.enf) if (dom[e.first] & ~e.second) en = false;
+            if (!en) continue;
+            double lhs = 0;
+            for (auto& t : r.a) lhs += t.second * lcg_x[t.first];
+            ok = r.eq ? fabs(lhs - r.b) <= tol : lhs <= r.b + tol;
+        }
+        if (ok) { lcglp_warm++; return true; }
+    }
     vector<int> col(NV, -1);
     int n = 0;
     for (int j = 0; j < NV; j++) if (fb[0][j] > fb[1][j]) col[j] = n++;
@@ -1430,9 +1490,11 @@ static bool lcg_lp() {
         static const int kofs[4] = {0, 8, 12, 4};                     // lp_check's key layout: link, entry, exit, channel
         auto& ls = lastsols[0];
         ls.assign(16 * N * NC, 0.0);
+        lcg_x.assign(NV, 0.0);
         for (int j = 0; j < NV; j++) {
             auto& k = fkeys[j / NC];
-            ls[kofs[k.kind] * N + k.p * 4 + k.d + (j % NC) * 16 * N] = fb[1][j] + (col[j] >= 0 ? val[col[j]] : 0.0);
+            lcg_x[j] = fb[1][j] + (col[j] >= 0 ? val[col[j]] : 0.0);
+            ls[kofs[k.kind] * N + k.p * 4 + k.d + (j % NC) * 16 * N] = lcg_x[j];
         }
         return true;
     }
@@ -1474,11 +1536,25 @@ static bool lcg_lp() {
 }
 
 // ------------------------------------------------------------------ propagation fixpoint
+// Supports depend on the neighbours and on the cells up to REACH along each line (hops), so only cells near a change
+// since lf_qhead are checked again.
 static bool local_fix() {
+    static vector<char> mark;
+    static vector<int> todo;
+    mark.resize(N);
+    auto add = [&](int q) { if (q >= 0 && !mark[q]) { mark[q] = 1; todo.push_back(q); } };
     bool changed = true;
     while (changed) {
         changed = false;
-        for (int p = 0; p < N; p++) {
+        todo.clear();
+        if (lf_all) { for (int p = 0; p < N; p++) add(p); lf_all = false; lf_qhead = trail.size(); }
+        for (; lf_qhead < trail.size(); lf_qhead++) {
+            int q = trail[lf_qhead].first;
+            if (q < 0) continue;
+            for (int d = 0; d < 4; d++) for (int n = 1; n <= REACH; n++) { int r = nbn(q, d, n); if (r < 0) break; add(r); }
+        }
+        for (int p : todo) mark[p] = 0;
+        for (int p : todo) {
             Mask m = dom[p], nm = 0;
             for (Mask r = m; r; r &= r - 1) {
                 int v = __builtin_ctz(r);
@@ -1878,6 +1954,7 @@ bool have_root = false, probed_root = false;
 long long learned = 0, learn_checks = 0, learned_len = 0;
 size_t max_nogoods = 20000;
 static bool run_check(int code) {
+    lf_all = true;                     // domains may have been widened directly
     size_t mk = trail.size();
     bool ok = true;
     if (code == 0) ok = local_fix();
@@ -2022,6 +2099,8 @@ size_t perm_nogoods = 0;
 bool minimize = true;
 long long conflicts = 0, bad_reasons = 0, learned_cdcl = 0, learned_cdcl_len = 0;
 vector<pair<int, Mask>> decs;     // decision x_p in S
+bool phase_save = true;            // decisions reuse a cell's last decided value while it is possible
+static int saved_val[MAXN];
 vector<size_t> lvl_mark;
 static vector<char> seen_ev;
 static inline int ev_level(int ev) { return ev < BEV0 ? ev_lvl[ev] : bevs[ev - BEV0].lvl; }
@@ -2207,7 +2286,10 @@ static int cdcl_solve() {
                 CR_dec = true;
             }
         } else {
-            Mask S = BIT(value_order(p, fed)[0]);
+            int v = value_order(p, fed)[0];
+            if (phase_save && (dom[p] & BIT(saved_val[p]))) v = saved_val[p];
+            saved_val[p] = v;
+            Mask S = BIT(v);
             curlvl++; decs.push_back({p, S}); lvl_mark.push_back(trail.size());
             bool ch = false;
             deciding = true; setdom(p, S, ch); deciding = false;
@@ -2290,7 +2372,7 @@ static bool init_domains() {
         }
     trail.clear(); trail_ev.clear(); trail_pool.clear(); evtrail.clear(); rpool.clear();
     memset(ev_lvl, 0, sizeof(int) * N * 17);
-    ng_qhead = 0; ng_rewatch = true;
+    ng_qhead = 0; ng_rewatch = true; lf_all = true;
     return true;
 }
 
@@ -2317,6 +2399,7 @@ int main(int argc, char** argv) {
         else if (a == "--gexpl") gexplain = true;
         else if (a == "--nolcg") use_lcg = false;
         else if (a == "--nolean") lcg_lean = false;
+        else if (a == "--nophase") phase_save = false;
         else if (a == "--nomin") minimize = false;
         else if (a == "--cdcldb" && i + 1 < argc) cdcl_db = atoll(argv[++i]);
         else if (a == "--vorder" && i + 1 < argc) vorder = atoi(argv[++i]);
@@ -2400,7 +2483,7 @@ int main(int argc, char** argv) {
     } else if (exhaustive && uncertain == 0) printf("STATUS INFEASIBLE\n");
     else printf("STATUS UNKNOWN\n");
     printf("TIME %.3f NODES %lld FAILS %lld LEAVES %lld UNCERTAIN %lld LP %lld/%lld/%lld/%lld RESTARTS %lld NOGOODS %zu PROBES %lld/%lld LEARNED %lld/%lld BOUNDS %lld/%lld/%lld EXACT\n", el, nodes, fails, leaves, uncertain, lp_calls, lp_prunes, lp_cert_fail, lp_warm, n_restarts, nogoods.size(), probes, probe_removed, learned, learn_checks, bnd_calls, bnd_fails, bnd_filters);
-    if (use_cdcl) printf("CDCL conflicts %lld learned %lld avglen %.1f badreasons %lld gexpl %lld/%lld lcg %lld/%lld lp %lld/%lld\n", conflicts, learned_cdcl, learned_cdcl ? (double)learned_cdcl_len / learned_cdcl : 0.0, bad_reasons, gexpl, gexpl_checks, lcg_props, lcg_fails, lcglp_calls, lcglp_prunes);
+    if (use_cdcl) printf("CDCL conflicts %lld learned %lld avglen %.1f badreasons %lld gexpl %lld/%lld lcg %lld/%lld lp %lld/%lld/%lld\n", conflicts, learned_cdcl, learned_cdcl ? (double)learned_cdcl_len / learned_cdcl : 0.0, bad_reasons, gexpl, gexpl_checks, lcg_props, lcg_fails, lcglp_calls, lcglp_prunes, lcglp_warm);
     printf("FAILCODES"); for (int i = 0; i < 8; i++) printf(" %lld", fail_by_code[i]); printf("\n");
     if (learned) printf("AVG_NOGOOD_LEN %.1f\n", (double)learned_len / learned);
     return 0;
