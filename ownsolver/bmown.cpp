@@ -1441,8 +1441,7 @@ static bool lcg_prop(bool& changed) {
 }
 
 // LP over the flow-bound model: the enforced rows on x' = x - lo >= 0, plus x' <= hi - lo as rows. An exactly
-// verified Farkas certificate of that system gives the conflict reason: the enforcement items of the rows it uses and
-// the bounds those rows were built from (lo of every term, hi of a box row; a fixed variable also needs its hi).
+// verified Farkas certificate of that system gives the conflict reason (see below).
 long long lcglp_calls = 0, lcglp_prunes = 0, lcglp_warm = 0;
 static bool lcg_lp() {
     lcglp_calls++;
@@ -1484,6 +1483,8 @@ static bool lcg_lp() {
     int m = rows.size();
     if (m == 0 || (long long)m * (ns + m) > 4000000) return true;
     vector<double> val, y;
+    vector<char> flip(m);
+    for (int i = 0; i < m; i++) flip[i] = rows[i].b < 0;               // phase1 flips these rows in place
     int st = phase1(rows, ns, val, y);
     if (st < 0) return true;
     if (st == 1) {                                                      // keep the point for the value order
@@ -1515,18 +1516,25 @@ static bool lcg_lp() {
         bool good = true;
         for (int j = 0; j < ns && good; j++) if (cs[j] > 0) good = false;
         if (!good) continue;
+        // the rows' part alone, w_i = z_i * flip_i (w_i <= 0 on a <= row), reads sum_j c_j x_j >= B; it is infeasible
+        // when its maximum over the box is below B, so the reason is the enforcement items of the rows with w_i != 0
+        // and only the bounds that maximum uses (hi where c_j > 0, lo where c_j < 0)
+        vector<i128> c(NV, 0);
+        i128 B = 0, U = 0;
         Pairs why;
-        vector<char> lo_used(NV, 0), hi_used(NV, 0);
         for (int i = 0; i < m; i++) {
-            if (!z[i]) continue;
-            if (src[i] < 0) { int j = -1 - src[i]; lo_used[j] = hi_used[j] = 1; continue; }
+            if (!z[i] || src[i] < 0) continue;
             auto& r = frows[src[i]];
+            i128 w = flip[i] ? -(i128)z[i] : (i128)z[i];
+            B += w * r.b;
+            for (auto& t : r.a) c[t.first] += w * t.second;
             for (auto& e : r.enf) why.push_back({e.first, ALL & ~e.second});
-            for (auto& t : r.a) { lo_used[t.first] = 1; if (col[t.first] < 0) hi_used[t.first] = 1; }
         }
+        for (int j = 0; j < NV; j++) U += c[j] * (c[j] > 0 ? fb[0][j] : fb[1][j]);
+        if (U >= B) continue;                                           // the box rows' share does not fit this form
         for (int j = 0; j < NV; j++) {
-            if (lo_used[j] && fb[1][j] > 0) why.push_back({aenc(j, 1), (Mask)fb[1][j]});
-            if (hi_used[j] && fb[0][j] < D) why.push_back({aenc(j, 0), (Mask)fb[0][j]});
+            if (c[j] > 0 && fb[0][j] < D) why.push_back({aenc(j, 0), (Mask)fb[0][j]});
+            if (c[j] < 0 && fb[1][j] > 0) why.push_back({aenc(j, 1), (Mask)fb[1][j]});
         }
         lcglp_prunes++;
         CR_dec = false; CRp = why;
