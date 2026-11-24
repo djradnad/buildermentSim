@@ -1226,6 +1226,10 @@ struct FKey { int kind, p, d; };       // 0 link p -> nb(p, d), 1 entry (I d at 
 struct FRow { vector<pair<int, int>> a; long long b; bool eq; Pairs enf; };
 vector<FKey> fkeys;
 vector<FRow> frows;
+// Link literals: cells N .. NT-1 with values 0 (absent) and 1 (present), one per surface link and channel key,
+// defined by the tiles (see lit_prop). Flow existence cites the literal, so a nogood says "no link" in one item.
+int NT = 0;
+vector<int> key_lit, lit_key;                          // key -> literal cell or -1; literal cell - N -> key
 vector<vector<int>> var_rows, cell_keys, cell_rows;   // rows of a variable, keys and enforced rows of a cell
 bool lcg_all = true;                                   // next lcg_prop visits every row and key
 static vector<double> lcg_x;                           // lcg_lp's last point (per variable)
@@ -1260,6 +1264,68 @@ static bool key_possible(const FKey& k, Pairs* why) {
     }
     return false;
 }
+// Definition of key k's literal c. A surface link (p, d) is present iff p pushes d and q = p + d accepts d. A channel
+// (p, d) is present iff some I d at r_n = p - n d (0 <= n < REACH) has an O d at q_m = p + m d (m >= 1, n + m <= REACH),
+// which is what key_possible reads. Both ways: the tiles fix c, and a fixed c narrows the tiles.
+static bool lit_prop(int k, bool& changed) {
+    const Mask F = BIT(0), T = BIT(1);
+    int c = key_lit[k], p = fkeys[k].p, d = fkeys[k].d;
+    Pairs why;
+    if (!key_possible(fkeys[k], &why)) return setdom(c, dom[c] & F, changed, &why);
+    if (fkeys[k].kind == 0) {
+        int q = nb(p, d);
+        bool cp = !(dom[p] & ~PUSH[d]), cq = !(dom[q] & ~ACC[d]);
+        if (cp && cq) { why = {{p, ALL & ~PUSH[d]}, {q, ALL & ~ACC[d]}}; return setdom(c, dom[c] & T, changed, &why); }
+        if (dom[c] == T) { why = {{c, F}}; return setdom(p, dom[p] & PUSH[d], changed, &why) && setdom(q, dom[q] & ACC[d], changed, &why); }
+        if (dom[c] == F && cp) { why = {{c, T}, {p, ALL & ~PUSH[d]}}; return setdom(q, dom[q] & ~ACC[d], changed, &why); }
+        if (dom[c] == F && cq) { why = {{c, T}, {q, ALL & ~ACC[d]}}; return setdom(p, dom[p] & ~PUSH[d], changed, &why); }
+        return true;
+    }
+    Mask bi = BIT(VAL(KI, d)), bo = BIT(VAL(KO, d));
+    int r[REACH], q[REACH], nr = 0, nq = 0;
+    while (nr < REACH && nbn(p, OPP(d), nr) >= 0) { r[nr] = nbn(p, OPP(d), nr); nr++; }
+    while (nq < REACH && nbn(p, d, nq + 1) >= 0) { q[nq] = nbn(p, d, nq + 1); nq++; }
+    auto span = [&](int n) { return min(nq, REACH - n); };              // q_m partners of r_n: m = 1 .. span(n)
+    if (dom[c] == F) {                                                   // absent: a certain end rules out the other
+        for (int n = 0; n < nr; n++) {
+            if (dom[r[n]] != bi) continue;
+            why = {{c, T}, {r[n], ALL & ~bi}};
+            for (int m = 1; m <= span(n); m++) if (!setdom(q[m - 1], dom[q[m - 1]] & ~bo, changed, &why)) return false;
+        }
+        for (int m = 1; m <= nq; m++) {
+            if (dom[q[m - 1]] != bo) continue;
+            why = {{c, T}, {q[m - 1], ALL & ~bo}};
+            for (int n = 0; n < nr && n + m <= REACH; n++) if (!setdom(r[n], dom[r[n]] & ~bi, changed, &why)) return false;
+        }
+    }
+    if (dom[c] == T) {                                                   // present: a single possible end must hold
+        auto partner = [&](int n) { for (int m = 1; m <= span(n); m++) if (dom[q[m - 1]] & bo) return true; return false; };
+        int cnt = 0, only = -1;
+        for (int n = 0; n < nr; n++) if ((dom[r[n]] & bi) && partner(n)) cnt++, only = n;
+        if (cnt == 1 && dom[r[only]] != bi) {
+            why = {{c, F}};
+            for (int n = 0; n < nr; n++) {
+                if (n == only) continue;
+                if (!(dom[r[n]] & bi)) why.push_back({r[n], bi});
+                else for (int m = 1; m <= span(n); m++) why.push_back({q[m - 1], bo});
+            }
+            if (!setdom(r[only], dom[r[only]] & bi, changed, &why)) return false;
+        }
+        auto rpartner = [&](int m) { for (int n = 0; n < nr && n + m <= REACH; n++) if (dom[r[n]] & bi) return true; return false; };
+        cnt = 0; only = -1;
+        for (int m = 1; m <= nq; m++) if ((dom[q[m - 1]] & bo) && rpartner(m)) cnt++, only = m;
+        if (cnt == 1 && dom[q[only - 1]] != bo) {
+            why = {{c, F}};
+            for (int m = 1; m <= nq; m++) {
+                if (m == only) continue;
+                if (!(dom[q[m - 1]] & bo)) why.push_back({q[m - 1], bo});
+                else for (int n = 0; n < nr && n + m <= REACH; n++) why.push_back({r[n], bi});
+            }
+            if (!setdom(q[only - 1], dom[q[only - 1]] & bo, changed, &why)) return false;
+        }
+    }
+    return true;
+}
 // build on the current (root) domains; false if a row is already infeasible
 static bool lcg_build() {
     fkeys.clear(); frows.clear();
@@ -1279,6 +1345,10 @@ static bool lcg_build() {
             if ((dom[p] & BIT(VAL(KO, d))) && r >= 0 && uk[r][d] >= 0) { xk[p][d] = fkeys.size(); fkeys.push_back({2, p, d}); }
         }
     int K = fkeys.size(), NV = K * NC;
+    key_lit.assign(K, -1); lit_key.clear(); NT = N;
+    for (int k = 0; k < K; k++)
+        if ((fkeys[k].kind == 0 || fkeys[k].kind == 3) && NT < MAXN) { key_lit[k] = NT; lit_key.push_back(k); dom[NT++] = BIT(0) | BIT(1); }
+    memset(ev_lvl + N * 17, 0, sizeof(int) * (NT - N) * 17);
     for (int s = 0; s < 2; s++) { fb[s].assign(NV, s == 0 ? D : 0); fhist[s].assign(NV, {}); }
     ng_rewatch = true;
     bevs.clear();
@@ -1382,16 +1452,28 @@ static bool lcg_prop(bool& changed) {
     while (true) {
         for (; lcg_qhead < trail.size(); lcg_qhead++) {
             int e = trail[lcg_qhead].first;
-            if (e >= 0) { for (int k : cell_keys[e]) pushk(k); for (int r : cell_rows[e]) pushr(r); }
+            if (e >= N) pushk(lit_key[e - N]);
+            else if (e >= 0) { for (int k : cell_keys[e]) pushk(k); for (int r : cell_rows[e]) pushr(r); }
             else { int j = -1 - e; for (int r : var_rows[j]) pushr(r); pushk(j / NC); }
         }
         if (!kq.empty()) {
             int k = kq.back(); kq.pop_back(); kin[k] = 0;
             auto& fk = fkeys[k];
+            int lit = key_lit[k];
+            if (lit >= 0 && !lit_prop(k, changed)) return fail();
             bool live = false;
             for (int c = 0; c < NC; c++) if (fb[0][k * NC + c] > 0) live = true;
             why.clear();
-            if (live && !key_possible(fk, &why)) {                     // existence: an impossible key carries nothing
+            if (lit >= 0 && live && !(dom[lit] & BIT(1))) {           // existence through the literal: one item
+                why.push_back({lit, BIT(1)});
+                for (int c = 0; c < NC; c++) if (!setb(k * NC + c, 0, 0, why)) return fail();
+                changed = true;
+            } else if (lit >= 0) {
+                if (!live && fk.kind == 0 && (dom[lit] & BIT(1))) {   // a link that carries nothing is absent
+                    for (int c = 0; c < NC; c++) why.push_back({aenc(k * NC + c, 0), 0});
+                    if (!setdom(lit, dom[lit] & BIT(0), changed, &why)) return fail();
+                }
+            } else if (live && !key_possible(fk, &why)) {              // existence: an impossible key carries nothing
                 for (int c = 0; c < NC; c++) if (!setb(k * NC + c, 0, 0, why)) return fail();
                 changed = true;
             } else if (!live && fk.kind != 3 && key_possible(fk, nullptr)) {   // a key that carries nothing cannot exist
@@ -1558,7 +1640,7 @@ static bool local_fix() {
         if (lf_all) { for (int p = 0; p < N; p++) add(p); lf_all = false; lf_qhead = trail.size(); }
         for (; lf_qhead < trail.size(); lf_qhead++) {
             int q = trail[lf_qhead].first;
-            if (q < 0) continue;
+            if (q < 0 || q >= N) continue;
             for (int d = 0; d < 4; d++) for (int n = 1; n <= REACH; n++) { int r = nbn(q, d, n); if (r < 0) break; add(r); }
         }
         for (int p : todo) mark[p] = 0;
@@ -1830,10 +1912,10 @@ static inline int item_state(const pair<int, Mask>& it) {
 // As a reason: a holding cell item says "the values outside M were removed"; a bound item is its own reason.
 static inline pair<int, Mask> item_reason(const pair<int, Mask>& it) { return it.first >= 0 ? make_pair(it.first, ALL & ~it.second) : it; }
 // Two watched items per nogood, on items that do not hold (or, failing that, hold since the latest level); a nogood
-// is looked at only when the cell or bound variable of a watched item changes. Watch keys: cell p, or N + j.
+// is looked at only when the cell or bound variable of a watched item changes. Watch keys: cell p, or NT + j.
 vector<vector<int>> ng_watch;
 size_t ng_watched = 0;
-static inline int item_key(const pair<int, Mask>& it) { return it.first >= 0 ? it.first : N + ((-1 - it.first) >> 1); }
+static inline int item_key(const pair<int, Mask>& it) { return it.first >= 0 ? it.first : NT + ((-1 - it.first) >> 1); }
 static int hold_level(const pair<int, Mask>& it) {
     if (it.first >= 0) {
         int l = 0;
@@ -1895,16 +1977,16 @@ static void ng_erase(const vector<char>& drop) {
 }
 static bool nogood_prop(bool& changed) {
     if (ng_rewatch || ng_watched > nogoods.size()) {
-        ng_watch.assign(N + fb[0].size(), {});
+        ng_watch.assign(NT + fb[0].size(), {});
         ng_watched = 0; ng_rewatch = false;
     }
-    if ((int)ng_watch.size() < N + (int)fb[0].size()) ng_watch.resize(N + fb[0].size());
+    if ((int)ng_watch.size() < NT + (int)fb[0].size()) ng_watch.resize(NT + fb[0].size());
     for (; ng_watched < nogoods.size(); ng_watched++) {
         ng_attach(ng_watched);
         if (!ng_check(nogoods[ng_watched], changed)) return false;
     }
     while (ng_qhead < trail.size()) {
-        int e = trail[ng_qhead++].first, key = e >= 0 ? e : N + (-1 - e);      // a bound entry holds -1 - j
+        int e = trail[ng_qhead++].first, key = e >= 0 ? e : NT + (-1 - e);      // a bound entry holds -1 - j
         auto& wl = ng_watch[key];
         for (size_t x = 0; x < wl.size();) {
             int i = wl[x];
@@ -2339,7 +2421,7 @@ static int cdcl_solve() {
             ng_lbd.push_back(lbd);
             nogoods.push_back(items);
             learned_cdcl++; learned_cdcl_len += items.size();
-            for (auto& it : items) wdeg[it.first >= 0 ? it.first : fkeys[((-1 - it.first) >> 1) / NC].p] += bump;
+            for (auto& it : items) wdeg[it.first >= N ? fkeys[lit_key[it.first - N]].p : it.first >= 0 ? it.first : fkeys[((-1 - it.first) >> 1) / NC].p] += bump;
             bump *= cbump;
             if (bump > 1e100) { for (int q = 0; q < N; q++) wdeg[q] *= 1e-100; bump *= 1e-100; }
             if (since > limit && curlvl > 0) {        // restart: back to the root, keep every nogood
@@ -2446,7 +2528,7 @@ int main(int argc, char** argv) {
     string txt = ss.str();
     JParser jp(txt);
     JV spec = jp.parse();
-    W = spec["W"].i(); H = spec["H"].i(); N = W * H;
+    W = spec["W"].i(); H = spec["H"].i(); N = W * H; NT = N;
     D = spec["D"].i(); NC = spec.has("ncom") ? spec["ncom"].i() : 1;
     if (N > MAXN || NC > MAXC) { fprintf(stderr, "too large\n"); return 2; }
     if (spec.has("ports")) for (auto& a : spec["ports"].arr) fixedPorts.push_back(read_port(a));
