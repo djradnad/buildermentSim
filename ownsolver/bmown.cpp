@@ -1872,16 +1872,26 @@ static void ng_attach(int i) {
         ng_watch[item_key(ng[w])].push_back(i);
     }
 }
-// erase nogoods [a, b) and keep the other watches as they are (re-attaching mid-search could break the invariant)
-static void ng_erase(size_t a, size_t b) {
-    nogoods.erase(nogoods.begin() + a, nogoods.begin() + b);
-    int sh = b - a;
-    for (auto& wl : ng_watch) {
-        size_t w = 0;
-        for (int i : wl) if (i < (int)a) wl[w++] = i; else if (i >= (int)b) wl[w++] = i - sh;
-        wl.resize(w);
+// erase the nogoods marked in drop and keep the other watches as they are (re-attaching mid-search could break the
+// watch invariant); ng_lbd follows the same remap
+static vector<int> ng_lbd;                             // per nogood: distinct decision levels when learned (0: keep)
+static void ng_erase(const vector<char>& drop) {
+    vector<int> to(nogoods.size(), -1);
+    size_t w = 0, watched = 0;
+    ng_lbd.resize(nogoods.size(), 0);
+    for (size_t i = 0; i < nogoods.size(); i++) {
+        if (drop[i]) continue;
+        if (i < ng_watched) watched++;
+        if (w != i) { nogoods[w] = move(nogoods[i]); ng_lbd[w] = ng_lbd[i]; }
+        to[i] = w++;
     }
-    ng_watched = ng_watched >= b ? ng_watched - sh : min(ng_watched, a);
+    nogoods.resize(w); ng_lbd.resize(w);
+    for (auto& wl : ng_watch) {
+        size_t k = 0;
+        for (int i : wl) if (to[i] >= 0) wl[k++] = to[i];
+        wl.resize(k);
+    }
+    ng_watched = watched;
 }
 static bool nogood_prop(bool& changed) {
     if (ng_rewatch || ng_watched > nogoods.size()) {
@@ -2275,6 +2285,7 @@ static int cdcl_solve() {
     have_root = true;
     double bump = 1;
     perm_nogoods = nogoods.size();
+    long long db_limit = cdcl_db;
     long long k = 0, since = 0, limit = use_restarts ? base_fails * luby(k++) : (1LL << 62);
     while (true) {
         nodes++;
@@ -2309,11 +2320,23 @@ static int cdcl_solve() {
             if (curlvl == 0) { R_ON = false; return 0; }
             vector<pair<int, Mask>> items; int bj;
             analyze(items, bj);
+            vector<int> ls;                                              // LBD: distinct levels, before the backjump
+            for (auto& it : items) ls.push_back(hold_level(it));
+            sort(ls.begin(), ls.end());
+            int lbd = unique(ls.begin(), ls.end()) - ls.begin();
             undo(lvl_mark[bj]); decs.resize(bj); lvl_mark.resize(bj); curlvl = bj;
-            if ((long long)(nogoods.size() - perm_nogoods) >= cdcl_db) {   // forget the older half (sound: only weaker)
-                size_t keep_from = perm_nogoods + (nogoods.size() - perm_nogoods) / 2;
-                ng_erase(perm_nogoods, keep_from);
+            if ((long long)(nogoods.size() - perm_nogoods) >= db_limit) {  // forget half (sound: only weaker)
+                vector<size_t> ix;                                       // glue (lbd <= 2) stays; worst lbd, then oldest, go
+                ng_lbd.resize(nogoods.size(), 0);
+                for (size_t i = perm_nogoods; i < nogoods.size(); i++) if (ng_lbd[i] > 2) ix.push_back(i);
+                stable_sort(ix.begin(), ix.end(), [](size_t x, size_t y) { return ng_lbd[x] > ng_lbd[y]; });
+                vector<char> drop(nogoods.size(), 0);
+                for (size_t t = 0; t < ix.size() && t < (nogoods.size() - perm_nogoods) / 2; t++) drop[ix[t]] = 1;
+                ng_erase(drop);
+                db_limit += cdcl_db / 4;                                 // grow, so a glue-heavy DB is not sorted every conflict
             }
+            ng_lbd.resize(nogoods.size(), 0);
+            ng_lbd.push_back(lbd);
             nogoods.push_back(items);
             learned_cdcl++; learned_cdcl_len += items.size();
             for (auto& it : items) wdeg[it.first >= 0 ? it.first : fkeys[((-1 - it.first) >> 1) / NC].p] += bump;
@@ -2442,7 +2465,7 @@ int main(int argc, char** argv) {
         vector<Port> ports = fixedPorts;
         for (size_t g = 0; g < portGroups.size(); g++) for (auto& pt : portGroups[g][sel[g]]) ports.push_back(pt);
         if (setup_ports(ports) && init_domains()) {
-            nogoods.clear(); ng_rewatch = true;
+            nogoods.clear(); ng_lbd.clear(); ng_rewatch = true;
             have_root = false; probed_root = false;
             int r = 0;
             long long k = 0;
