@@ -281,7 +281,8 @@ static void explain_unsupported(int p, int v, Pairs& out) {
 
 // ------------------------------------------------------------------ unit rules on forced tiles
 static bool unit_rules(bool& changed) {
-    Pairs why;
+    static Pairs why;                                                   // reason buffers are reused (no allocation)
+    why.clear();
     for (int p = 0; p < N; p++) {
         if (!single(dom[p]) || dom[p] == BIT_E) continue;
         int v = only(dom[p]), k = KIND(v), o = DIRV(v);
@@ -461,14 +462,15 @@ static void cut_bwd(const vector<char>& S, Pairs& out) {
     }
 }
 static bool reach(bool& changed) {
-    vector<int> st;
+    static vector<int> st;
+    static vector<char> f, b;
+    static Pairs whyf, whyb;
+    st.clear(); whyf.clear(); whyb.clear();
     for (auto& pt : ins) if (pt.live) st.push_back(pt.cell);
-    vector<char> f, b;
     bfs_fwd(st, f);
     st.clear();
     for (auto& pt : outs) st.push_back(pt.cell);
     bfs_bwd(st, b);
-    Pairs whyf, whyb;
     bool hf = false, hb = false;
     for (int p = 0; p < N; p++) {
         if (f[p] && b[p]) continue;
@@ -1270,8 +1272,9 @@ static bool key_possible(const FKey& k, Pairs* why) {
 static bool lit_prop(int k, bool& changed) {
     const Mask F = BIT(0), T = BIT(1);
     int c = key_lit[k], p = fkeys[k].p, d = fkeys[k].d;
-    Pairs why;
-    if (!key_possible(fkeys[k], &why)) return setdom(c, dom[c] & F, changed, &why);
+    static Pairs why;
+    why.clear();
+    if ((dom[c] & T) && !key_possible(fkeys[k], &why)) return setdom(c, dom[c] & F, changed, &why);   // reason only if new
     if (fkeys[k].kind == 0) {
         int q = nb(p, d);
         bool cp = !(dom[p] & ~PUSH[d]), cq = !(dom[q] & ~ACC[d]);
@@ -1654,7 +1657,8 @@ static bool local_fix() {
             if (!R_ON) { if (!setdom(p, nm, changed)) return false; continue; }
             for (Mask r = m & ~nm; r; r &= r - 1) {       // one removal per value, each with its own reason
                 int v = __builtin_ctz(r);
-                Pairs why;
+                static Pairs why;
+                why.clear();
                 explain_unsupported(p, v, why);
                 if (!setdom(p, dom[p] & ~BIT(v), changed, &why)) return false;
             }
@@ -1937,7 +1941,8 @@ static bool ng_check(const vector<pair<int, Mask>>& ng, bool& changed) {
         if (st == 2) { nund++; und = i; if (nund > 1) return true; }
     }
     if (nund == 1 && ng[und].first < 0) return true;                   // bound atoms are never asserted (see aenc)
-    Pairs why;
+    static Pairs why;
+    why.clear();
     if (R_ON) for (size_t i = 0; i < ng.size(); i++) if ((int)i != und) why.push_back(item_reason(ng[i]));
     if (nund == 0) {
         if (R_ON) { CR_dec = false; CRp = why; }
